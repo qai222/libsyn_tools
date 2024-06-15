@@ -1,0 +1,8 @@
+networkx
+loguru
+pydantic
+pysmiles
+dash-bootstrap-components
+dash
+dash_cytoscape
+periodictable
