@@ -1,22 +1,19 @@
 from __future__ import annotations
 
 from loguru import logger
-from pydantic import BaseModel, Field
 
-from libsyn_tools.utils import str_uuid, UNKNOWN, get_provenance_model, StateOfMatter, estimate_property_dummy
+from libsyn_tools.utils import UNDEFINED, get_provenance_model, StateOfMatter, estimate_property_dummy
+from .base import Entity
 
 
-class ChemicalBase(BaseModel):
+class ChemicalBase(Entity):
     """
     http://purl.allotrope.org/ontologies/material#AFM_0001097
     A chemical substance is a portion of material that is matter of constant composition best characterized
     by the entities (molecules, formula units, atoms) it is composed of. [IUPAC]
     """
 
-    identifier: str = Field(default_factory=str_uuid)
-    """ a unique identifier for this chemical """
-
-    smiles: str = UNKNOWN
+    smiles: str = UNDEFINED
     """ the SMILES representation for this chemical """
 
     state_of_matter: StateOfMatter = StateOfMatter.UNKNOWN
@@ -31,7 +28,7 @@ class ChemicalBase(BaseModel):
     quantity_value: float = 0
     """ the value of the associated quantity, 0 if unknown """
 
-    quantity_unit: str = UNKNOWN
+    quantity_unit: str = UNDEFINED
     """ the unit of the associated quantity """
 
 
@@ -47,10 +44,10 @@ class Chemical(Chemical_):
         """
         :return: if the chemical has an associated quantity
         """
-        return self.quantity_value > 0 and self.quantity_unit != UNKNOWN
+        return self.quantity_value > 0 and self.quantity_unit != UNDEFINED
 
     @classmethod
-    def make_up_from_smiles(cls, smiles: str, quantity_unit: str = UNKNOWN, qunatity_value: float = 0):
+    def make_up_from_smiles(cls, smiles: str, quantity_unit: str = UNDEFINED, qunatity_value: float = 0):
         """
         make up a chemical based on a SMILES
 
@@ -74,4 +71,4 @@ class Chemical(Chemical_):
 
 
 Chemical: type[ChemicalBase]
-# a hack to add provenance, still couldn't find a way to type hint without explicitly type down the provenance fields
+# a hack to add provenance, still couldn't find a way to type hint without explicitly typing down the provenance fields
