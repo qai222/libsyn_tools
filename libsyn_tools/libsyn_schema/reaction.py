@@ -21,7 +21,7 @@ class ChemicalReactionSpecificationLevel(str, Enum):
         - reaction time
         - expected yields
         - reaction extent (the actual consumption/production of chemicals),
-            for a product its production is expected_yield * reaction_extent
+            for a product its production is expected_yield * reaction_extent * stoichiometry coefficient
 
     depends on the level of specification of chemical reactions, the reaction network can be quantified or unquantified.
 
