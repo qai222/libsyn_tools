@@ -4,6 +4,7 @@ from loguru import logger
 
 from libsyn_tools.utils import get_provenance_model, StateOfMatter, estimate_property_dummy, FilePath, \
     parse_chemscraper_output
+from typing import Any
 from .base import Entity
 
 
@@ -28,6 +29,12 @@ class ChemicalBase(Entity):
 
     mass: float | None = None
     """ mass of this chemical in g """
+
+    is_produced_by: list[str] | None = None
+    """ object property to reaction """
+
+    is_consumed_by: list[str] | None = None
+    """ object property to reaction """
 
     def __repr__(self):
         return (f"{self.__class__.__name__}: ({self.identifier})\n"
