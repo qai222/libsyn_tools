@@ -6,3 +6,4 @@ dash-bootstrap-components
 dash
 dash_cytoscape
 periodictable
+pytest
