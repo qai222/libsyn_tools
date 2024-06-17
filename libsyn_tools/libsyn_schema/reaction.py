@@ -55,7 +55,7 @@ class ChemicalReaction(Entity):
     """ in C """
 
     intended_ratios: dict[str, float] | None = None
-    """ the intended molar ratios for all reactants + reagents involved in the reaction, similar to 'equivalence'
+    """ the intended molar ratios for all reactants + reagents involved in the reaction. similar to 'equivalence' or 
     the keys are `chemical.identifier` -- they can be different from stoichiometry as excess amounts can be used """
 
     expected_yields: dict[str, float] | None = None
@@ -64,7 +64,7 @@ class ChemicalReaction(Entity):
     reaction_extent: float | None = None
     """ the reaction extent factor, the production/consumption of a chemical is calculated by 
     stoichiometry * reaction_extent * (1 if reactant, -1 * expected_yield if product) 
-    reagents will always be fully consumed """
+    reagents will always be fully consumed. this concept is similar to 'batch size'. """
 
     def model_post_init(self, __context: Any) -> None:
         # warn about multi-product reactions
@@ -83,6 +83,14 @@ class ChemicalReaction(Entity):
             for p in self.products:
                 if p.identifier not in self.expected_yields:
                     logger.critical("no yield specified for: {p}")
+
+        # set object properties
+        for c in self.products:
+            assert c.is_produced_by is None and c.is_consumed_by is None
+            c.is_produced_by = [self.identifier]
+        for c in self.reactants + self.reagents:
+            assert c.is_produced_by is None and c.is_consumed_by is None
+            c.is_consumed_by = [self.identifier]
 
     @property
     def is_uniproduct(self) -> bool:
@@ -193,8 +201,8 @@ class ChemicalReaction(Entity):
         this assumes smiles are unique (this is not a very robust assumption) """
         return {c.smiles: c for c in self.reactants + self.products + self.reagents}
 
-    def quantify(self, product_smiles: str, product_mass: float, intended_ratios: dict[str, float],
-                 expected_yield: float) -> None:
+    def quantify(self, product_smiles: str, product_mass: float, intended_ratios: dict[str, float] | None,
+                 expected_yield: float | None) -> None:
         """
         quantify a uni-product transformation
 
@@ -206,16 +214,23 @@ class ChemicalReaction(Entity):
         """
         assert self.is_uniproduct, \
             "cannot quantify multi-product reaction"
-        assert self.specification_level == ChemicalReactionSpecificationLevel.TRANSFORMATION, \
-            "can only quantify transformation level"
         assert len(set(self.smiles2chemical.values())) == len(self.smiles2chemical), \
             "cannot quantify a reaction with non-unique molecular smiles"
 
         # add specifications
         product = self.smiles2chemical[product_smiles]
         product.mass = product_mass
-        self.expected_yields = {product.identifier: expected_yield}
-        self.intended_ratios = {self.smiles2chemical[smi].identifier: val for smi, val in intended_ratios.items()}
+
+        if expected_yield is None:
+            assert self.expected_yields is not None
+            expected_yield = self.expected_yields[self.products[0].identifier]
+        else:
+            self.expected_yields = {product.identifier: expected_yield}
+
+        if intended_ratios is None:
+            assert self.intended_ratios is not None
+        else:
+            self.intended_ratios = {self.smiles2chemical[smi].identifier: val for smi, val in intended_ratios.items()}
 
         # calculate reaction extent.
         # reaction extent = moles / (the stoichiometry coefficient of the product * its expected yield)
