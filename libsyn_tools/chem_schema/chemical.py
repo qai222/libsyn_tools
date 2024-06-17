@@ -4,7 +4,6 @@ from loguru import logger
 
 from libsyn_tools.utils import get_provenance_model, StateOfMatter, estimate_property_dummy, FilePath, \
     parse_chemscraper_output
-from typing import Any
 from .base import Entity
 
 
