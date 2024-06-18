@@ -86,10 +86,10 @@ class ChemicalReaction(Entity):
 
         # set object properties
         for c in self.products:
-            assert c.is_produced_by is None and c.is_consumed_by is None
+            assert not c.is_produced_by and not c.is_consumed_by
             c.is_produced_by = [self.identifier]
         for c in self.reactants + self.reagents:
-            assert c.is_produced_by is None and c.is_consumed_by is None
+            assert not c.is_produced_by and not c.is_consumed_by
             c.is_consumed_by = [self.identifier]
 
     @property
@@ -145,7 +145,7 @@ class ChemicalReaction(Entity):
         identifier2smiles = dict()  # within one reaction this should be bijective
         r_smiles1, r_smiles2, r_smiles3 = reaction_smiles.split(">")
 
-        # reactants and reagents
+        # reactants
         reactants = []
         for smi in r_smiles1.split('.'):
             chemical = Chemical.from_smiles(smi, scraper_output)
@@ -189,10 +189,14 @@ class ChemicalReaction(Entity):
             intended_molar_ratios = None
             temperature = None
             reagents = []
-            for smi in r_smiles2.split('.'):
-                chemical = Chemical.from_smiles(smi, scraper_output)
-                reagents.append(chemical)
-        return cls(reactants=reactants, products=products, stoichiometry=stoichiometry,
+            if r_smiles2:
+                for smi in r_smiles2.split('.'):
+                    chemical = Chemical.from_smiles(smi, scraper_output)
+                    reagents.append(chemical)
+            else:
+                logger.warning(f"no reagents found in the SMILES of: {reaction_smiles}")
+
+        return cls(reactants=reactants, products=products, reagents=reagents, stoichiometry=stoichiometry,
                    intended_ratios=intended_molar_ratios, temperature=temperature, )
 
     @property
@@ -205,6 +209,7 @@ class ChemicalReaction(Entity):
                  expected_yield: float | None) -> None:
         """
         quantify a uni-product transformation
+        (technically the 'uni-product' here can be relaxed to 'of only one desired product')
 
         :param intended_ratios: keyed by molecular SMILES
         :param expected_yield: expected yield for this product
@@ -214,12 +219,13 @@ class ChemicalReaction(Entity):
         """
         assert self.is_uniproduct, \
             "cannot quantify multi-product reaction"
-        assert len(set(self.smiles2chemical.values())) == len(self.smiles2chemical), \
+        assert len(set(self.smiles2chemical.keys())) == len(self.smiles2chemical), \
             "cannot quantify a reaction with non-unique molecular smiles"
 
         # add specifications
         product = self.smiles2chemical[product_smiles]
         product.mass = product_mass
+        logger.warning(product)
 
         if expected_yield is None:
             assert self.expected_yields is not None
@@ -239,7 +245,8 @@ class ChemicalReaction(Entity):
 
         # set quantities
         self.reset_chemical_quantities(chemical_identifier=None)
-        for rid, ratio in self.intended_ratios.keys():  # reagents and reactants
+        product.mass = product_mass  # redo this as the last line resets product mass
+        for rid, ratio in self.intended_ratios.items():  # reagents and reactants
             self.chemical_dictionary[rid].quantify_by_moles(ratio * self.reaction_extent)
 
     @property

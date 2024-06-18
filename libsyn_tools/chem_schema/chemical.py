@@ -29,10 +29,10 @@ class ChemicalBase(Entity):
     mass: float | None = None
     """ mass of this chemical in g """
 
-    is_produced_by: list[str] | None = None
+    is_produced_by: list[str] = []
     """ object property to reaction """
 
-    is_consumed_by: list[str] | None = None
+    is_consumed_by: list[str] = []
     """ object property to reaction """
 
     def __repr__(self):
@@ -78,7 +78,7 @@ class Chemical(Chemical_):
         :param quantity_value: the value of the associated quantity
         :return: a Chemical instance
         """
-        logger.warning(f"making up a chemical based on: {smiles}")
+        logger.info(f"making up a chemical based on: {smiles}")
         properties = estimate_property_dummy(smiles)
         return cls(
             smiles=smiles,

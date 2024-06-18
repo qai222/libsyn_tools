@@ -8,6 +8,7 @@ import networkx as nx
 from .base import Entity
 from .chemical import Chemical
 from .reaction import ChemicalReaction
+from ..utils import is_uuid, calculate_mw
 
 
 class ReactionNetwork(Entity):
@@ -38,8 +39,22 @@ class ReactionNetwork(Entity):
         for cr in self.chemical_reactions:
             g.add_node(cr.identifier)
         for u, v in self.edges:
+            assert u in g.nodes and v in g.nodes
             g.add_edge(u, v)
         return g
+
+    @property
+    def target_smiles(self) -> list[str]:
+        """
+        a list of target SMILES, obtained from the directed graph
+        """
+        smis = []
+        g = self.nx_digraph
+        for node in g.nodes:
+            if g.out_degree(node) == 0 and g.in_degree(node) >= 1:
+                assert not is_uuid(node)
+                smis.append(node)
+        return smis
 
     @functools.cached_property
     def entity_dictionary(self) -> dict[str, ChemicalReaction | Chemical]:
@@ -65,7 +80,7 @@ class ReactionNetwork(Entity):
         molecular_smiles = []
         edges = []
         for reaction in reactions:
-            for chemical in reaction.reactants:
+            for chemical in reaction.chemicals:
                 molecular_smiles.append(chemical.smiles)
                 assert len(chemical.is_consumed_by) + len(chemical.is_produced_by) == 1
                 if chemical.is_produced_by:
@@ -77,19 +92,40 @@ class ReactionNetwork(Entity):
         edges = sorted(set(edges))
         return cls(chemical_reactions=reactions, molecular_nodes=molecular_smiles, edges=edges)
 
+    def dummy_quantify(self, by_mass=False):
+        """
+        dummy case for quantifying a network
+
+        :return:
+        """
+        for cr in self.chemical_reactions:
+            cr.intended_ratios = {c.identifier: 1.0 for c in cr.reactants + cr.reagents}
+            cr.reaction_extent = 1.0
+            cr.expected_yields = {cr.products[0].identifier: 1.0}
+        self.quantify(
+            targets={smi: 1.0 for smi in self.target_smiles},
+            intended_ratios={cr.identifier: None for cr in self.chemical_reactions},
+            expected_yields={cr.identifier: None for cr in self.chemical_reactions},
+            by_mass=by_mass
+        )
+
     def quantify(self, targets: dict[str, float], intended_ratios: dict[str, dict[str, float] | None],
-                 expected_yields: dict[str, float | None]) -> None:
+                 expected_yields: dict[str, float | None], by_mass=True) -> None:
         """
         quantify the reactions in this network. all reactions have to be uni-product.
         (for multi-product reactions, one could simply modify the reaction SMILES if there is only one desired product.)
         for every molecular SMILES, there is at most one reaction has it as the product.
 
+        :param by_mass: if False quantify by moles
         :param expected_yields: the yield table for uni-product reactions, using reaction identifiers as the domain.
         :param intended_ratios: the intended ratios for uni-product reactions, using reaction identifiers as the domain
         :param targets: a map from molecular SMILES to its expected mass in grams, every one of these molecules can only
         be made from one reaction
         :return:
         """
+        if not by_mass:
+            targets = {k: calculate_mw(k) * v for k, v in targets.items()}  # convert moles to grams
+
         # lookup table for product -> reaction
         product_smi_to_reaction = dict()
         for cr in self.chemical_reactions:
