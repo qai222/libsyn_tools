@@ -7,3 +7,4 @@ dash
 dash_cytoscape
 periodictable
 pytest
+pytest-order

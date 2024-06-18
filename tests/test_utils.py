@@ -1,7 +1,9 @@
 import pytest
+
 from libsyn_tools.utils.io import parse_sparrow_routes, parse_chemscraper_output
 
 
+@pytest.mark.order(1)
 class TestIO:
 
     def test_parse_sparrow_routes(self):
