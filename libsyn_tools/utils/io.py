@@ -5,8 +5,6 @@ import random
 import re
 from typing import Union
 
-import loguru
-
 from .chem import StateOfMatter
 
 FilePath = Union[str, os.PathLike]

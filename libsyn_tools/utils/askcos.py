@@ -4,7 +4,7 @@ import json
 
 import requests
 
-ASKCOS_URL = None
+from .constants import ASKCOS_URL
 
 
 def query_askcos_condition_rec(reaction_smiles: str, return_query: bool = False) -> dict | tuple[dict, dict]:
