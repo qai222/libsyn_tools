@@ -225,7 +225,6 @@ class ChemicalReaction(Entity):
         # add specifications
         product = self.smiles2chemical[product_smiles]
         product.mass = product_mass
-        logger.warning(product)
 
         if expected_yield is None:
             assert self.expected_yields is not None
