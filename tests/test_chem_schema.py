@@ -51,7 +51,7 @@ class TestReactionNetwork:
                 assert isinstance(v, (ChemicalReaction, Chemical))
 
     def test_quantify(self, test_network1, test_network2):
-        for test_network in [test_network1]:
+        for test_network in [test_network1, test_network2]:
             test_network.dummy_quantify()
             for cr in test_network.chemical_reactions:
                 for c in cr.chemicals:
