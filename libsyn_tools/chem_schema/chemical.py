@@ -40,12 +40,18 @@ class ChemicalBase(Entity):
                 f"{self.smiles} @ {self.mass} (g)")
 
     @property
-    def volume(self) -> float:
-        return self.mass / self.density
+    def volume(self) -> float | None:
+        if self.mass is None:
+            return
+        else:
+            return self.mass / self.density
 
     @property
-    def moles(self):
-        return self.mass / self.molecular_weight
+    def moles(self) -> float | None:
+        if self.mass is None:
+            return
+        else:
+            return self.mass / self.molecular_weight
 
     def quantify_by_moles(self, moles: float) -> None:
         self.mass = self.molecular_weight * moles
