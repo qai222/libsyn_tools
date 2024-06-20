@@ -86,11 +86,11 @@ class ChemicalReaction(Entity):
 
         # set object properties
         for c in self.products:
-            assert not c.is_produced_by and not c.is_consumed_by
-            c.is_produced_by = [self.identifier]
+            if self.identifier not in c.is_produced_by:
+                c.is_produced_by.append(self.identifier)
         for c in self.reactants + self.reagents:
-            assert not c.is_produced_by and not c.is_consumed_by
-            c.is_consumed_by = [self.identifier]
+            if self.identifier not in c.is_consumed_by:
+                c.is_consumed_by.append(self.identifier)
 
     @property
     def is_uniproduct(self) -> bool:
