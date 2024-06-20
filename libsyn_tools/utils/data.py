@@ -36,7 +36,7 @@ def get_provenance_model(pydantic_model: type[BaseModel],
     provenance__<field_name>
     """
     old_model_keys = sorted(pydantic_model.model_fields.keys())
-    provenance_fields = {'provenance__' + k: (str, None) for k in old_model_keys if k not in exclude_fields}
+    provenance_fields = {'provenance__' + k: (Any, None) for k in old_model_keys if k not in exclude_fields}
 
     new_model = create_model(
         provenance_model_name, **provenance_fields,

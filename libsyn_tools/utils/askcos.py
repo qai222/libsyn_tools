@@ -21,3 +21,10 @@ def query_askcos_condition_rec(reaction_smiles: str, return_query: bool = False)
         return response, q
     else:
         return response
+
+
+def drawing_url(smiles: str, size=80) -> str:
+    smiles = smiles.replace("+", "%2b")
+    q = f"/api/draw/?smiles={smiles}&transparent=true&annotate=false&size={size}"
+    q = ASKCOS_URL + q
+    return q
