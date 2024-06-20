@@ -8,7 +8,7 @@ import networkx as nx
 from .base import Entity
 from .chemical import Chemical
 from .reaction import ChemicalReaction
-from ..utils import is_uuid, calculate_mw
+from ..utils import is_uuid, calculate_mw, CytoEdge, CytoEdgeData, CytoNodeData, CytoNode, drawing_url
 
 
 class ReactionNetwork(Entity):
@@ -161,3 +161,55 @@ class ReactionNetwork(Entity):
             )
             for chemical in reaction.reagents + reaction.reactants:
                 required_product_quantities[chemical.smiles] = chemical.mass
+
+    def to_cytoscape_elements(self, fig_size=80) -> list[CytoEdge | CytoNode]:
+        """
+        convert to cytoscape elements where nodes are SMILES and edges are production/consumption
+        """
+        nodes = []
+        edges = []
+        g = self.nx_digraph
+
+        # add molecular SMILES nodes
+        for molecular_smiles in self.molecular_nodes:
+            node_data = CytoNodeData(id=molecular_smiles, label=molecular_smiles, )
+            node_data['url'] = drawing_url(molecular_smiles, size=fig_size)
+            chemicals = self.molecular_smiles_table[molecular_smiles]
+            node_data['list_of_chemicals'] = [c.model_dump() for c in chemicals]
+            node = CytoNode(data=node_data, classes="RN__MolecularSMILES")
+            if g.in_degree(molecular_smiles) == 0 and g.out_degree(molecular_smiles) > 0:
+                node['classes'] += " RN__MolecularSMILES_starting_material"
+            elif g.in_degree(molecular_smiles) > 0 and g.out_degree(molecular_smiles) == 0:
+                node['classes'] += " RN__MolecularSMILES_targeting_material"
+            else:
+                node['classes'] += " RN__MolecularSMILES_intermediate_material"
+            nodes.append(node)
+
+        # add chemical reaction nodes
+        for cr in self.chemical_reactions:
+            node_data = CytoNodeData(id=cr.identifier, label=cr.reaction_smiles, )
+            node_data['url'] = drawing_url(cr.reaction_smiles, size=fig_size)
+            node_data['chemcail_reaction'] = cr.model_dump()
+            node = CytoNode(data=node_data, classes="RN__ChemicalReaction")
+            nodes.append(node)
+
+        for u, v in self.edges:
+            edge_data = CytoEdgeData(id=str((u, v)), source=u, target=v)
+            reaction_identifier, molecular_smiles, relation = (u, v, "production") if is_uuid(u) else (
+            v, u, "consumption")
+            reaction = self.entity_dictionary[reaction_identifier]
+            chemical_in_this_reaction = reaction.smiles2chemical[molecular_smiles]
+            edge_data['reaction_to_chemical_relation'] = relation
+            edge_data['chemical_in_this_reaction'] = chemical_in_this_reaction.model_dump()
+            edge = CytoEdge(data=edge_data, classes="RN__Edge")
+            edges.append(edge)
+        return nodes + edges
+
+    @property
+    def summary(self):
+        return {
+            "# reactions": len(self.chemical_reactions),
+            "# targets": len([n for n in self.molecular_nodes if self.nx_digraph.out_degree(n) == 0]),
+            "# molecular SMILES": len(self.molecular_smiles_table),
+            "# starting materials": len([n for n in self.molecular_nodes if self.nx_digraph.in_degree(n) == 0]),
+        }
