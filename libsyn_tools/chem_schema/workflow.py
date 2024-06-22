@@ -3,7 +3,7 @@ from __future__ import annotations
 import os.path
 
 from libsyn_tools.utils import *
-from .network import ReactionNetwork
+from .network_reaction import ReactionNetwork
 from .reaction import ChemicalReaction
 
 

@@ -37,6 +37,9 @@ class Operation(Entity):
     annotations: dict[str, Any]
     """ annotations for this operation """
 
+    precedents: list[str]
+    """ identifiers of the preceding operations """
+
     @property
     def can_be_processed_by(self) -> list[str]:
         """ the identifiers of the functional modules that can process this operation """
@@ -54,3 +57,6 @@ class FunctionalModule(Entity):
 
     hardware_units: list[str] = []
     """ the constituents of this functional module, only for annotation purposes for now """
+
+    fifo: bool = False
+    """ if first-in-first-out policy applies to this machine """
