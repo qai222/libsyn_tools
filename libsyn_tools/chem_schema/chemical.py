@@ -48,7 +48,7 @@ class ChemicalBase(Entity):
 
     @property
     def moles(self) -> float | None:
-        if self.mass is None:
+        if self.mass is None or self.molecular_weight is None:
             return
         else:
             return self.mass / self.molecular_weight
@@ -115,7 +115,7 @@ class Chemical(Chemical_):
         del d['identifier']
         sum_chemical = Chemical(**d)
         som = StateOfMatter.LIQUID if StateOfMatter.LIQUID in (
-        self.state_of_matter, other.state_of_matter) else StateOfMatter.SOLID
+            self.state_of_matter, other.state_of_matter) else StateOfMatter.SOLID
         sum_chemical.state_of_matter = som
         sum_chemical.mass = self.mass + other.mass
         sum_chemical.density = (self.mass + other.mass) / (self.volume + other.volume)
