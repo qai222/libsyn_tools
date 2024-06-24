@@ -1,16 +1,18 @@
 import math
 import random
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 import networkx as nx
 from loguru import logger
 from networkx.readwrite import json_graph
+from plotly.colors import DEFAULT_PLOTLY_COLORS, unlabel_rgb
 
 from .base import Entity
 from .chemical import StateOfMatter, Chemical
 from .network_reaction import ReactionNetwork
 from .operation import Operation, OperationType, FunctionalModule
 from .reaction import ChemicalReaction, ChemicalReactionSpecificationLevel
+from ..utils import CytoNode, CytoEdge, CytoEdgeData, CytoNodeData, drawing_url
 
 
 def _default_process_time(operation: Operation, multiplier: float = 1.0):
@@ -187,11 +189,12 @@ class OperationGraph(Entity):
                 og.make_solutions[solid.identifier] = (transfer_solid, transfer_liquid)
 
                 # solution addition to reaction vessel
+                mix = solvent_this_fold + solid
                 solution_addition = Operation(
                     type=OperationType.TransferLiquid,
                     from_reaction=reaction.identifier,
                     annotations={
-                        "chemical": solvent_this_fold.identifier + solid.identifier,
+                        "chemical": mix.model_dump(),
                         "notes": f"add solution {solid.smiles} in {solvent.smiles}"
                     },
                 )
@@ -323,6 +326,20 @@ class OperationNetwork(Entity):
             operations += [*og.operation_dictionary.values()]
         return operations
 
+    @property
+    def operations_by_reaction(self) -> dict[str, list[Operation]]:
+        d = defaultdict(list)
+        for o in self.operations:
+            d[o.from_reaction].append(o)
+        return d
+
+    @property
+    def operation_dictionary(self) -> dict[str, Operation]:
+        d = dict()
+        for og in self.operation_graphs:
+            d.update(og.operation_dictionary)
+        return d
+
     @classmethod
     def from_reaction_network(cls, reaction_network: ReactionNetwork):
 
@@ -358,3 +375,129 @@ class OperationNetwork(Entity):
                     g.add_edge(u, v, lmax=og.lmax[u][v])
         adj_data = json_graph.adjacency_data(g)
         return cls(operation_graphs=operation_graphs, adjacency_data=adj_data)
+
+    def to_cytoscape_elements(self, fig_size=80) -> list[CytoEdge | CytoNode]:
+        """
+        convert to cytoscape elements where nodes are operations and edges are precedence relations
+        """
+        nodes = []
+        edges = []
+        g = self.nx_digraph
+
+        for oid in g.nodes:
+            operation = self.operation_dictionary[oid]
+            node_data = CytoNodeData(id=oid, label=operation.type, )
+            if 'chemical' in operation.annotations:
+                c_data = operation.annotations['chemical']
+                c = Chemical(**c_data)
+                node_data['url'] = drawing_url(c.smiles, size=fig_size)
+            node_data['operation'] = operation.model_dump()
+            node = CytoNode(data=node_data, classes=f"ON__{operation.type.value}")
+            nodes.append(node)
+
+        for u, v, d in g.edges(data=True):
+            try:
+                lmin = d['lmin']
+            except KeyError:
+                lmin = math.inf
+            try:
+                lmax = d['lmax']
+            except KeyError:
+                lmax = math.inf
+
+            # TODO not sure why this can be None, it may come from reading the nx graph dump
+            if lmin is None:
+                lmin = math.inf
+            if lmax is None:
+                lmax = math.inf
+
+            edge_data = CytoEdgeData(id=str((u, v)), source=u, target=v)
+            edge_data['lmin'] = lmin
+            edge_data['lmax'] = lmax
+
+            if lmin < 1e-6 and lmax == math.inf:
+                cyto_class = "ON__bp_edge"  # binary precedence
+            elif lmin >= 1e-6 and lmax == math.inf:
+                cyto_class = "ON__lmin_edge"
+            elif lmin < 1e-6 and lmax < math.inf:
+                cyto_class = "ON__lmax_edge"
+            elif lmin >= 1e-6 and lmax < math.inf:
+                cyto_class = "ON__lmax_and_lmin_edge"
+            else:
+                raise ValueError(f"unexpected lmin and lmax: {lmin}, {lmax}")
+            edge = CytoEdge(data=edge_data, classes=cyto_class)
+            edges.append(edge)
+        return nodes + edges
+
+    @property
+    def summary(self):
+        d = {
+            "# reactions": len(self.operations_by_reaction),
+            "# operations": len(self.operations),
+        }
+        types = [o.type for o in self.operations]
+        counter = Counter(types)
+        for k in sorted(set(types)):
+            d[f'# type {k}'] = counter[k]
+        return d
+
+    @staticmethod
+    def get_cyto_stylesheet():
+        sheet = [
+            {
+                # global style for edges
+                'selector': 'edge',
+                'style': {
+                    'curve-style': 'unbundled-bezier',
+                    'taxi-direction': 'vertical',
+                    'target-arrow-shape': 'triangle',
+                    'target-arrow-color': 'black',
+                    "opacity": "0.9",
+                    "line-color": "black",
+                    # "width": "mapData(weight, 0, 1, 1, 8)",
+                    "overlay-padding": "3px"
+                }
+            },
+            {
+                'selector': ':selected',
+                'style': {
+                    'z-index': 1000,
+                    # 'background-color': 'SteelBlue',
+                    'border-opacity': "1.0",
+                    "border-color": "SteelBlue",
+                    'line-color': 'SteelBlue',
+                    "border-width": "8px",
+                }
+            },
+        ]
+
+        assert len(DEFAULT_PLOTLY_COLORS) >= len([*OperationType])
+        otypes = [o.value for o in OperationType]
+        for otype, color in zip(otypes, DEFAULT_PLOTLY_COLORS[: len(otypes)]):
+            rgb_tuple = (int(d) for d in unlabel_rgb(color))
+            hex_color = "#{0:02x}{1:02x}{2:02x}".format(*rgb_tuple)
+
+            if otype == OperationType.Purification.value:
+                style = {
+                    'selector': f'.ON__{otype}',
+                    'style': {
+                        "background-color": "white",
+                        'background-image': 'data(url)',
+                        'width': 180,
+                        'height': 100,
+                        'shape': 'circle',
+                        'background-fit': 'contain',
+                        "border-width": "6px",
+                        "border-color": hex_color,
+                        "border-opacity": "1.0",
+                    }
+                }
+            else:
+                style = {
+                    'selector': f'.ON__{otype}',
+                    'style': {
+                        "background-color": hex_color,
+                    }
+                }
+            sheet.append(style)
+        return sheet
