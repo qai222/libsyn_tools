@@ -222,17 +222,18 @@ class OperationGraph(Entity):
 
         og.heat = Operation(
             type=OperationType.Heating,
-            annotations={"notes": "heating the reaction vessel"}
+            annotations={"notes": f"heating the reaction vessel to afford product: {reaction.product_smiles}"}
         )
 
         og.purify = Operation(
             type=OperationType.Purification,
-            annotations={"chemical": reaction.products[0].model_dump(), "notes": "purify the product"}
+            annotations={"chemical": reaction.products[0].model_dump(),
+                         "notes": f"purify the product: {reaction.product_smiles}"}
         )
 
         og.concentrate = Operation(
             type=OperationType.Concentration,
-            annotations={"notes": "concentrate the raw product"}
+            annotations={"notes": f"concentrate the raw product: {reaction.product_smiles}"}
         )
 
         # add precedence relationships
