@@ -72,5 +72,5 @@ def create_dashapp(prefix="/") -> Dash:
 
 if __name__ == '__main__':
     APP = create_dashapp()
-    # APP.run(host="0.0.0.0", port=8070, debug=True)
-    APP.run(host="0.0.0.0", port=8070, debug=False)
+    APP.run(host="0.0.0.0", port=8070, debug=True)
+    # APP.run(host="0.0.0.0", port=8070, debug=False)
