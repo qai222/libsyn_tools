@@ -98,6 +98,33 @@ class Chemical(Chemical_):
             provenance__density='dummy estimator based on mw',
         )
 
+    def split(self, portions: list[float]) -> list[Chemical]:
+        if abs(sum(portions) - 1) < 1e-6:
+            logger.warning("non-unity splitting")
+        return [self * p for p in portions]
+
+    def __mul__(self, other: float) -> Chemical:
+        d = self.model_dump()
+        del d['identifier']
+        d['mass'] = self.mass * other
+        # TODO update provenance
+        return Chemical(**d)
+
+    def __add__(self, other: Chemical) -> Chemical:
+        d = self.model_dump()
+        del d['identifier']
+        sum_chemical = Chemical(**d)
+        som = StateOfMatter.LIQUID if StateOfMatter.LIQUID in (
+        self.state_of_matter, other.state_of_matter) else StateOfMatter.SOLID
+        sum_chemical.state_of_matter = som
+        sum_chemical.mass = self.mass + other.mass
+        sum_chemical.density = (self.mass + other.mass) / (self.volume + other.volume)
+        if self.smiles != other.smiles:
+            sum_chemical.smiles = self.smiles + "." + other.smiles
+            sum_chemical.molecular_weight = None  # TODO calculate average molecular weight
+        # TODO update provenance
+        return sum_chemical
+
     @classmethod
     def from_smiles(cls, smiles: str, scraper_output: FilePath = None, quantity_unit: str = None,
                     quantity_value: float = None):
