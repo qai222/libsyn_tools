@@ -40,14 +40,14 @@ card_reaction_network = get_card(
 )
 subpage_cards.append(card_reaction_network)
 
-# card_operation_graph = get_card(
-#     title="Operation Graph",
-#     text="Given a quantified reaction network, visualize the operations that realize the reactions.",
-#     link_text="Operation Graph",
-#     link_path="/operation_graph",
-#     width=20,
-# )
-# subpage_cards.append(card_operation_graph)
+card_operation_network = get_card(
+    title="Operation Network",
+    text="Given a quantified reaction network, visualize the operations that realize the reactions.",
+    link_text="Operation Network",
+    link_path="/operation_network",
+    width=20,
+)
+subpage_cards.append(card_operation_network)
 #
 # card_junior_simulator = get_card(
 #     title="Workstation Simulator",
