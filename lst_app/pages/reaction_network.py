@@ -1,21 +1,24 @@
 import glob
 import os
+
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from dash import html, get_app, Input, Output, no_update, dcc, State
 from dash import register_page
 
 from libsyn_tools.chem_schema import ReactionNetwork, Chemical, ChemicalReaction
-from libsyn_tools.utils import json_load, FilePath, CytoNode, CytoEdge, CytoEdgeData, CytoNodeData, is_uuid
+from libsyn_tools.utils import json_load, FilePath, CytoNodeData, is_uuid
 
 """
 reaction network page
 - visualize a selected reaction network
+
+# TODO
 - quantify the network based on user input
 - export/load reaction network, either quantified or unquantified
 """
 # page setup and constants
-register_page(__name__, path='/reaction_network', description="Reaction Network")
+register_page(__name__, path='/reaction_network', description="Reaction")
 app = get_app()
 cyto.load_extra_layouts()
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -34,6 +37,8 @@ component_selector_available_routes = dbc.Select(
 # local store for the network
 component_store_network_id = PAGE_ID_HEADER + "component_store_network"
 component_store_network = dcc.Store(id=component_store_network_id, storage_type="session")
+
+
 # TODO decide if we really need session storage
 
 
@@ -129,7 +134,6 @@ style_sheet_reaction_network = [
 
 ]
 
-
 # cytoscape canvas for the network
 component_cytoscape_id = PAGE_ID_HEADER + "component_cytoscape"
 component_cytoscape = cyto.Cytoscape(
@@ -149,7 +153,6 @@ component_cytoscape = cyto.Cytoscape(
 )
 
 
-
 # callback for visualize the network in cytoscape
 @app.callback(
     Output(component_cytoscape_id, 'elements'),
@@ -163,10 +166,10 @@ def visualize_reaction_network(network_data: dict):
     return elements
 
 
-
 # information panel
-component_information_panel_id = PAGE_ID_HEADER +  "component_information_panel"
+component_information_panel_id = PAGE_ID_HEADER + "component_information_panel"
 component_information_panel = html.Div(id=component_information_panel_id)
+
 
 def _display_network_summary(network: ReactionNetwork) -> dbc.Table:
     rows = []
@@ -176,6 +179,7 @@ def _display_network_summary(network: ReactionNetwork) -> dbc.Table:
     table_body = [html.Tbody(rows)]
     table = dbc.Table(table_body, bordered=True, hover=True, responsive=True, striped=True, color="light")
     return table
+
 
 def _display_chemical(chemical: Chemical):
     mass = chemical.mass
@@ -212,7 +216,8 @@ def _display_reaction_node(selected_node_data: CytoNodeData):
     ]
     if reaction.expected_yields is not None:
         for product_id, expected_yield in reaction.expected_yields.items():
-            row = html.Tr([html.Td("Yield of " + reaction.chemical_dictionary[product_id].smiles), html.Td(expected_yield)])
+            row = html.Tr(
+                [html.Td("Yield of " + reaction.chemical_dictionary[product_id].smiles), html.Td(expected_yield)])
             rows.append(row)
     if reaction.intended_ratios is not None:
         for c_id, ratio in reaction.intended_ratios.items():
@@ -222,6 +227,7 @@ def _display_reaction_node(selected_node_data: CytoNodeData):
     table_body = [html.Tbody(rows)]
     node_table = dbc.Table(table_body, bordered=True, hover=True, responsive=True, striped=True, color="light")
     return node_table
+
 
 def _display_molecular_node(selected_node_data: CytoNodeData):
     list_of_chemicals = selected_node_data['list_of_chemicals']
@@ -242,6 +248,7 @@ def _display_molecular_node(selected_node_data: CytoNodeData):
         t = _display_chemical(c)
         tables.append(t)
     return tables
+
 
 # callback for displaying info from selection
 @app.callback(
@@ -266,6 +273,7 @@ def displaying_selected_elements(node_data_list: list[dict], edge_data_list: lis
     if len(node_data_list) and len(edge_data_list):
         return no_update
 
+
 # page layout
 layout = dbc.Container(
     dbc.Row(
@@ -286,4 +294,3 @@ layout = dbc.Container(
     ),
     # style={"width": "calc(100vw - 100px)"}
 )
-
