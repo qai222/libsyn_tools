@@ -28,17 +28,18 @@ class Operation(Entity):
     type: OperationType
     """ the type of the operation """
 
-    process_times: dict[str, float]
+    process_times: dict[str, float] = dict()
     """ map the functional modules' identifiers to the times required for processing this operation """
 
-    from_reaction: str
+    from_reaction: str | None = None
     """ the identifier of the reaction that includes this operation """
 
-    annotations: dict[str, Any]
+    annotations: dict[str, Any] = dict()
     """ annotations for this operation """
 
-    precedents: list[str]
-    """ identifiers of the preceding operations """
+    precedents: list[str] = []
+    """ identifiers of the preceding operations, these are unrestricted precedence relationships in contrast to 
+    those explicitly defined in lmax/lmin """
 
     @property
     def can_be_processed_by(self) -> list[str]:
@@ -60,3 +61,6 @@ class FunctionalModule(Entity):
 
     fifo: bool = False
     """ if first-in-first-out policy applies to this machine """
+
+    can_process: list[OperationType]
+    """ what types of operations this module can process """
