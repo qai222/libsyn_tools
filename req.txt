@@ -8,3 +8,5 @@ dash_cytoscape
 periodictable
 pytest
 pytest-order
+gurobipy
+scipy
