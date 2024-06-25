@@ -30,6 +30,9 @@ class SolverMILP(Solver):
         :return:
         """
         # TODO work shift
+        # TODO tune up based on gp warnings
+        # TODO inspect scale up
+        # TODO profile constraints addition & bulk addition implementation
 
         # setup gurobi
         # env = gp.Env(empty=True)
