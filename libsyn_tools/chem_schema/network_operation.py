@@ -36,12 +36,12 @@ def _default_process_time(operation: Operation, multiplier: float = 1.0):
 
     if operation.type == OperationType.TransferSolid:
         # for solid transfer, time = setup time + amount / dispensing rate
-        chemical = operation.annotations['chemical']
+        chemical = Chemical(**operation.annotations['chemical'])
         estimate = setup_time + chemical.mass / solid_dispensing_rate
 
     elif operation.type == OperationType.TransferLiquid:
         # no setup time needed for liquid
-        chemical = operation.annotations['chemical']
+        chemical = Chemical(**operation.annotations['chemical'])
         estimate = chemical.mass / liquid_dispensing_rate
 
     elif operation.type == OperationType.TransferContainer:
@@ -54,7 +54,7 @@ def _default_process_time(operation: Operation, multiplier: float = 1.0):
 
     elif operation.type == OperationType.Purification:
         # purification is limited by the batch size
-        chemical = operation.annotations['chemical']
+        chemical = Chemical(**operation.annotations['chemical'])
         n_batch = chemical.volume % purification_batch_volume + 1
         estimate = purification_cost_per_batch * n_batch
 
@@ -75,6 +75,8 @@ def _default_process_time(operation: Operation, multiplier: float = 1.0):
 def default_process_time(operations: list[Operation], functional_modules: list[FunctionalModule], seed: int = 42):
     """ calculate process times for a list of operations """
     random.seed(seed)
+    for op in operations:
+        op.process_times = dict()
     for fm in functional_modules:
         for op in operations:
             if op.type in fm.can_process:
@@ -240,7 +242,6 @@ class OperationGraph(Entity):
         )
 
         # add precedence relationships
-        random.seed(42)
         og.purify.precedents.append(og.concentrate.identifier)  # concentrate before purification
         og.concentrate.precedents.append(og.heat.identifier)  # heating before concentration
         og.lmin[og.heat.identifier][og.concentrate.identifier] = random.uniform(*lmin_range)  # minimum lag for cooling
@@ -343,6 +344,7 @@ class OperationNetwork(Entity):
     @classmethod
     def from_reaction_network(cls, reaction_network: ReactionNetwork):
 
+        random.seed(42)  # a random.uniform maybe used in `OperationGraph.from_reaction`
         operation_graphs = [
             OperationGraph.from_reaction(r) for r in reaction_network.chemical_reactions
         ]
