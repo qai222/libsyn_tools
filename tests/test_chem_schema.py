@@ -1,8 +1,12 @@
+import os
+
 import networkx as nx
 import pytest
 
 from libsyn_tools.chem_schema import *
 from libsyn_tools.utils import is_uuid, parse_sparrow_routes, StateOfMatter
+
+this_folder = os.path.dirname(os.path.abspath(__file__))
 
 
 @pytest.fixture(scope="session")
@@ -17,7 +21,10 @@ def test_reaction_network1():
 
 @pytest.fixture(scope="session")
 def test_reaction_network2():
-    reaction_smiles = parse_sparrow_routes(routes_file="data/routes.json")
+    reaction_smiles = parse_sparrow_routes(
+        routes_file=os.path.join(this_folder, "data/routes.json"),
+        sample_seed=42, sample_n_target=3
+    )
     reactions = [ChemicalReaction.from_reaction_smiles(smi) for smi in reaction_smiles]
     return ReactionNetwork.from_reactions(reactions)
 
