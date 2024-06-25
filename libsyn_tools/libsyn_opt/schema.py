@@ -171,13 +171,21 @@ class SchedulerOutput(BaseModel):
     functional_modules: list[str] = []
     """ functional module identifiers, consistent with input, note this is a subset of the range of `assignments` """
 
-    @classmethod
-    def from_MILP(cls, scheduler_input: SchedulerInput, var_s, var_e, var_a):
-        output = cls()
+    def operation_view(self):
+        view = []
+        for o in self.start_times:
+            d = dict(
+                operation_identifier=o,
+                assigned_to=self.assignments[o],
+                start_time=self.start_times[o],
+                end_time=self.end_times[o],
+            )
+            view.append(d)
+        return view
 
-        var_s = np.array(var_s)
-        var_e = np.array(var_e)
-        var_a = np.array(var_a)
+    @classmethod
+    def from_MILP(cls, scheduler_input: SchedulerInput, var_s: np.ndarray, var_e: np.ndarray, var_a: np.ndarray):
+        output = cls()
 
         for i, oid in enumerate(scheduler_input.frak_O):
             output.start_times[oid] = var_s[i]

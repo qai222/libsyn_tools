@@ -1,5 +1,6 @@
 import pytest
 
+from libsyn_tools.libsyn_opt.formulation_milp import SolverMILP
 from libsyn_tools.libsyn_opt.schema import SchedulerInput, random_functional_modules
 from .test_chem_schema import test_reaction_network1, OperationNetwork, test_reaction_network2, StateOfMatter
 
@@ -40,3 +41,22 @@ class TestSchedulerInput:
                 # print(si.summary)
                 assert si.summary['# of operations'] in [13, 41]
                 assert si.summary['# of precedence relations'] in [8, 28]
+
+
+class TestFormulationMILP:
+
+    def test_solver1(self, operation_network1, functional_modules1):
+        required_operation_types = set([o.type for o in operation_network1.operations])
+        functional_modules = [fm for fm in functional_modules1 if
+                              set(fm.can_process).issubset(required_operation_types)]
+        si = SchedulerInput.build_input(operation_network1, functional_modules)
+        solver = SolverMILP(input=si)
+        solver.solve()
+
+    def test_solver2(self, operation_network2, functional_modules2):
+        required_operation_types = set([o.type for o in operation_network2.operations])
+        functional_modules = [fm for fm in functional_modules2 if
+                              set(fm.can_process).issubset(required_operation_types)]
+        si = SchedulerInput.build_input(operation_network2, functional_modules)
+        solver = SolverMILP(input=si)
+        solver.solve()
