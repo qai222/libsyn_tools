@@ -207,11 +207,11 @@ class Solver(BaseModel):
 
 
 def random_functional_modules(random_seed: int = 42, max_capacity: int = 3, max_module_number_per_type: int = 3) -> \
-list[FunctionalModule]:
+        list[FunctionalModule]:
     fms = []
     random.seed(random_seed)
-    capacity_range = [1, 3]
-    module_number_range = [1, 3]
+    capacity_range = [1, max_capacity]
+    module_number_range = [1, max_module_number_per_type]
     for t in OperationType:
         module_number = random.randint(*module_number_range)
         for i in range(module_number):
