@@ -399,7 +399,7 @@ class OperationNetwork(Entity):
             try:
                 lmin = d['lmin']
             except KeyError:
-                lmin = math.inf
+                lmin = 0
             try:
                 lmax = d['lmax']
             except KeyError:
@@ -407,7 +407,7 @@ class OperationNetwork(Entity):
 
             # TODO not sure why this can be None, it may come from reading the nx graph dump
             if lmin is None:
-                lmin = math.inf
+                lmin = 0
             if lmax is None:
                 lmax = math.inf
 
@@ -458,6 +458,9 @@ class OperationNetwork(Entity):
                     "overlay-padding": "3px"
                 }
             },
+            {'selector': '.ON__lmin_edge', 'style': {"line-color": "red", }},
+            {'selector': '.ON__lmax_edge', 'style': {"line-color": "blue", }},
+            {'selector': '.ON__lmax_and_lmin_edge', 'style': {"line-color": "green", }},
             {
                 'selector': ':selected',
                 'style': {

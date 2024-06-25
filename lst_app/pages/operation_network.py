@@ -140,6 +140,7 @@ def _display_operation_node(selected_node_data: CytoNodeData):
 
     rows = [
         html.Tr([html.Td("ID"), html.Td(operation.identifier)]),
+        html.Tr([html.Td("type"), html.Td(operation.type.value)]),
         html.Tr([html.Td("notes"), html.Td(operation.annotations['notes'])]),
         html.Tr([html.Td("from reaction"), html.Td(operation.from_reaction)]),
     ]
