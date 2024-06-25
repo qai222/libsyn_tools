@@ -1,7 +1,7 @@
 import pytest
 
-from libsyn_tools.libsyn_opt.formulation_milp import SolverMILP
-from libsyn_tools.libsyn_opt.schema import SchedulerInput, random_functional_modules
+from libsyn_tools.opt.formulation_milp import SolverMILP
+from libsyn_tools.opt.schema import SchedulerInput, random_functional_modules
 from .test_chem_schema import test_reaction_network1, OperationNetwork, test_reaction_network2, StateOfMatter
 
 
