@@ -2,7 +2,7 @@ import pytest
 
 from libsyn_tools.opt.formulation_milp import SolverMILP
 from libsyn_tools.opt.schema import SchedulerInput, random_functional_modules
-from .test_chem_schema import test_reaction_network1, OperationNetwork, test_reaction_network2, StateOfMatter
+from .test_chem_schema import test_reaction_network1, OperationNetwork, test_reaction_network2, StateOfMatter, OperationType
 
 
 @pytest.fixture
@@ -41,6 +41,17 @@ class TestSchedulerInput:
                 # print(si.summary)
                 assert si.summary['# of operations'] in [13, 41]
                 assert si.summary['# of precedence relations'] in [8, 28]
+
+        # temperature threshold
+        for iop, op in enumerate(operation_network1.operations):
+            if "temperature" in op.annotations and op.type == OperationType.Heating:
+                op.annotations['temperature'] = 200 + iop
+        si_1 = SchedulerInput.build_input(operation_network1, fms, temperature_threshold=1)
+        si_2 = SchedulerInput.build_input(operation_network1, fms, temperature_threshold=100)
+        for oid_1 in si_1.frak_O:
+            operation = operation_network1.operation_dictionary[oid_1]
+            if operation.type == OperationType.Heating:
+                assert sum(si_1.C[si_1.frak_O.index(oid_1)]) < sum(si_2.C[si_2.frak_O.index(oid_1)])  # oid_2 == oid_1
 
 
 class TestFormulationMILP:

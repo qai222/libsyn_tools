@@ -227,7 +227,10 @@ class OperationGraph(Entity):
 
         og.heat = Operation(
             type=OperationType.Heating,
-            annotations={"notes": f"heating the reaction vessel to afford product: {reaction.product_smiles}"}
+            annotations={
+                "temperature": reaction.temperature,
+                "notes": f"heating the reaction vessel to afford product: {reaction.product_smiles}"
+            }
         )
 
         og.purify = Operation(
@@ -315,6 +318,37 @@ class OperationNetwork(Entity):
     operation_graphs: list[OperationGraph]
 
     adjacency_data: dict
+
+    def get_default_compatability(self, temperature_threshold: float) -> dict[str, dict[str, bool]]:
+        """
+        default compatability -- if two operations can be processed on the same module
+
+        :param temperature_threshold: tolerance for heating to be processed on the same module
+        :return: d[oid][oid] -> bool
+        """
+        compatability = defaultdict(dict)
+        for o_i in self.operations:
+            oid = o_i.identifier
+            for o_j in self.operations:
+                ojd = o_j.identifier
+                if oid == ojd:
+                    c = 1
+                elif o_i.type != o_j.type:  # this seems unnecessary as it is disallowed by `can_process`
+                    c = 0
+                elif o_i.type == o_j.type == OperationType.Heating:
+                    o_i_temperature = o_i.annotations['temperature']
+                    o_j_temperature = o_j.annotations['temperature']
+                    if o_i_temperature is None or o_j_temperature is None:
+                        c = 1  # by default, we **allow** them to be processed on the same module
+                    elif abs(o_i_temperature - o_j_temperature) < temperature_threshold:
+                        c = 1
+                    else:
+                        c = 0
+                else:
+                    c = 1
+                compatability[oid][ojd] = c
+        return compatability
+
 
     @property
     def nx_digraph(self) -> nx.DiGraph:

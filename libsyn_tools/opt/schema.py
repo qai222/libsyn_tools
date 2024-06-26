@@ -44,6 +44,9 @@ class SchedulerInput(BaseModel):
     p: list[list[float]]
     """ process time, indexed by i, m """
 
+    C: list[list[int]]
+    """ compatability on the same machine, indexed by i, m """
+
     frak_W: list[WorkShift] | None = None
     """ work shifts, indexed by n  """
 
@@ -81,6 +84,7 @@ class SchedulerInput(BaseModel):
     def build_input(
             cls, operation_network: OperationNetwork, functional_modules: list[FunctionalModule],
             human_supervision_types: list[OperationType] = None, work_shifts: list[WorkShift] = None,
+            temperature_threshold: float = 50,
     ):
         # check if operable
         operation_types = set([o.type for o in operation_network.operations])
@@ -137,13 +141,20 @@ class SchedulerInput(BaseModel):
             K.append(m.capacity)
 
         # process time
-        p = np.zeros((n_operations, len(frak_M)))
+        p = np.zeros((n_operations, len(frak_M)), dtype=float)
         p[:] = math.inf
         for operation in operation_network.operations:
             i = frak_O.index(operation.identifier)
             for module_identifier, pt in operation.process_times.items():
                 m = frak_M.index(module_identifier)
                 p[i][m] = pt
+
+        # compatability
+        C = np.zeros((n_operations, n_operations), dtype=int)
+        compatability = operation_network.get_default_compatability(temperature_threshold=temperature_threshold)
+        for i, oid in enumerate(frak_O):
+            for j, ojd in enumerate(frak_O):
+                C[i][j] = compatability[oid][ojd]
 
         scheduler_input = cls(
             lmin=lmin.tolist(),
@@ -155,6 +166,7 @@ class SchedulerInput(BaseModel):
             p=p,
             frak_W=work_shifts,
             functional_modules=functional_modules,
+            C=C,
         )
         return scheduler_input
 
