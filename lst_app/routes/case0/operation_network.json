@@ -1,0 +1,3022 @@
+{
+  "identifier": "527cbaea-0fb8-4887-9835-e499fbe9967f",
+  "operation_graphs": [
+    {
+      "identifier": "66951b39-90b5-4140-b72b-8d840c5fedc8",
+      "reaction": {
+        "identifier": "adecce1a-196c-4e92-8690-ec699ecb06cb",
+        "reactants": [
+          {
+            "identifier": "059642a8-d483-4ad3-93b5-5815d6b88863",
+            "smiles": "CC(=O)Cl",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 78.49762000000003,
+            "density": 1.104,
+            "mass": 78.49762000000003,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "adecce1a-196c-4e92-8690-ec699ecb06cb"
+            ],
+            "provenance__density": "from scraper output: scraper_output.json",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          {
+            "identifier": "c4a6c9dd-2cbe-4cd6-8079-784a78cc00ba",
+            "smiles": "CCOC(=O)CNC",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 117.14634000000005,
+            "density": 1.23,
+            "mass": 117.14634000000005,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "adecce1a-196c-4e92-8690-ec699ecb06cb"
+            ],
+            "provenance__density": "from scraper output: scraper_output.json",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "reagents": [],
+        "products": [
+          {
+            "identifier": "f547439f-3f20-4190-9145-ac2bcf9d761c",
+            "smiles": "CCOC(=O)CN(C)C(C)=O",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 159.18301999999989,
+            "density": 1.0,
+            "mass": 159.18301999999989,
+            "is_produced_by": [
+              "adecce1a-196c-4e92-8690-ec699ecb06cb"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "stoichiometry": {
+          "059642a8-d483-4ad3-93b5-5815d6b88863": 1.0,
+          "c4a6c9dd-2cbe-4cd6-8079-784a78cc00ba": 1.0,
+          "f547439f-3f20-4190-9145-ac2bcf9d761c": -1.0
+        },
+        "temperature": null,
+        "intended_ratios": {
+          "059642a8-d483-4ad3-93b5-5815d6b88863": 1.0,
+          "c4a6c9dd-2cbe-4cd6-8079-784a78cc00ba": 1.0
+        },
+        "expected_yields": {
+          "f547439f-3f20-4190-9145-ac2bcf9d761c": 1.0
+        },
+        "reaction_extent": 1.0
+      },
+      "functional_modules": [],
+      "make_solutions": {
+        "c4a6c9dd-2cbe-4cd6-8079-784a78cc00ba": [
+          {
+            "identifier": "b75528d7-9468-47f6-a696-17a0f2361d48",
+            "type": "TransferSolid",
+            "process_times": {},
+            "from_reaction": "adecce1a-196c-4e92-8690-ec699ecb06cb",
+            "annotations": {
+              "chemical": {
+                "identifier": "c4a6c9dd-2cbe-4cd6-8079-784a78cc00ba",
+                "smiles": "CCOC(=O)CNC",
+                "state_of_matter": "SOLID",
+                "molecular_weight": 117.14634000000005,
+                "density": 1.23,
+                "mass": 117.14634000000005,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "adecce1a-196c-4e92-8690-ec699ecb06cb"
+                ],
+                "provenance__density": "from scraper output: scraper_output.json",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "from scraper output: scraper_output.json"
+              },
+              "notes": "transfer solid CCOC(=O)CNC for making solution for CCOC(=O)CNC"
+            },
+            "precedents": [
+              "608fb0fb-28d6-4a47-a7c4-7eebc7918f9f"
+            ]
+          },
+          {
+            "identifier": "76860946-c534-496d-9bb7-d5dd2aa94f8d",
+            "type": "TransferLiquid",
+            "process_times": {},
+            "from_reaction": "adecce1a-196c-4e92-8690-ec699ecb06cb",
+            "annotations": {
+              "chemical": {
+                "identifier": "78e5f352-e0b0-4f8e-8dcb-1eff50b871a2",
+                "smiles": "CC(=O)Cl",
+                "state_of_matter": "LIQUID",
+                "molecular_weight": 78.49762000000003,
+                "density": 1.104,
+                "mass": 78.49762000000003,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "adecce1a-196c-4e92-8690-ec699ecb06cb"
+                ],
+                "provenance__density": "from scraper output: scraper_output.json",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "from scraper output: scraper_output.json"
+              },
+              "notes": "transfer solvent CC(=O)Cl for making solution for CCOC(=O)CNC"
+            },
+            "precedents": [
+              "b75528d7-9468-47f6-a696-17a0f2361d48"
+            ]
+          }
+        ]
+      },
+      "add_solutions": {
+        "c4a6c9dd-2cbe-4cd6-8079-784a78cc00ba": {
+          "identifier": "a268df7a-00a5-41cd-b7df-dd2a9041d575",
+          "type": "TransferLiquid",
+          "process_times": {},
+          "from_reaction": "adecce1a-196c-4e92-8690-ec699ecb06cb",
+          "annotations": {
+            "chemical": {
+              "identifier": "ac1f6272-5db8-4501-9775-b7f45ef7feb9",
+              "smiles": "CC(=O)Cl.CCOC(=O)CNC",
+              "state_of_matter": "LIQUID",
+              "molecular_weight": null,
+              "density": 1.1761418750960932,
+              "mass": 195.64396000000008,
+              "is_produced_by": [],
+              "is_consumed_by": [
+                "adecce1a-196c-4e92-8690-ec699ecb06cb"
+              ],
+              "provenance__density": "from scraper output: scraper_output.json",
+              "provenance__is_consumed_by": null,
+              "provenance__is_produced_by": null,
+              "provenance__mass": null,
+              "provenance__molecular_weight": "periodic table",
+              "provenance__smiles": null,
+              "provenance__state_of_matter": "from scraper output: scraper_output.json"
+            },
+            "notes": "add solution CCOC(=O)CNC in CC(=O)Cl"
+          },
+          "precedents": [
+            "76860946-c534-496d-9bb7-d5dd2aa94f8d"
+          ]
+        }
+      },
+      "add_liquids": {},
+      "add_solvent": null,
+      "heat": {
+        "identifier": "9576e81e-586e-49c1-b846-ada329c368ac",
+        "type": "Heating",
+        "process_times": {},
+        "from_reaction": "adecce1a-196c-4e92-8690-ec699ecb06cb",
+        "annotations": {
+          "notes": "heating the reaction vessel to afford product: CCOC(=O)CN(C)C(C)=O"
+        },
+        "precedents": [
+          "a268df7a-00a5-41cd-b7df-dd2a9041d575"
+        ]
+      },
+      "purify": {
+        "identifier": "c4c3fa80-cc0f-46f1-92df-97dd1f4b39a1",
+        "type": "Purification",
+        "process_times": {},
+        "from_reaction": "adecce1a-196c-4e92-8690-ec699ecb06cb",
+        "annotations": {
+          "chemical": {
+            "identifier": "f547439f-3f20-4190-9145-ac2bcf9d761c",
+            "smiles": "CCOC(=O)CN(C)C(C)=O",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 159.18301999999989,
+            "density": 1.0,
+            "mass": 159.18301999999989,
+            "is_produced_by": [
+              "adecce1a-196c-4e92-8690-ec699ecb06cb"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          "notes": "purify the product: CCOC(=O)CN(C)C(C)=O"
+        },
+        "precedents": [
+          "f2fd2af1-45dd-4319-94c4-67f18cc10e26"
+        ]
+      },
+      "concentrate": {
+        "identifier": "f2fd2af1-45dd-4319-94c4-67f18cc10e26",
+        "type": "Concentration",
+        "process_times": {},
+        "from_reaction": "adecce1a-196c-4e92-8690-ec699ecb06cb",
+        "annotations": {
+          "notes": "concentrate the raw product: CCOC(=O)CN(C)C(C)=O"
+        },
+        "precedents": [
+          "9576e81e-586e-49c1-b846-ada329c368ac"
+        ]
+      },
+      "lmin": {
+        "9576e81e-586e-49c1-b846-ada329c368ac": {
+          "f2fd2af1-45dd-4319-94c4-67f18cc10e26": 13.19713399228942
+        }
+      },
+      "lmax": {
+        "76860946-c534-496d-9bb7-d5dd2aa94f8d": {
+          "9576e81e-586e-49c1-b846-ada329c368ac": 30.75032265668001
+        }
+      }
+    },
+    {
+      "identifier": "76c32115-cac1-450c-ac23-0ace3c652a03",
+      "reaction": {
+        "identifier": "09c63119-9bda-407d-90d9-eb3a303e31a6",
+        "reactants": [
+          {
+            "identifier": "a903a4b1-0ec3-4b20-9c7c-7b38f92ba2ae",
+            "smiles": "CC(=O)Cl",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 78.49762000000003,
+            "density": 1.104,
+            "mass": 78.49762000000003,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "09c63119-9bda-407d-90d9-eb3a303e31a6"
+            ],
+            "provenance__density": "from scraper output: scraper_output.json",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          {
+            "identifier": "46262dba-347f-4ae5-9785-2bccfaa701ef",
+            "smiles": "CNc1cc(Cl)ncn1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 143.57423999999995,
+            "density": 1.0,
+            "mass": 143.57423999999995,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "09c63119-9bda-407d-90d9-eb3a303e31a6"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "reagents": [],
+        "products": [
+          {
+            "identifier": "2bb7b12d-ac10-4b72-a9a6-f162758ab719",
+            "smiles": "CC(=O)N(C)c1cc(Cl)ncn1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 185.61091999999994,
+            "density": 1.0,
+            "mass": 185.61091999999994,
+            "is_produced_by": [
+              "09c63119-9bda-407d-90d9-eb3a303e31a6"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "stoichiometry": {
+          "a903a4b1-0ec3-4b20-9c7c-7b38f92ba2ae": 1.0,
+          "46262dba-347f-4ae5-9785-2bccfaa701ef": 1.0,
+          "2bb7b12d-ac10-4b72-a9a6-f162758ab719": -1.0
+        },
+        "temperature": null,
+        "intended_ratios": {
+          "a903a4b1-0ec3-4b20-9c7c-7b38f92ba2ae": 1.0,
+          "46262dba-347f-4ae5-9785-2bccfaa701ef": 1.0
+        },
+        "expected_yields": {
+          "2bb7b12d-ac10-4b72-a9a6-f162758ab719": 1.0
+        },
+        "reaction_extent": 1.0
+      },
+      "functional_modules": [],
+      "make_solutions": {
+        "46262dba-347f-4ae5-9785-2bccfaa701ef": [
+          {
+            "identifier": "8d217eb2-d7fe-4b41-98f9-8d1bb476ccc9",
+            "type": "TransferSolid",
+            "process_times": {},
+            "from_reaction": "09c63119-9bda-407d-90d9-eb3a303e31a6",
+            "annotations": {
+              "chemical": {
+                "identifier": "46262dba-347f-4ae5-9785-2bccfaa701ef",
+                "smiles": "CNc1cc(Cl)ncn1",
+                "state_of_matter": "SOLID",
+                "molecular_weight": 143.57423999999995,
+                "density": 1.0,
+                "mass": 143.57423999999995,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "09c63119-9bda-407d-90d9-eb3a303e31a6"
+                ],
+                "provenance__density": "dummy estimator based on mw",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "from scraper output: scraper_output.json"
+              },
+              "notes": "transfer solid CNc1cc(Cl)ncn1 for making solution for CNc1cc(Cl)ncn1"
+            },
+            "precedents": []
+          },
+          {
+            "identifier": "6e46862b-2eac-4ec9-98c1-ae0e8c37aae8",
+            "type": "TransferLiquid",
+            "process_times": {},
+            "from_reaction": "09c63119-9bda-407d-90d9-eb3a303e31a6",
+            "annotations": {
+              "chemical": {
+                "identifier": "22c95a12-c809-4177-b157-d27c8ecd85ee",
+                "smiles": "CC(=O)Cl",
+                "state_of_matter": "LIQUID",
+                "molecular_weight": 78.49762000000003,
+                "density": 1.104,
+                "mass": 78.49762000000003,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "09c63119-9bda-407d-90d9-eb3a303e31a6"
+                ],
+                "provenance__density": "from scraper output: scraper_output.json",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "from scraper output: scraper_output.json"
+              },
+              "notes": "transfer solvent CC(=O)Cl for making solution for CNc1cc(Cl)ncn1"
+            },
+            "precedents": [
+              "8d217eb2-d7fe-4b41-98f9-8d1bb476ccc9"
+            ]
+          }
+        ]
+      },
+      "add_solutions": {
+        "46262dba-347f-4ae5-9785-2bccfaa701ef": {
+          "identifier": "0488cd50-bd6a-431e-a18b-a45dd4bedd46",
+          "type": "TransferLiquid",
+          "process_times": {},
+          "from_reaction": "09c63119-9bda-407d-90d9-eb3a303e31a6",
+          "annotations": {
+            "chemical": {
+              "identifier": "45c5f43d-eee1-4ca9-8ac4-f2a0ff20e7f3",
+              "smiles": "CC(=O)Cl.CNc1cc(Cl)ncn1",
+              "state_of_matter": "LIQUID",
+              "molecular_weight": null,
+              "density": 1.0344456925373537,
+              "mass": 222.07185999999996,
+              "is_produced_by": [],
+              "is_consumed_by": [
+                "09c63119-9bda-407d-90d9-eb3a303e31a6"
+              ],
+              "provenance__density": "from scraper output: scraper_output.json",
+              "provenance__is_consumed_by": null,
+              "provenance__is_produced_by": null,
+              "provenance__mass": null,
+              "provenance__molecular_weight": "periodic table",
+              "provenance__smiles": null,
+              "provenance__state_of_matter": "from scraper output: scraper_output.json"
+            },
+            "notes": "add solution CNc1cc(Cl)ncn1 in CC(=O)Cl"
+          },
+          "precedents": [
+            "6e46862b-2eac-4ec9-98c1-ae0e8c37aae8"
+          ]
+        }
+      },
+      "add_liquids": {},
+      "add_solvent": null,
+      "heat": {
+        "identifier": "4d807b7d-10e6-4724-8052-bc10ac606320",
+        "type": "Heating",
+        "process_times": {},
+        "from_reaction": "09c63119-9bda-407d-90d9-eb3a303e31a6",
+        "annotations": {
+          "notes": "heating the reaction vessel to afford product: CC(=O)N(C)c1cc(Cl)ncn1"
+        },
+        "precedents": [
+          "0488cd50-bd6a-431e-a18b-a45dd4bedd46"
+        ]
+      },
+      "purify": {
+        "identifier": "aef63c30-cc2c-4616-91f8-874dbd7a080f",
+        "type": "Purification",
+        "process_times": {},
+        "from_reaction": "09c63119-9bda-407d-90d9-eb3a303e31a6",
+        "annotations": {
+          "chemical": {
+            "identifier": "2bb7b12d-ac10-4b72-a9a6-f162758ab719",
+            "smiles": "CC(=O)N(C)c1cc(Cl)ncn1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 185.61091999999994,
+            "density": 1.0,
+            "mass": 185.61091999999994,
+            "is_produced_by": [
+              "09c63119-9bda-407d-90d9-eb3a303e31a6"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          "notes": "purify the product: CC(=O)N(C)c1cc(Cl)ncn1"
+        },
+        "precedents": [
+          "6b8db9c1-7332-45b7-ac54-00c63a763d9c"
+        ]
+      },
+      "concentrate": {
+        "identifier": "6b8db9c1-7332-45b7-ac54-00c63a763d9c",
+        "type": "Concentration",
+        "process_times": {},
+        "from_reaction": "09c63119-9bda-407d-90d9-eb3a303e31a6",
+        "annotations": {
+          "notes": "concentrate the raw product: CC(=O)N(C)c1cc(Cl)ncn1"
+        },
+        "precedents": [
+          "4d807b7d-10e6-4724-8052-bc10ac606320"
+        ]
+      },
+      "lmin": {
+        "4d807b7d-10e6-4724-8052-bc10ac606320": {
+          "6b8db9c1-7332-45b7-ac54-00c63a763d9c": 11.375146591845596
+        }
+      },
+      "lmax": {
+        "6e46862b-2eac-4ec9-98c1-ae0e8c37aae8": {
+          "4d807b7d-10e6-4724-8052-bc10ac606320": 36.69632214446468
+        }
+      }
+    },
+    {
+      "identifier": "26576098-f40e-46dd-9d2a-a942e44c4e28",
+      "reaction": {
+        "identifier": "82e5a63b-a830-47ac-a62a-f879fcd3c845",
+        "reactants": [
+          {
+            "identifier": "a9bd9e0c-9fae-4b98-a6b9-cc629f08d59c",
+            "smiles": "CC(C)(C)OC(=O)N(CC(=O)O)C(=O)C1CCCCC1",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 285.3361200000004,
+            "density": 1.4,
+            "mass": 285.3361200000004,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "82e5a63b-a830-47ac-a62a-f879fcd3c845"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          {
+            "identifier": "cf165465-ac8a-4d46-b40b-e99bb2dd48df",
+            "smiles": "Nn1cnnc1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 85.08790000000003,
+            "density": 1.0,
+            "mass": 85.08790000000003,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "82e5a63b-a830-47ac-a62a-f879fcd3c845"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "reagents": [],
+        "products": [
+          {
+            "identifier": "98a0c58d-f9ce-4d03-9438-96508da7c67b",
+            "smiles": "CC(C)(C)OC(=O)N(CC(=O)Nn1cnnc1)C(=O)C1CCCCC1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 352.4087400000004,
+            "density": 1.4,
+            "mass": 352.4087400000004,
+            "is_produced_by": [
+              "82e5a63b-a830-47ac-a62a-f879fcd3c845"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          }
+        ],
+        "stoichiometry": {
+          "a9bd9e0c-9fae-4b98-a6b9-cc629f08d59c": 1.0,
+          "cf165465-ac8a-4d46-b40b-e99bb2dd48df": 1.0,
+          "98a0c58d-f9ce-4d03-9438-96508da7c67b": -1.0
+        },
+        "temperature": null,
+        "intended_ratios": {
+          "a9bd9e0c-9fae-4b98-a6b9-cc629f08d59c": 1.0,
+          "cf165465-ac8a-4d46-b40b-e99bb2dd48df": 1.0
+        },
+        "expected_yields": {
+          "98a0c58d-f9ce-4d03-9438-96508da7c67b": 1.0
+        },
+        "reaction_extent": 1.0
+      },
+      "functional_modules": [],
+      "make_solutions": {
+        "cf165465-ac8a-4d46-b40b-e99bb2dd48df": [
+          {
+            "identifier": "ef3498c4-63f0-48b1-9285-e46d1925638f",
+            "type": "TransferSolid",
+            "process_times": {},
+            "from_reaction": "82e5a63b-a830-47ac-a62a-f879fcd3c845",
+            "annotations": {
+              "chemical": {
+                "identifier": "cf165465-ac8a-4d46-b40b-e99bb2dd48df",
+                "smiles": "Nn1cnnc1",
+                "state_of_matter": "SOLID",
+                "molecular_weight": 85.08790000000003,
+                "density": 1.0,
+                "mass": 85.08790000000003,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "82e5a63b-a830-47ac-a62a-f879fcd3c845"
+                ],
+                "provenance__density": "dummy estimator based on mw",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "from scraper output: scraper_output.json"
+              },
+              "notes": "transfer solid Nn1cnnc1 for making solution for Nn1cnnc1"
+            },
+            "precedents": []
+          },
+          {
+            "identifier": "0fb19cc5-0012-4094-82d1-1ec5149490df",
+            "type": "TransferLiquid",
+            "process_times": {},
+            "from_reaction": "82e5a63b-a830-47ac-a62a-f879fcd3c845",
+            "annotations": {
+              "chemical": {
+                "identifier": "fa3b63d7-b820-4670-a4a3-ed5896381009",
+                "smiles": "CC(C)(C)OC(=O)N(CC(=O)O)C(=O)C1CCCCC1",
+                "state_of_matter": "LIQUID",
+                "molecular_weight": 285.3361200000004,
+                "density": 1.4,
+                "mass": 285.3361200000004,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "82e5a63b-a830-47ac-a62a-f879fcd3c845"
+                ],
+                "provenance__density": "dummy estimator based on mw",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "from scraper output: scraper_output.json"
+              },
+              "notes": "transfer solvent CC(C)(C)OC(=O)N(CC(=O)O)C(=O)C1CCCCC1 for making solution for Nn1cnnc1"
+            },
+            "precedents": [
+              "ef3498c4-63f0-48b1-9285-e46d1925638f"
+            ]
+          }
+        ]
+      },
+      "add_solutions": {
+        "cf165465-ac8a-4d46-b40b-e99bb2dd48df": {
+          "identifier": "76697153-a4b9-4cab-bade-584e15316ffb",
+          "type": "TransferLiquid",
+          "process_times": {},
+          "from_reaction": "82e5a63b-a830-47ac-a62a-f879fcd3c845",
+          "annotations": {
+            "chemical": {
+              "identifier": "e807a07b-e56e-47f0-91d2-bdf594529504",
+              "smiles": "CC(C)(C)OC(=O)N(CC(=O)O)C(=O)C1CCCCC1.Nn1cnnc1",
+              "state_of_matter": "LIQUID",
+              "molecular_weight": null,
+              "density": 1.2821902769026037,
+              "mass": 370.42402000000044,
+              "is_produced_by": [],
+              "is_consumed_by": [
+                "82e5a63b-a830-47ac-a62a-f879fcd3c845"
+              ],
+              "provenance__density": "dummy estimator based on mw",
+              "provenance__is_consumed_by": null,
+              "provenance__is_produced_by": null,
+              "provenance__mass": null,
+              "provenance__molecular_weight": "periodic table",
+              "provenance__smiles": null,
+              "provenance__state_of_matter": "from scraper output: scraper_output.json"
+            },
+            "notes": "add solution Nn1cnnc1 in CC(C)(C)OC(=O)N(CC(=O)O)C(=O)C1CCCCC1"
+          },
+          "precedents": [
+            "0fb19cc5-0012-4094-82d1-1ec5149490df"
+          ]
+        }
+      },
+      "add_liquids": {},
+      "add_solvent": null,
+      "heat": {
+        "identifier": "860c3991-57a2-460a-9c83-58f5ba30b1b3",
+        "type": "Heating",
+        "process_times": {},
+        "from_reaction": "82e5a63b-a830-47ac-a62a-f879fcd3c845",
+        "annotations": {
+          "notes": "heating the reaction vessel to afford product: CC(C)(C)OC(=O)N(CC(=O)Nn1cnnc1)C(=O)C1CCCCC1"
+        },
+        "precedents": [
+          "76697153-a4b9-4cab-bade-584e15316ffb"
+        ]
+      },
+      "purify": {
+        "identifier": "172b255e-4ecc-48d2-9125-7ebab0ad04f0",
+        "type": "Purification",
+        "process_times": {},
+        "from_reaction": "82e5a63b-a830-47ac-a62a-f879fcd3c845",
+        "annotations": {
+          "chemical": {
+            "identifier": "98a0c58d-f9ce-4d03-9438-96508da7c67b",
+            "smiles": "CC(C)(C)OC(=O)N(CC(=O)Nn1cnnc1)C(=O)C1CCCCC1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 352.4087400000004,
+            "density": 1.4,
+            "mass": 352.4087400000004,
+            "is_produced_by": [
+              "82e5a63b-a830-47ac-a62a-f879fcd3c845"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          },
+          "notes": "purify the product: CC(C)(C)OC(=O)N(CC(=O)Nn1cnnc1)C(=O)C1CCCCC1"
+        },
+        "precedents": [
+          "b811ef91-892c-4b0d-ad5d-cdd15cbf1e91"
+        ]
+      },
+      "concentrate": {
+        "identifier": "b811ef91-892c-4b0d-ad5d-cdd15cbf1e91",
+        "type": "Concentration",
+        "process_times": {},
+        "from_reaction": "82e5a63b-a830-47ac-a62a-f879fcd3c845",
+        "annotations": {
+          "notes": "concentrate the raw product: CC(C)(C)OC(=O)N(CC(=O)Nn1cnnc1)C(=O)C1CCCCC1"
+        },
+        "precedents": [
+          "860c3991-57a2-460a-9c83-58f5ba30b1b3"
+        ]
+      },
+      "lmin": {
+        "860c3991-57a2-460a-9c83-58f5ba30b1b3": {
+          "b811ef91-892c-4b0d-ad5d-cdd15cbf1e91": 13.682356070820063
+        }
+      },
+      "lmax": {
+        "0fb19cc5-0012-4094-82d1-1ec5149490df": {
+          "860c3991-57a2-460a-9c83-58f5ba30b1b3": 50.30098462268734
+        }
+      }
+    },
+    {
+      "identifier": "eca6f894-456b-47fc-b631-cce038e5e1bf",
+      "reaction": {
+        "identifier": "c4e78f36-855d-4ce2-a900-b7b6fe65f57f",
+        "reactants": [
+          {
+            "identifier": "21b06288-10da-43c1-9909-92a0c1376c22",
+            "smiles": "CC(C)(C)OC(=O)NCC(=O)Nn1cnnc1",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 242.25503999999984,
+            "density": 1.4,
+            "mass": 242.25503999999984,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "c4e78f36-855d-4ce2-a900-b7b6fe65f57f"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "reagents": [],
+        "products": [
+          {
+            "identifier": "a9c3184f-7429-4a7d-9c09-d329a0e626d9",
+            "smiles": "NCC(=O)Nn1cnnc1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 142.1392199999999,
+            "density": 1.0,
+            "mass": 142.1392199999999,
+            "is_produced_by": [
+              "c4e78f36-855d-4ce2-a900-b7b6fe65f57f"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "stoichiometry": {
+          "21b06288-10da-43c1-9909-92a0c1376c22": 1.0,
+          "a9c3184f-7429-4a7d-9c09-d329a0e626d9": -1.0
+        },
+        "temperature": null,
+        "intended_ratios": {
+          "21b06288-10da-43c1-9909-92a0c1376c22": 1.0
+        },
+        "expected_yields": {
+          "a9c3184f-7429-4a7d-9c09-d329a0e626d9": 1.0
+        },
+        "reaction_extent": 1.0
+      },
+      "functional_modules": [],
+      "make_solutions": {},
+      "add_solutions": {},
+      "add_liquids": {},
+      "add_solvent": {
+        "identifier": "6c95582b-92a1-4dd3-a42f-9a08ffb48744",
+        "type": "TransferLiquid",
+        "process_times": {},
+        "from_reaction": "c4e78f36-855d-4ce2-a900-b7b6fe65f57f",
+        "annotations": {
+          "chemical": {
+            "identifier": "21b06288-10da-43c1-9909-92a0c1376c22",
+            "smiles": "CC(C)(C)OC(=O)NCC(=O)Nn1cnnc1",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 242.25503999999984,
+            "density": 1.4,
+            "mass": 242.25503999999984,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "c4e78f36-855d-4ce2-a900-b7b6fe65f57f"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          "notes": "add all solvent CC(C)(C)OC(=O)NCC(=O)Nn1cnnc1"
+        },
+        "precedents": [
+          "a2f75c7f-d8ac-48a6-93ec-da5f82d15abc"
+        ]
+      },
+      "heat": {
+        "identifier": "0c2fc49b-fdf8-4dbb-b46b-de8003273402",
+        "type": "Heating",
+        "process_times": {},
+        "from_reaction": "c4e78f36-855d-4ce2-a900-b7b6fe65f57f",
+        "annotations": {
+          "notes": "heating the reaction vessel to afford product: NCC(=O)Nn1cnnc1"
+        },
+        "precedents": [
+          "6c95582b-92a1-4dd3-a42f-9a08ffb48744"
+        ]
+      },
+      "purify": {
+        "identifier": "016dd16a-b0bc-48b1-9f25-1f7a2203aa59",
+        "type": "Purification",
+        "process_times": {},
+        "from_reaction": "c4e78f36-855d-4ce2-a900-b7b6fe65f57f",
+        "annotations": {
+          "chemical": {
+            "identifier": "a9c3184f-7429-4a7d-9c09-d329a0e626d9",
+            "smiles": "NCC(=O)Nn1cnnc1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 142.1392199999999,
+            "density": 1.0,
+            "mass": 142.1392199999999,
+            "is_produced_by": [
+              "c4e78f36-855d-4ce2-a900-b7b6fe65f57f"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          "notes": "purify the product: NCC(=O)Nn1cnnc1"
+        },
+        "precedents": [
+          "9f517a7b-7f65-4707-bd7a-59553fc8e220"
+        ]
+      },
+      "concentrate": {
+        "identifier": "9f517a7b-7f65-4707-bd7a-59553fc8e220",
+        "type": "Concentration",
+        "process_times": {},
+        "from_reaction": "c4e78f36-855d-4ce2-a900-b7b6fe65f57f",
+        "annotations": {
+          "notes": "concentrate the raw product: NCC(=O)Nn1cnnc1"
+        },
+        "precedents": [
+          "0c2fc49b-fdf8-4dbb-b46b-de8003273402"
+        ]
+      },
+      "lmin": {
+        "0c2fc49b-fdf8-4dbb-b46b-de8003273402": {
+          "9f517a7b-7f65-4707-bd7a-59553fc8e220": 14.460897838524227
+        }
+      },
+      "lmax": {}
+    },
+    {
+      "identifier": "b834465e-0717-4622-80d7-c0e9108ea97d",
+      "reaction": {
+        "identifier": "640af87e-8906-4242-b13f-adf96fbbdd5b",
+        "reactants": [
+          {
+            "identifier": "d8381e24-e9f3-4cbe-bc4d-a37c325e5cd2",
+            "smiles": "CC(C)(C)OC(=O)NCC(=O)O",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 175.1824199999999,
+            "density": 1.0,
+            "mass": 175.1824199999999,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "640af87e-8906-4242-b13f-adf96fbbdd5b"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          {
+            "identifier": "7da0f530-512e-4732-829f-fadecf69aa07",
+            "smiles": "Nn1cnnc1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 85.08790000000003,
+            "density": 1.0,
+            "mass": 85.08790000000003,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "640af87e-8906-4242-b13f-adf96fbbdd5b"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "reagents": [],
+        "products": [
+          {
+            "identifier": "4a0ba0b2-d1be-4d2d-83cf-9e4271c240fa",
+            "smiles": "CC(C)(C)OC(=O)NCC(=O)Nn1cnnc1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 242.25503999999984,
+            "density": 1.4,
+            "mass": 242.25503999999984,
+            "is_produced_by": [
+              "640af87e-8906-4242-b13f-adf96fbbdd5b"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "stoichiometry": {
+          "d8381e24-e9f3-4cbe-bc4d-a37c325e5cd2": 1.0,
+          "7da0f530-512e-4732-829f-fadecf69aa07": 1.0,
+          "4a0ba0b2-d1be-4d2d-83cf-9e4271c240fa": -1.0
+        },
+        "temperature": null,
+        "intended_ratios": {
+          "d8381e24-e9f3-4cbe-bc4d-a37c325e5cd2": 1.0,
+          "7da0f530-512e-4732-829f-fadecf69aa07": 1.0
+        },
+        "expected_yields": {
+          "4a0ba0b2-d1be-4d2d-83cf-9e4271c240fa": 1.0
+        },
+        "reaction_extent": 1.0
+      },
+      "functional_modules": [],
+      "make_solutions": {
+        "7da0f530-512e-4732-829f-fadecf69aa07": [
+          {
+            "identifier": "27678ce4-3bb3-45d6-a7e0-b41ed02db117",
+            "type": "TransferSolid",
+            "process_times": {},
+            "from_reaction": "640af87e-8906-4242-b13f-adf96fbbdd5b",
+            "annotations": {
+              "chemical": {
+                "identifier": "7da0f530-512e-4732-829f-fadecf69aa07",
+                "smiles": "Nn1cnnc1",
+                "state_of_matter": "SOLID",
+                "molecular_weight": 85.08790000000003,
+                "density": 1.0,
+                "mass": 85.08790000000003,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "640af87e-8906-4242-b13f-adf96fbbdd5b"
+                ],
+                "provenance__density": "dummy estimator based on mw",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "from scraper output: scraper_output.json"
+              },
+              "notes": "transfer solid Nn1cnnc1 for making solution for Nn1cnnc1"
+            },
+            "precedents": []
+          },
+          {
+            "identifier": "29e7f2f7-6879-4a29-a425-4005eabc5f2e",
+            "type": "TransferLiquid",
+            "process_times": {},
+            "from_reaction": "640af87e-8906-4242-b13f-adf96fbbdd5b",
+            "annotations": {
+              "chemical": {
+                "identifier": "374d16a6-7ada-4a76-9bbb-a3e295ebdc7d",
+                "smiles": "CC(C)(C)OC(=O)NCC(=O)O",
+                "state_of_matter": "LIQUID",
+                "molecular_weight": 175.1824199999999,
+                "density": 1.0,
+                "mass": 175.1824199999999,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "640af87e-8906-4242-b13f-adf96fbbdd5b"
+                ],
+                "provenance__density": "dummy estimator based on mw",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "from scraper output: scraper_output.json"
+              },
+              "notes": "transfer solvent CC(C)(C)OC(=O)NCC(=O)O for making solution for Nn1cnnc1"
+            },
+            "precedents": [
+              "27678ce4-3bb3-45d6-a7e0-b41ed02db117"
+            ]
+          }
+        ]
+      },
+      "add_solutions": {
+        "7da0f530-512e-4732-829f-fadecf69aa07": {
+          "identifier": "0e57d1bc-5b88-4ea8-ae04-4c6400f4aa83",
+          "type": "TransferLiquid",
+          "process_times": {},
+          "from_reaction": "640af87e-8906-4242-b13f-adf96fbbdd5b",
+          "annotations": {
+            "chemical": {
+              "identifier": "1d61e9ef-5724-4421-8aed-0c2448265f88",
+              "smiles": "CC(C)(C)OC(=O)NCC(=O)O.Nn1cnnc1",
+              "state_of_matter": "LIQUID",
+              "molecular_weight": null,
+              "density": 1.0,
+              "mass": 260.2703199999999,
+              "is_produced_by": [],
+              "is_consumed_by": [
+                "640af87e-8906-4242-b13f-adf96fbbdd5b"
+              ],
+              "provenance__density": "dummy estimator based on mw",
+              "provenance__is_consumed_by": null,
+              "provenance__is_produced_by": null,
+              "provenance__mass": null,
+              "provenance__molecular_weight": "periodic table",
+              "provenance__smiles": null,
+              "provenance__state_of_matter": "from scraper output: scraper_output.json"
+            },
+            "notes": "add solution Nn1cnnc1 in CC(C)(C)OC(=O)NCC(=O)O"
+          },
+          "precedents": [
+            "29e7f2f7-6879-4a29-a425-4005eabc5f2e"
+          ]
+        }
+      },
+      "add_liquids": {},
+      "add_solvent": null,
+      "heat": {
+        "identifier": "34030b56-f046-4b13-9ffb-763501eb5cc2",
+        "type": "Heating",
+        "process_times": {},
+        "from_reaction": "640af87e-8906-4242-b13f-adf96fbbdd5b",
+        "annotations": {
+          "notes": "heating the reaction vessel to afford product: CC(C)(C)OC(=O)NCC(=O)Nn1cnnc1"
+        },
+        "precedents": [
+          "0e57d1bc-5b88-4ea8-ae04-4c6400f4aa83"
+        ]
+      },
+      "purify": {
+        "identifier": "a2f75c7f-d8ac-48a6-93ec-da5f82d15abc",
+        "type": "Purification",
+        "process_times": {},
+        "from_reaction": "640af87e-8906-4242-b13f-adf96fbbdd5b",
+        "annotations": {
+          "chemical": {
+            "identifier": "4a0ba0b2-d1be-4d2d-83cf-9e4271c240fa",
+            "smiles": "CC(C)(C)OC(=O)NCC(=O)Nn1cnnc1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 242.25503999999984,
+            "density": 1.4,
+            "mass": 242.25503999999984,
+            "is_produced_by": [
+              "640af87e-8906-4242-b13f-adf96fbbdd5b"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          "notes": "purify the product: CC(C)(C)OC(=O)NCC(=O)Nn1cnnc1"
+        },
+        "precedents": [
+          "a6c3231b-2195-4a37-a73e-d7ad0ce06ccf"
+        ]
+      },
+      "concentrate": {
+        "identifier": "a6c3231b-2195-4a37-a73e-d7ad0ce06ccf",
+        "type": "Concentration",
+        "process_times": {},
+        "from_reaction": "640af87e-8906-4242-b13f-adf96fbbdd5b",
+        "annotations": {
+          "notes": "concentrate the raw product: CC(C)(C)OC(=O)NCC(=O)Nn1cnnc1"
+        },
+        "precedents": [
+          "34030b56-f046-4b13-9ffb-763501eb5cc2"
+        ]
+      },
+      "lmin": {
+        "34030b56-f046-4b13-9ffb-763501eb5cc2": {
+          "a6c3231b-2195-4a37-a73e-d7ad0ce06ccf": 10.43469416314708
+        }
+      },
+      "lmax": {
+        "29e7f2f7-6879-4a29-a425-4005eabc5f2e": {
+          "34030b56-f046-4b13-9ffb-763501eb5cc2": 42.65765459055811
+        }
+      }
+    },
+    {
+      "identifier": "f80fd74c-0b8a-4d2d-b8a9-29df3aaa19dd",
+      "reaction": {
+        "identifier": "989f32cd-a1a2-4adb-87a1-23db8f79ba5e",
+        "reactants": [
+          {
+            "identifier": "69d7a523-b376-4bc5-a6e0-173419b9edeb",
+            "smiles": "CCOC(=O)CCl",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 122.55018000000004,
+            "density": 1.145,
+            "mass": 122.55018000000004,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "989f32cd-a1a2-4adb-87a1-23db8f79ba5e"
+            ],
+            "provenance__density": "from scraper output: scraper_output.json",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          {
+            "identifier": "92b4c427-413b-46e6-ac21-e7c25469a151",
+            "smiles": "CNCc1ccccc1",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 121.17964000000006,
+            "density": 0.939,
+            "mass": 121.17964000000006,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "989f32cd-a1a2-4adb-87a1-23db8f79ba5e"
+            ],
+            "provenance__density": "from scraper output: scraper_output.json",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "reagents": [],
+        "products": [
+          {
+            "identifier": "8b9373e3-7c48-4a57-8a38-325b1b9c5be4",
+            "smiles": "CCOC(=O)CN(C)Cc1ccccc1",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 207.26887999999977,
+            "density": 1.4,
+            "mass": 207.26887999999977,
+            "is_produced_by": [
+              "989f32cd-a1a2-4adb-87a1-23db8f79ba5e"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "stoichiometry": {
+          "69d7a523-b376-4bc5-a6e0-173419b9edeb": 1.0,
+          "92b4c427-413b-46e6-ac21-e7c25469a151": 1.0,
+          "8b9373e3-7c48-4a57-8a38-325b1b9c5be4": -1.0
+        },
+        "temperature": null,
+        "intended_ratios": {
+          "69d7a523-b376-4bc5-a6e0-173419b9edeb": 1.0,
+          "92b4c427-413b-46e6-ac21-e7c25469a151": 1.0
+        },
+        "expected_yields": {
+          "8b9373e3-7c48-4a57-8a38-325b1b9c5be4": 1.0
+        },
+        "reaction_extent": 1.0
+      },
+      "functional_modules": [],
+      "make_solutions": {},
+      "add_solutions": {},
+      "add_liquids": {
+        "69d7a523-b376-4bc5-a6e0-173419b9edeb": {
+          "identifier": "c9c9f660-7f6c-429f-b078-6ce052f83c2a",
+          "type": "TransferLiquid",
+          "process_times": {},
+          "from_reaction": "989f32cd-a1a2-4adb-87a1-23db8f79ba5e",
+          "annotations": {
+            "chemical": {
+              "identifier": "69d7a523-b376-4bc5-a6e0-173419b9edeb",
+              "smiles": "CCOC(=O)CCl",
+              "state_of_matter": "LIQUID",
+              "molecular_weight": 122.55018000000004,
+              "density": 1.145,
+              "mass": 122.55018000000004,
+              "is_produced_by": [],
+              "is_consumed_by": [
+                "989f32cd-a1a2-4adb-87a1-23db8f79ba5e"
+              ],
+              "provenance__density": "from scraper output: scraper_output.json",
+              "provenance__is_consumed_by": null,
+              "provenance__is_produced_by": null,
+              "provenance__mass": null,
+              "provenance__molecular_weight": "periodic table",
+              "provenance__smiles": null,
+              "provenance__state_of_matter": "from scraper output: scraper_output.json"
+            },
+            "notes": "add liquid CCOC(=O)CCl"
+          },
+          "precedents": [
+            "43129f04-6c36-402b-b177-3100c362cd3e"
+          ]
+        }
+      },
+      "add_solvent": {
+        "identifier": "43129f04-6c36-402b-b177-3100c362cd3e",
+        "type": "TransferLiquid",
+        "process_times": {},
+        "from_reaction": "989f32cd-a1a2-4adb-87a1-23db8f79ba5e",
+        "annotations": {
+          "chemical": {
+            "identifier": "92b4c427-413b-46e6-ac21-e7c25469a151",
+            "smiles": "CNCc1ccccc1",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 121.17964000000006,
+            "density": 0.939,
+            "mass": 121.17964000000006,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "989f32cd-a1a2-4adb-87a1-23db8f79ba5e"
+            ],
+            "provenance__density": "from scraper output: scraper_output.json",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          "notes": "add all solvent CNCc1ccccc1"
+        },
+        "precedents": []
+      },
+      "heat": {
+        "identifier": "bc1f2faa-ba6e-41cb-9f07-ec03ee391645",
+        "type": "Heating",
+        "process_times": {},
+        "from_reaction": "989f32cd-a1a2-4adb-87a1-23db8f79ba5e",
+        "annotations": {
+          "notes": "heating the reaction vessel to afford product: CCOC(=O)CN(C)Cc1ccccc1"
+        },
+        "precedents": [
+          "c9c9f660-7f6c-429f-b078-6ce052f83c2a",
+          "43129f04-6c36-402b-b177-3100c362cd3e"
+        ]
+      },
+      "purify": {
+        "identifier": "7e4f8f73-9b12-4d93-a5e4-20aabf9c606d",
+        "type": "Purification",
+        "process_times": {},
+        "from_reaction": "989f32cd-a1a2-4adb-87a1-23db8f79ba5e",
+        "annotations": {
+          "chemical": {
+            "identifier": "8b9373e3-7c48-4a57-8a38-325b1b9c5be4",
+            "smiles": "CCOC(=O)CN(C)Cc1ccccc1",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 207.26887999999977,
+            "density": 1.4,
+            "mass": 207.26887999999977,
+            "is_produced_by": [
+              "989f32cd-a1a2-4adb-87a1-23db8f79ba5e"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          "notes": "purify the product: CCOC(=O)CN(C)Cc1ccccc1"
+        },
+        "precedents": [
+          "6b4d1799-c0f0-4a57-9c9e-d753922fa651"
+        ]
+      },
+      "concentrate": {
+        "identifier": "6b4d1799-c0f0-4a57-9c9e-d753922fa651",
+        "type": "Concentration",
+        "process_times": {},
+        "from_reaction": "989f32cd-a1a2-4adb-87a1-23db8f79ba5e",
+        "annotations": {
+          "notes": "concentrate the raw product: CCOC(=O)CN(C)Cc1ccccc1"
+        },
+        "precedents": [
+          "bc1f2faa-ba6e-41cb-9f07-ec03ee391645"
+        ]
+      },
+      "lmin": {
+        "bc1f2faa-ba6e-41cb-9f07-ec03ee391645": {
+          "6b4d1799-c0f0-4a57-9c9e-d753922fa651": 10.148986097190352
+        }
+      },
+      "lmax": {}
+    },
+    {
+      "identifier": "ce6bb8cb-2f7b-4f87-990c-8e5e4df15916",
+      "reaction": {
+        "identifier": "1fe8df8e-1402-4187-a5aa-f623b2a10355",
+        "reactants": [
+          {
+            "identifier": "e21aa560-d049-45ef-9f6d-8847670e17bc",
+            "smiles": "CCOC(=O)CN(C(=O)OC(C)(C)C)C(=O)C1CCCCC1",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 313.3892800000004,
+            "density": 1.4,
+            "mass": 313.3892800000004,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "1fe8df8e-1402-4187-a5aa-f623b2a10355"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          }
+        ],
+        "reagents": [],
+        "products": [
+          {
+            "identifier": "7d7e9aca-12b6-4746-9cf0-e6143e974eb5",
+            "smiles": "CC(C)(C)OC(=O)N(CC(=O)O)C(=O)C1CCCCC1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 285.3361200000004,
+            "density": 1.4,
+            "mass": 285.3361200000004,
+            "is_produced_by": [
+              "1fe8df8e-1402-4187-a5aa-f623b2a10355"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "stoichiometry": {
+          "e21aa560-d049-45ef-9f6d-8847670e17bc": 1.0,
+          "7d7e9aca-12b6-4746-9cf0-e6143e974eb5": -1.0
+        },
+        "temperature": null,
+        "intended_ratios": {
+          "e21aa560-d049-45ef-9f6d-8847670e17bc": 1.0
+        },
+        "expected_yields": {
+          "7d7e9aca-12b6-4746-9cf0-e6143e974eb5": 1.0
+        },
+        "reaction_extent": 1.0
+      },
+      "functional_modules": [],
+      "make_solutions": {},
+      "add_solutions": {},
+      "add_liquids": {},
+      "add_solvent": {
+        "identifier": "bf117e19-dc90-499f-a97e-6dd33416fde2",
+        "type": "TransferLiquid",
+        "process_times": {},
+        "from_reaction": "1fe8df8e-1402-4187-a5aa-f623b2a10355",
+        "annotations": {
+          "chemical": {
+            "identifier": "e21aa560-d049-45ef-9f6d-8847670e17bc",
+            "smiles": "CCOC(=O)CN(C(=O)OC(C)(C)C)C(=O)C1CCCCC1",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 313.3892800000004,
+            "density": 1.4,
+            "mass": 313.3892800000004,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "1fe8df8e-1402-4187-a5aa-f623b2a10355"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          },
+          "notes": "add all solvent CCOC(=O)CN(C(=O)OC(C)(C)C)C(=O)C1CCCCC1"
+        },
+        "precedents": [
+          "a4a62fcc-b731-4394-84c8-89113c30f87f"
+        ]
+      },
+      "heat": {
+        "identifier": "d0ed48e2-b294-4070-82a5-fe48ce7f3dce",
+        "type": "Heating",
+        "process_times": {},
+        "from_reaction": "1fe8df8e-1402-4187-a5aa-f623b2a10355",
+        "annotations": {
+          "notes": "heating the reaction vessel to afford product: CC(C)(C)OC(=O)N(CC(=O)O)C(=O)C1CCCCC1"
+        },
+        "precedents": [
+          "bf117e19-dc90-499f-a97e-6dd33416fde2"
+        ]
+      },
+      "purify": {
+        "identifier": "f8f1796f-5684-4ffc-bc6f-e20b58da6c43",
+        "type": "Purification",
+        "process_times": {},
+        "from_reaction": "1fe8df8e-1402-4187-a5aa-f623b2a10355",
+        "annotations": {
+          "chemical": {
+            "identifier": "7d7e9aca-12b6-4746-9cf0-e6143e974eb5",
+            "smiles": "CC(C)(C)OC(=O)N(CC(=O)O)C(=O)C1CCCCC1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 285.3361200000004,
+            "density": 1.4,
+            "mass": 285.3361200000004,
+            "is_produced_by": [
+              "1fe8df8e-1402-4187-a5aa-f623b2a10355"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          "notes": "purify the product: CC(C)(C)OC(=O)N(CC(=O)O)C(=O)C1CCCCC1"
+        },
+        "precedents": [
+          "c12c858d-cd78-4ec1-95c9-1b50e08eab70"
+        ]
+      },
+      "concentrate": {
+        "identifier": "c12c858d-cd78-4ec1-95c9-1b50e08eab70",
+        "type": "Concentration",
+        "process_times": {},
+        "from_reaction": "1fe8df8e-1402-4187-a5aa-f623b2a10355",
+        "annotations": {
+          "notes": "concentrate the raw product: CC(C)(C)OC(=O)N(CC(=O)O)C(=O)C1CCCCC1"
+        },
+        "precedents": [
+          "d0ed48e2-b294-4070-82a5-fe48ce7f3dce"
+        ]
+      },
+      "lmin": {
+        "d0ed48e2-b294-4070-82a5-fe48ce7f3dce": {
+          "c12c858d-cd78-4ec1-95c9-1b50e08eab70": 11.093189874018016
+        }
+      },
+      "lmax": {}
+    },
+    {
+      "identifier": "69c61d8a-1ea5-4446-a31f-2a5b90c75c31",
+      "reaction": {
+        "identifier": "714c628f-3437-405d-a4d4-5c59f479599f",
+        "reactants": [
+          {
+            "identifier": "30659448-5a2c-43ee-a56d-246aea9e5f0b",
+            "smiles": "CCOC(=O)CN(C)Cc1ccccc1",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 207.26887999999977,
+            "density": 1.4,
+            "mass": 207.26887999999977,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "714c628f-3437-405d-a4d4-5c59f479599f"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "reagents": [],
+        "products": [
+          {
+            "identifier": "dd5f56dc-0bec-4818-9ca9-d73d56c33c07",
+            "smiles": "CCOC(=O)CNC",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 117.14634000000005,
+            "density": 1.23,
+            "mass": 117.14634000000005,
+            "is_produced_by": [
+              "714c628f-3437-405d-a4d4-5c59f479599f"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "from scraper output: scraper_output.json",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "stoichiometry": {
+          "30659448-5a2c-43ee-a56d-246aea9e5f0b": 1.0,
+          "dd5f56dc-0bec-4818-9ca9-d73d56c33c07": -1.0
+        },
+        "temperature": null,
+        "intended_ratios": {
+          "30659448-5a2c-43ee-a56d-246aea9e5f0b": 1.0
+        },
+        "expected_yields": {
+          "dd5f56dc-0bec-4818-9ca9-d73d56c33c07": 1.0
+        },
+        "reaction_extent": 1.0
+      },
+      "functional_modules": [],
+      "make_solutions": {},
+      "add_solutions": {},
+      "add_liquids": {},
+      "add_solvent": {
+        "identifier": "a482a280-3d13-403e-8bd2-b132aac441d5",
+        "type": "TransferLiquid",
+        "process_times": {},
+        "from_reaction": "714c628f-3437-405d-a4d4-5c59f479599f",
+        "annotations": {
+          "chemical": {
+            "identifier": "30659448-5a2c-43ee-a56d-246aea9e5f0b",
+            "smiles": "CCOC(=O)CN(C)Cc1ccccc1",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 207.26887999999977,
+            "density": 1.4,
+            "mass": 207.26887999999977,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "714c628f-3437-405d-a4d4-5c59f479599f"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          "notes": "add all solvent CCOC(=O)CN(C)Cc1ccccc1"
+        },
+        "precedents": [
+          "7e4f8f73-9b12-4d93-a5e4-20aabf9c606d"
+        ]
+      },
+      "heat": {
+        "identifier": "376a1ffa-7578-4416-9878-5d86d3ba5a71",
+        "type": "Heating",
+        "process_times": {},
+        "from_reaction": "714c628f-3437-405d-a4d4-5c59f479599f",
+        "annotations": {
+          "notes": "heating the reaction vessel to afford product: CCOC(=O)CNC"
+        },
+        "precedents": [
+          "a482a280-3d13-403e-8bd2-b132aac441d5"
+        ]
+      },
+      "purify": {
+        "identifier": "608fb0fb-28d6-4a47-a7c4-7eebc7918f9f",
+        "type": "Purification",
+        "process_times": {},
+        "from_reaction": "714c628f-3437-405d-a4d4-5c59f479599f",
+        "annotations": {
+          "chemical": {
+            "identifier": "dd5f56dc-0bec-4818-9ca9-d73d56c33c07",
+            "smiles": "CCOC(=O)CNC",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 117.14634000000005,
+            "density": 1.23,
+            "mass": 117.14634000000005,
+            "is_produced_by": [
+              "714c628f-3437-405d-a4d4-5c59f479599f"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "from scraper output: scraper_output.json",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          "notes": "purify the product: CCOC(=O)CNC"
+        },
+        "precedents": [
+          "f6bfcb98-a40e-4181-a35a-3f778f00bbd2"
+        ]
+      },
+      "concentrate": {
+        "identifier": "f6bfcb98-a40e-4181-a35a-3f778f00bbd2",
+        "type": "Concentration",
+        "process_times": {},
+        "from_reaction": "714c628f-3437-405d-a4d4-5c59f479599f",
+        "annotations": {
+          "notes": "concentrate the raw product: CCOC(=O)CNC"
+        },
+        "precedents": [
+          "376a1ffa-7578-4416-9878-5d86d3ba5a71"
+        ]
+      },
+      "lmin": {
+        "376a1ffa-7578-4416-9878-5d86d3ba5a71": {
+          "f6bfcb98-a40e-4181-a35a-3f778f00bbd2": 12.526776440516812
+        }
+      },
+      "lmax": {}
+    },
+    {
+      "identifier": "501046c6-eda9-431b-9b68-03df33895b4a",
+      "reaction": {
+        "identifier": "0475fd48-673c-46e6-8245-27d2739d44ee",
+        "reactants": [
+          {
+            "identifier": "c8250323-60a7-4b91-90c3-38e9c41c37ba",
+            "smiles": "CCOC(=O)CNC(=O)OC(C)(C)C",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 203.23557999999977,
+            "density": 1.4,
+            "mass": 203.23557999999977,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "0475fd48-673c-46e6-8245-27d2739d44ee"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          },
+          {
+            "identifier": "378bce84-204e-4a9d-81f6-88a5c3244439",
+            "smiles": "O=C(Cl)C1CCCCC1",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 146.61463999999992,
+            "density": 1.096,
+            "mass": 146.61463999999992,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "0475fd48-673c-46e6-8245-27d2739d44ee"
+            ],
+            "provenance__density": "from scraper output: scraper_output.json",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          }
+        ],
+        "reagents": [],
+        "products": [
+          {
+            "identifier": "b15e2255-3896-4ade-a6c8-9f71073c8cfd",
+            "smiles": "CCOC(=O)CN(C(=O)OC(C)(C)C)C(=O)C1CCCCC1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 313.3892800000004,
+            "density": 1.4,
+            "mass": 313.3892800000004,
+            "is_produced_by": [
+              "0475fd48-673c-46e6-8245-27d2739d44ee"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          }
+        ],
+        "stoichiometry": {
+          "c8250323-60a7-4b91-90c3-38e9c41c37ba": 1.0,
+          "378bce84-204e-4a9d-81f6-88a5c3244439": 1.0,
+          "b15e2255-3896-4ade-a6c8-9f71073c8cfd": -1.0
+        },
+        "temperature": null,
+        "intended_ratios": {
+          "c8250323-60a7-4b91-90c3-38e9c41c37ba": 1.0,
+          "378bce84-204e-4a9d-81f6-88a5c3244439": 1.0
+        },
+        "expected_yields": {
+          "b15e2255-3896-4ade-a6c8-9f71073c8cfd": 1.0
+        },
+        "reaction_extent": 1.0
+      },
+      "functional_modules": [],
+      "make_solutions": {
+        "c8250323-60a7-4b91-90c3-38e9c41c37ba": [
+          {
+            "identifier": "aa578535-577e-4a29-add8-2278b882bfb1",
+            "type": "TransferSolid",
+            "process_times": {},
+            "from_reaction": "0475fd48-673c-46e6-8245-27d2739d44ee",
+            "annotations": {
+              "chemical": {
+                "identifier": "c8250323-60a7-4b91-90c3-38e9c41c37ba",
+                "smiles": "CCOC(=O)CNC(=O)OC(C)(C)C",
+                "state_of_matter": "SOLID",
+                "molecular_weight": 203.23557999999977,
+                "density": 1.4,
+                "mass": 203.23557999999977,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "0475fd48-673c-46e6-8245-27d2739d44ee"
+                ],
+                "provenance__density": "dummy estimator based on mw",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "dummy estimator based on mw"
+              },
+              "notes": "transfer solid CCOC(=O)CNC(=O)OC(C)(C)C for making solution for CCOC(=O)CNC(=O)OC(C)(C)C"
+            },
+            "precedents": []
+          },
+          {
+            "identifier": "14941ee2-dec5-4a79-97cf-4d54ff226d56",
+            "type": "TransferLiquid",
+            "process_times": {},
+            "from_reaction": "0475fd48-673c-46e6-8245-27d2739d44ee",
+            "annotations": {
+              "chemical": {
+                "identifier": "eba1a2eb-e69c-4c2e-9482-8f7f2321181c",
+                "smiles": "O=C(Cl)C1CCCCC1",
+                "state_of_matter": "LIQUID",
+                "molecular_weight": 146.61463999999992,
+                "density": 1.096,
+                "mass": 146.61463999999992,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "0475fd48-673c-46e6-8245-27d2739d44ee"
+                ],
+                "provenance__density": "from scraper output: scraper_output.json",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "from scraper output: scraper_output.json"
+              },
+              "notes": "transfer solvent O=C(Cl)C1CCCCC1 for making solution for CCOC(=O)CNC(=O)OC(C)(C)C"
+            },
+            "precedents": [
+              "aa578535-577e-4a29-add8-2278b882bfb1"
+            ]
+          }
+        ]
+      },
+      "add_solutions": {
+        "c8250323-60a7-4b91-90c3-38e9c41c37ba": {
+          "identifier": "e93ad4f9-715c-4454-ac00-a1d883d4a944",
+          "type": "TransferLiquid",
+          "process_times": {},
+          "from_reaction": "0475fd48-673c-46e6-8245-27d2739d44ee",
+          "annotations": {
+            "chemical": {
+              "identifier": "8a1770e4-5913-4013-930e-cd5153c73b62",
+              "smiles": "O=C(Cl)C1CCCCC1.CCOC(=O)CNC(=O)OC(C)(C)C",
+              "state_of_matter": "LIQUID",
+              "molecular_weight": null,
+              "density": 1.254209777564289,
+              "mass": 349.8502199999997,
+              "is_produced_by": [],
+              "is_consumed_by": [
+                "0475fd48-673c-46e6-8245-27d2739d44ee"
+              ],
+              "provenance__density": "from scraper output: scraper_output.json",
+              "provenance__is_consumed_by": null,
+              "provenance__is_produced_by": null,
+              "provenance__mass": null,
+              "provenance__molecular_weight": "periodic table",
+              "provenance__smiles": null,
+              "provenance__state_of_matter": "from scraper output: scraper_output.json"
+            },
+            "notes": "add solution CCOC(=O)CNC(=O)OC(C)(C)C in O=C(Cl)C1CCCCC1"
+          },
+          "precedents": [
+            "14941ee2-dec5-4a79-97cf-4d54ff226d56"
+          ]
+        }
+      },
+      "add_liquids": {},
+      "add_solvent": null,
+      "heat": {
+        "identifier": "11c909df-6f95-451c-9969-78073ca7c739",
+        "type": "Heating",
+        "process_times": {},
+        "from_reaction": "0475fd48-673c-46e6-8245-27d2739d44ee",
+        "annotations": {
+          "notes": "heating the reaction vessel to afford product: CCOC(=O)CN(C(=O)OC(C)(C)C)C(=O)C1CCCCC1"
+        },
+        "precedents": [
+          "e93ad4f9-715c-4454-ac00-a1d883d4a944"
+        ]
+      },
+      "purify": {
+        "identifier": "a4a62fcc-b731-4394-84c8-89113c30f87f",
+        "type": "Purification",
+        "process_times": {},
+        "from_reaction": "0475fd48-673c-46e6-8245-27d2739d44ee",
+        "annotations": {
+          "chemical": {
+            "identifier": "b15e2255-3896-4ade-a6c8-9f71073c8cfd",
+            "smiles": "CCOC(=O)CN(C(=O)OC(C)(C)C)C(=O)C1CCCCC1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 313.3892800000004,
+            "density": 1.4,
+            "mass": 313.3892800000004,
+            "is_produced_by": [
+              "0475fd48-673c-46e6-8245-27d2739d44ee"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          },
+          "notes": "purify the product: CCOC(=O)CN(C(=O)OC(C)(C)C)C(=O)C1CCCCC1"
+        },
+        "precedents": [
+          "ee234c42-2ebd-4a8d-9776-f7e2203eb233"
+        ]
+      },
+      "concentrate": {
+        "identifier": "ee234c42-2ebd-4a8d-9776-f7e2203eb233",
+        "type": "Concentration",
+        "process_times": {},
+        "from_reaction": "0475fd48-673c-46e6-8245-27d2739d44ee",
+        "annotations": {
+          "notes": "concentrate the raw product: CCOC(=O)CN(C(=O)OC(C)(C)C)C(=O)C1CCCCC1"
+        },
+        "precedents": [
+          "11c909df-6f95-451c-9969-78073ca7c739"
+        ]
+      },
+      "lmin": {
+        "11c909df-6f95-451c-9969-78073ca7c739": {
+          "ee234c42-2ebd-4a8d-9776-f7e2203eb233": 10.132679848419318
+        }
+      },
+      "lmax": {
+        "14941ee2-dec5-4a79-97cf-4d54ff226d56": {
+          "11c909df-6f95-451c-9969-78073ca7c739": 35.965129520599454
+        }
+      }
+    },
+    {
+      "identifier": "202c2aa7-c2b4-4aaa-96d9-414dc63974ea",
+      "reaction": {
+        "identifier": "44a2b323-3cff-4a13-8913-22f67c0eb19a",
+        "reactants": [
+          {
+            "identifier": "02ca9ee1-8e79-4e85-8ef6-b4373989de29",
+            "smiles": "COc1ccc(C(=O)O)cc1",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 152.14731999999992,
+            "density": 1.0,
+            "mass": 152.14731999999992,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "44a2b323-3cff-4a13-8913-22f67c0eb19a"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          },
+          {
+            "identifier": "6c640f4c-b7fd-406f-97cf-72d79a349209",
+            "smiles": "O=C(CBr)NCC(=O)Nn1cnnc1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 263.0719600000001,
+            "density": 1.4,
+            "mass": 263.0719600000001,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "44a2b323-3cff-4a13-8913-22f67c0eb19a"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          }
+        ],
+        "reagents": [],
+        "products": [
+          {
+            "identifier": "bed53b9c-513f-4943-915a-b176c477d8be",
+            "smiles": "COc1ccc(C(=O)OCC(=O)NCC(=O)Nn2cnnc2)cc1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 334.3073400000003,
+            "density": 1.4,
+            "mass": 334.3073400000003,
+            "is_produced_by": [
+              "44a2b323-3cff-4a13-8913-22f67c0eb19a"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          }
+        ],
+        "stoichiometry": {
+          "02ca9ee1-8e79-4e85-8ef6-b4373989de29": 1.0,
+          "6c640f4c-b7fd-406f-97cf-72d79a349209": 1.0,
+          "bed53b9c-513f-4943-915a-b176c477d8be": -1.0
+        },
+        "temperature": null,
+        "intended_ratios": {
+          "02ca9ee1-8e79-4e85-8ef6-b4373989de29": 1.0,
+          "6c640f4c-b7fd-406f-97cf-72d79a349209": 1.0
+        },
+        "expected_yields": {
+          "bed53b9c-513f-4943-915a-b176c477d8be": 1.0
+        },
+        "reaction_extent": 1.0
+      },
+      "functional_modules": [],
+      "make_solutions": {
+        "6c640f4c-b7fd-406f-97cf-72d79a349209": [
+          {
+            "identifier": "0d236147-bb58-4aaa-a687-de9a6f391501",
+            "type": "TransferSolid",
+            "process_times": {},
+            "from_reaction": "44a2b323-3cff-4a13-8913-22f67c0eb19a",
+            "annotations": {
+              "chemical": {
+                "identifier": "6c640f4c-b7fd-406f-97cf-72d79a349209",
+                "smiles": "O=C(CBr)NCC(=O)Nn1cnnc1",
+                "state_of_matter": "SOLID",
+                "molecular_weight": 263.0719600000001,
+                "density": 1.4,
+                "mass": 263.0719600000001,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "44a2b323-3cff-4a13-8913-22f67c0eb19a"
+                ],
+                "provenance__density": "dummy estimator based on mw",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "dummy estimator based on mw"
+              },
+              "notes": "transfer solid O=C(CBr)NCC(=O)Nn1cnnc1 for making solution for O=C(CBr)NCC(=O)Nn1cnnc1"
+            },
+            "precedents": [
+              "9f3d7d80-d4c3-4501-91da-ab7a8ca204a7"
+            ]
+          },
+          {
+            "identifier": "5dd825a2-3bfa-416b-9cdc-e4ebdb753533",
+            "type": "TransferLiquid",
+            "process_times": {},
+            "from_reaction": "44a2b323-3cff-4a13-8913-22f67c0eb19a",
+            "annotations": {
+              "chemical": {
+                "identifier": "c6da8670-7480-4696-b124-76fc111d2821",
+                "smiles": "COc1ccc(C(=O)O)cc1",
+                "state_of_matter": "LIQUID",
+                "molecular_weight": 152.14731999999992,
+                "density": 1.0,
+                "mass": 152.14731999999992,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "44a2b323-3cff-4a13-8913-22f67c0eb19a"
+                ],
+                "provenance__density": "dummy estimator based on mw",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "dummy estimator based on mw"
+              },
+              "notes": "transfer solvent COc1ccc(C(=O)O)cc1 for making solution for O=C(CBr)NCC(=O)Nn1cnnc1"
+            },
+            "precedents": [
+              "0d236147-bb58-4aaa-a687-de9a6f391501"
+            ]
+          }
+        ]
+      },
+      "add_solutions": {
+        "6c640f4c-b7fd-406f-97cf-72d79a349209": {
+          "identifier": "c8a65d4c-800f-4139-b101-ecd8b951c5ce",
+          "type": "TransferLiquid",
+          "process_times": {},
+          "from_reaction": "44a2b323-3cff-4a13-8913-22f67c0eb19a",
+          "annotations": {
+            "chemical": {
+              "identifier": "23c06a4e-02d3-418e-8ce9-5f294dcf67f2",
+              "smiles": "COc1ccc(C(=O)O)cc1.O=C(CBr)NCC(=O)Nn1cnnc1",
+              "state_of_matter": "LIQUID",
+              "molecular_weight": null,
+              "density": 1.2210325577431178,
+              "mass": 415.21928,
+              "is_produced_by": [],
+              "is_consumed_by": [
+                "44a2b323-3cff-4a13-8913-22f67c0eb19a"
+              ],
+              "provenance__density": "dummy estimator based on mw",
+              "provenance__is_consumed_by": null,
+              "provenance__is_produced_by": null,
+              "provenance__mass": null,
+              "provenance__molecular_weight": "periodic table",
+              "provenance__smiles": null,
+              "provenance__state_of_matter": "dummy estimator based on mw"
+            },
+            "notes": "add solution O=C(CBr)NCC(=O)Nn1cnnc1 in COc1ccc(C(=O)O)cc1"
+          },
+          "precedents": [
+            "5dd825a2-3bfa-416b-9cdc-e4ebdb753533"
+          ]
+        }
+      },
+      "add_liquids": {},
+      "add_solvent": null,
+      "heat": {
+        "identifier": "f078ddc2-3eb1-4e27-9912-d29cb80553d9",
+        "type": "Heating",
+        "process_times": {},
+        "from_reaction": "44a2b323-3cff-4a13-8913-22f67c0eb19a",
+        "annotations": {
+          "notes": "heating the reaction vessel to afford product: COc1ccc(C(=O)OCC(=O)NCC(=O)Nn2cnnc2)cc1"
+        },
+        "precedents": [
+          "c8a65d4c-800f-4139-b101-ecd8b951c5ce"
+        ]
+      },
+      "purify": {
+        "identifier": "ccd7d923-7c4e-431f-8ce4-be31b09107a0",
+        "type": "Purification",
+        "process_times": {},
+        "from_reaction": "44a2b323-3cff-4a13-8913-22f67c0eb19a",
+        "annotations": {
+          "chemical": {
+            "identifier": "bed53b9c-513f-4943-915a-b176c477d8be",
+            "smiles": "COc1ccc(C(=O)OCC(=O)NCC(=O)Nn2cnnc2)cc1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 334.3073400000003,
+            "density": 1.4,
+            "mass": 334.3073400000003,
+            "is_produced_by": [
+              "44a2b323-3cff-4a13-8913-22f67c0eb19a"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          },
+          "notes": "purify the product: COc1ccc(C(=O)OCC(=O)NCC(=O)Nn2cnnc2)cc1"
+        },
+        "precedents": [
+          "cd15af02-61c7-4d89-b909-1f0a02ce1aed"
+        ]
+      },
+      "concentrate": {
+        "identifier": "cd15af02-61c7-4d89-b909-1f0a02ce1aed",
+        "type": "Concentration",
+        "process_times": {},
+        "from_reaction": "44a2b323-3cff-4a13-8913-22f67c0eb19a",
+        "annotations": {
+          "notes": "concentrate the raw product: COc1ccc(C(=O)OCC(=O)NCC(=O)Nn2cnnc2)cc1"
+        },
+        "precedents": [
+          "f078ddc2-3eb1-4e27-9912-d29cb80553d9"
+        ]
+      },
+      "lmin": {
+        "f078ddc2-3eb1-4e27-9912-d29cb80553d9": {
+          "cd15af02-61c7-4d89-b909-1f0a02ce1aed": 13.249422188897615
+        }
+      },
+      "lmax": {
+        "5dd825a2-3bfa-416b-9cdc-e4ebdb753533": {
+          "f078ddc2-3eb1-4e27-9912-d29cb80553d9": 46.3482444180965
+        }
+      }
+    },
+    {
+      "identifier": "09330e8e-e40b-4900-8bf6-a0a7acd25244",
+      "reaction": {
+        "identifier": "e17ef802-46bf-4ba6-af33-9ac56f07d7da",
+        "reactants": [
+          {
+            "identifier": "a50ea589-9598-4992-aac1-daef9e4afe81",
+            "smiles": "NCC(=O)Nn1cnnc1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 142.1392199999999,
+            "density": 1.0,
+            "mass": 142.1392199999999,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "e17ef802-46bf-4ba6-af33-9ac56f07d7da"
+            ],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "from scraper output: scraper_output.json"
+          },
+          {
+            "identifier": "902d8a03-36dc-4e7f-98c3-c9589a4679b0",
+            "smiles": "O=C(Cl)CBr",
+            "state_of_matter": "LIQUID",
+            "molecular_weight": 157.39368,
+            "density": 1.89,
+            "mass": 157.39368,
+            "is_produced_by": [],
+            "is_consumed_by": [
+              "e17ef802-46bf-4ba6-af33-9ac56f07d7da"
+            ],
+            "provenance__density": "from scraper output: scraper_output.json",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          }
+        ],
+        "reagents": [],
+        "products": [
+          {
+            "identifier": "53c4fe51-be0c-48e9-afec-8bc49db3b004",
+            "smiles": "O=C(CBr)NCC(=O)Nn1cnnc1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 263.0719600000001,
+            "density": 1.4,
+            "mass": 263.0719600000001,
+            "is_produced_by": [
+              "e17ef802-46bf-4ba6-af33-9ac56f07d7da"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          }
+        ],
+        "stoichiometry": {
+          "a50ea589-9598-4992-aac1-daef9e4afe81": 1.0,
+          "902d8a03-36dc-4e7f-98c3-c9589a4679b0": 1.0,
+          "53c4fe51-be0c-48e9-afec-8bc49db3b004": -1.0
+        },
+        "temperature": null,
+        "intended_ratios": {
+          "a50ea589-9598-4992-aac1-daef9e4afe81": 1.0,
+          "902d8a03-36dc-4e7f-98c3-c9589a4679b0": 1.0
+        },
+        "expected_yields": {
+          "53c4fe51-be0c-48e9-afec-8bc49db3b004": 1.0
+        },
+        "reaction_extent": 1.0
+      },
+      "functional_modules": [],
+      "make_solutions": {
+        "a50ea589-9598-4992-aac1-daef9e4afe81": [
+          {
+            "identifier": "d43287fd-424b-4d54-9650-dc6e5c51ae1b",
+            "type": "TransferSolid",
+            "process_times": {},
+            "from_reaction": "e17ef802-46bf-4ba6-af33-9ac56f07d7da",
+            "annotations": {
+              "chemical": {
+                "identifier": "a50ea589-9598-4992-aac1-daef9e4afe81",
+                "smiles": "NCC(=O)Nn1cnnc1",
+                "state_of_matter": "SOLID",
+                "molecular_weight": 142.1392199999999,
+                "density": 1.0,
+                "mass": 142.1392199999999,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "e17ef802-46bf-4ba6-af33-9ac56f07d7da"
+                ],
+                "provenance__density": "dummy estimator based on mw",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "from scraper output: scraper_output.json"
+              },
+              "notes": "transfer solid NCC(=O)Nn1cnnc1 for making solution for NCC(=O)Nn1cnnc1"
+            },
+            "precedents": [
+              "016dd16a-b0bc-48b1-9f25-1f7a2203aa59"
+            ]
+          },
+          {
+            "identifier": "c173e0ba-5c6f-4a97-868b-5d897d4e85eb",
+            "type": "TransferLiquid",
+            "process_times": {},
+            "from_reaction": "e17ef802-46bf-4ba6-af33-9ac56f07d7da",
+            "annotations": {
+              "chemical": {
+                "identifier": "ac0e3cc3-c6fe-48aa-9c47-4beaaa84a06d",
+                "smiles": "O=C(Cl)CBr",
+                "state_of_matter": "LIQUID",
+                "molecular_weight": 157.39368,
+                "density": 1.89,
+                "mass": 157.39368,
+                "is_produced_by": [],
+                "is_consumed_by": [
+                  "e17ef802-46bf-4ba6-af33-9ac56f07d7da"
+                ],
+                "provenance__density": "from scraper output: scraper_output.json",
+                "provenance__is_consumed_by": null,
+                "provenance__is_produced_by": null,
+                "provenance__mass": null,
+                "provenance__molecular_weight": "periodic table",
+                "provenance__smiles": null,
+                "provenance__state_of_matter": "dummy estimator based on mw"
+              },
+              "notes": "transfer solvent O=C(Cl)CBr for making solution for NCC(=O)Nn1cnnc1"
+            },
+            "precedents": [
+              "d43287fd-424b-4d54-9650-dc6e5c51ae1b"
+            ]
+          }
+        ]
+      },
+      "add_solutions": {
+        "a50ea589-9598-4992-aac1-daef9e4afe81": {
+          "identifier": "6a7abbb5-39a3-42d5-873e-6730e7c88d44",
+          "type": "TransferLiquid",
+          "process_times": {},
+          "from_reaction": "e17ef802-46bf-4ba6-af33-9ac56f07d7da",
+          "annotations": {
+            "chemical": {
+              "identifier": "aeb1ca3b-19da-468f-a0d9-3c650cb38c4c",
+              "smiles": "O=C(Cl)CBr.NCC(=O)Nn1cnnc1",
+              "state_of_matter": "LIQUID",
+              "molecular_weight": null,
+              "density": 1.3287987640808663,
+              "mass": 299.5328999999999,
+              "is_produced_by": [],
+              "is_consumed_by": [
+                "e17ef802-46bf-4ba6-af33-9ac56f07d7da"
+              ],
+              "provenance__density": "from scraper output: scraper_output.json",
+              "provenance__is_consumed_by": null,
+              "provenance__is_produced_by": null,
+              "provenance__mass": null,
+              "provenance__molecular_weight": "periodic table",
+              "provenance__smiles": null,
+              "provenance__state_of_matter": "dummy estimator based on mw"
+            },
+            "notes": "add solution NCC(=O)Nn1cnnc1 in O=C(Cl)CBr"
+          },
+          "precedents": [
+            "c173e0ba-5c6f-4a97-868b-5d897d4e85eb"
+          ]
+        }
+      },
+      "add_liquids": {},
+      "add_solvent": null,
+      "heat": {
+        "identifier": "5174ee55-86d6-4f4b-9513-ee1c5e067aca",
+        "type": "Heating",
+        "process_times": {},
+        "from_reaction": "e17ef802-46bf-4ba6-af33-9ac56f07d7da",
+        "annotations": {
+          "notes": "heating the reaction vessel to afford product: O=C(CBr)NCC(=O)Nn1cnnc1"
+        },
+        "precedents": [
+          "6a7abbb5-39a3-42d5-873e-6730e7c88d44"
+        ]
+      },
+      "purify": {
+        "identifier": "9f3d7d80-d4c3-4501-91da-ab7a8ca204a7",
+        "type": "Purification",
+        "process_times": {},
+        "from_reaction": "e17ef802-46bf-4ba6-af33-9ac56f07d7da",
+        "annotations": {
+          "chemical": {
+            "identifier": "53c4fe51-be0c-48e9-afec-8bc49db3b004",
+            "smiles": "O=C(CBr)NCC(=O)Nn1cnnc1",
+            "state_of_matter": "SOLID",
+            "molecular_weight": 263.0719600000001,
+            "density": 1.4,
+            "mass": 263.0719600000001,
+            "is_produced_by": [
+              "e17ef802-46bf-4ba6-af33-9ac56f07d7da"
+            ],
+            "is_consumed_by": [],
+            "provenance__density": "dummy estimator based on mw",
+            "provenance__is_consumed_by": null,
+            "provenance__is_produced_by": null,
+            "provenance__mass": null,
+            "provenance__molecular_weight": "periodic table",
+            "provenance__smiles": null,
+            "provenance__state_of_matter": "dummy estimator based on mw"
+          },
+          "notes": "purify the product: O=C(CBr)NCC(=O)Nn1cnnc1"
+        },
+        "precedents": [
+          "25de4fff-4b5f-418a-999f-39b5062ad7c0"
+        ]
+      },
+      "concentrate": {
+        "identifier": "25de4fff-4b5f-418a-999f-39b5062ad7c0",
+        "type": "Concentration",
+        "process_times": {},
+        "from_reaction": "e17ef802-46bf-4ba6-af33-9ac56f07d7da",
+        "annotations": {
+          "notes": "concentrate the raw product: O=C(CBr)NCC(=O)Nn1cnnc1"
+        },
+        "precedents": [
+          "5174ee55-86d6-4f4b-9513-ee1c5e067aca"
+        ]
+      },
+      "lmin": {
+        "5174ee55-86d6-4f4b-9513-ee1c5e067aca": {
+          "25de4fff-4b5f-418a-999f-39b5062ad7c0": 11.102203110203483
+        }
+      },
+      "lmax": {
+        "c173e0ba-5c6f-4a97-868b-5d897d4e85eb": {
+          "5174ee55-86d6-4f4b-9513-ee1c5e067aca": 47.67797051627726
+        }
+      }
+    }
+  ],
+  "adjacency_data": {
+    "directed": true,
+    "multigraph": false,
+    "graph": [],
+    "nodes": [
+      {
+        "id": "608fb0fb-28d6-4a47-a7c4-7eebc7918f9f"
+      },
+      {
+        "id": "b75528d7-9468-47f6-a696-17a0f2361d48"
+      },
+      {
+        "id": "76860946-c534-496d-9bb7-d5dd2aa94f8d"
+      },
+      {
+        "id": "a268df7a-00a5-41cd-b7df-dd2a9041d575"
+      },
+      {
+        "id": "9576e81e-586e-49c1-b846-ada329c368ac"
+      },
+      {
+        "id": "f2fd2af1-45dd-4319-94c4-67f18cc10e26"
+      },
+      {
+        "id": "c4c3fa80-cc0f-46f1-92df-97dd1f4b39a1"
+      },
+      {
+        "id": "8d217eb2-d7fe-4b41-98f9-8d1bb476ccc9"
+      },
+      {
+        "id": "6e46862b-2eac-4ec9-98c1-ae0e8c37aae8"
+      },
+      {
+        "id": "0488cd50-bd6a-431e-a18b-a45dd4bedd46"
+      },
+      {
+        "id": "4d807b7d-10e6-4724-8052-bc10ac606320"
+      },
+      {
+        "id": "6b8db9c1-7332-45b7-ac54-00c63a763d9c"
+      },
+      {
+        "id": "aef63c30-cc2c-4616-91f8-874dbd7a080f"
+      },
+      {
+        "id": "ef3498c4-63f0-48b1-9285-e46d1925638f"
+      },
+      {
+        "id": "0fb19cc5-0012-4094-82d1-1ec5149490df"
+      },
+      {
+        "id": "76697153-a4b9-4cab-bade-584e15316ffb"
+      },
+      {
+        "id": "860c3991-57a2-460a-9c83-58f5ba30b1b3"
+      },
+      {
+        "id": "b811ef91-892c-4b0d-ad5d-cdd15cbf1e91"
+      },
+      {
+        "id": "172b255e-4ecc-48d2-9125-7ebab0ad04f0"
+      },
+      {
+        "id": "a2f75c7f-d8ac-48a6-93ec-da5f82d15abc"
+      },
+      {
+        "id": "6c95582b-92a1-4dd3-a42f-9a08ffb48744"
+      },
+      {
+        "id": "0c2fc49b-fdf8-4dbb-b46b-de8003273402"
+      },
+      {
+        "id": "9f517a7b-7f65-4707-bd7a-59553fc8e220"
+      },
+      {
+        "id": "016dd16a-b0bc-48b1-9f25-1f7a2203aa59"
+      },
+      {
+        "id": "27678ce4-3bb3-45d6-a7e0-b41ed02db117"
+      },
+      {
+        "id": "29e7f2f7-6879-4a29-a425-4005eabc5f2e"
+      },
+      {
+        "id": "0e57d1bc-5b88-4ea8-ae04-4c6400f4aa83"
+      },
+      {
+        "id": "34030b56-f046-4b13-9ffb-763501eb5cc2"
+      },
+      {
+        "id": "a6c3231b-2195-4a37-a73e-d7ad0ce06ccf"
+      },
+      {
+        "id": "43129f04-6c36-402b-b177-3100c362cd3e"
+      },
+      {
+        "id": "c9c9f660-7f6c-429f-b078-6ce052f83c2a"
+      },
+      {
+        "id": "bc1f2faa-ba6e-41cb-9f07-ec03ee391645"
+      },
+      {
+        "id": "6b4d1799-c0f0-4a57-9c9e-d753922fa651"
+      },
+      {
+        "id": "7e4f8f73-9b12-4d93-a5e4-20aabf9c606d"
+      },
+      {
+        "id": "a4a62fcc-b731-4394-84c8-89113c30f87f"
+      },
+      {
+        "id": "bf117e19-dc90-499f-a97e-6dd33416fde2"
+      },
+      {
+        "id": "d0ed48e2-b294-4070-82a5-fe48ce7f3dce"
+      },
+      {
+        "id": "c12c858d-cd78-4ec1-95c9-1b50e08eab70"
+      },
+      {
+        "id": "f8f1796f-5684-4ffc-bc6f-e20b58da6c43"
+      },
+      {
+        "id": "a482a280-3d13-403e-8bd2-b132aac441d5"
+      },
+      {
+        "id": "376a1ffa-7578-4416-9878-5d86d3ba5a71"
+      },
+      {
+        "id": "f6bfcb98-a40e-4181-a35a-3f778f00bbd2"
+      },
+      {
+        "id": "aa578535-577e-4a29-add8-2278b882bfb1"
+      },
+      {
+        "id": "14941ee2-dec5-4a79-97cf-4d54ff226d56"
+      },
+      {
+        "id": "e93ad4f9-715c-4454-ac00-a1d883d4a944"
+      },
+      {
+        "id": "11c909df-6f95-451c-9969-78073ca7c739"
+      },
+      {
+        "id": "ee234c42-2ebd-4a8d-9776-f7e2203eb233"
+      },
+      {
+        "id": "9f3d7d80-d4c3-4501-91da-ab7a8ca204a7"
+      },
+      {
+        "id": "0d236147-bb58-4aaa-a687-de9a6f391501"
+      },
+      {
+        "id": "5dd825a2-3bfa-416b-9cdc-e4ebdb753533"
+      },
+      {
+        "id": "c8a65d4c-800f-4139-b101-ecd8b951c5ce"
+      },
+      {
+        "id": "f078ddc2-3eb1-4e27-9912-d29cb80553d9"
+      },
+      {
+        "id": "cd15af02-61c7-4d89-b909-1f0a02ce1aed"
+      },
+      {
+        "id": "ccd7d923-7c4e-431f-8ce4-be31b09107a0"
+      },
+      {
+        "id": "d43287fd-424b-4d54-9650-dc6e5c51ae1b"
+      },
+      {
+        "id": "c173e0ba-5c6f-4a97-868b-5d897d4e85eb"
+      },
+      {
+        "id": "6a7abbb5-39a3-42d5-873e-6730e7c88d44"
+      },
+      {
+        "id": "5174ee55-86d6-4f4b-9513-ee1c5e067aca"
+      },
+      {
+        "id": "25de4fff-4b5f-418a-999f-39b5062ad7c0"
+      }
+    ],
+    "adjacency": [
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "b75528d7-9468-47f6-a696-17a0f2361d48"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "76860946-c534-496d-9bb7-d5dd2aa94f8d"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "a268df7a-00a5-41cd-b7df-dd2a9041d575"
+        },
+        {
+          "lmax": 30.75032265668001,
+          "id": "9576e81e-586e-49c1-b846-ada329c368ac"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "9576e81e-586e-49c1-b846-ada329c368ac"
+        }
+      ],
+      [
+        {
+          "lmin": 13.19713399228942,
+          "lmax": Infinity,
+          "id": "f2fd2af1-45dd-4319-94c4-67f18cc10e26"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "c4c3fa80-cc0f-46f1-92df-97dd1f4b39a1"
+        }
+      ],
+      [],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "6e46862b-2eac-4ec9-98c1-ae0e8c37aae8"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "0488cd50-bd6a-431e-a18b-a45dd4bedd46"
+        },
+        {
+          "lmax": 36.69632214446468,
+          "id": "4d807b7d-10e6-4724-8052-bc10ac606320"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "4d807b7d-10e6-4724-8052-bc10ac606320"
+        }
+      ],
+      [
+        {
+          "lmin": 11.375146591845596,
+          "lmax": Infinity,
+          "id": "6b8db9c1-7332-45b7-ac54-00c63a763d9c"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "aef63c30-cc2c-4616-91f8-874dbd7a080f"
+        }
+      ],
+      [],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "0fb19cc5-0012-4094-82d1-1ec5149490df"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "76697153-a4b9-4cab-bade-584e15316ffb"
+        },
+        {
+          "lmax": 50.30098462268734,
+          "id": "860c3991-57a2-460a-9c83-58f5ba30b1b3"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "860c3991-57a2-460a-9c83-58f5ba30b1b3"
+        }
+      ],
+      [
+        {
+          "lmin": 13.682356070820063,
+          "lmax": Infinity,
+          "id": "b811ef91-892c-4b0d-ad5d-cdd15cbf1e91"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "172b255e-4ecc-48d2-9125-7ebab0ad04f0"
+        }
+      ],
+      [],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "6c95582b-92a1-4dd3-a42f-9a08ffb48744"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "0c2fc49b-fdf8-4dbb-b46b-de8003273402"
+        }
+      ],
+      [
+        {
+          "lmin": 14.460897838524227,
+          "lmax": Infinity,
+          "id": "9f517a7b-7f65-4707-bd7a-59553fc8e220"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "016dd16a-b0bc-48b1-9f25-1f7a2203aa59"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "d43287fd-424b-4d54-9650-dc6e5c51ae1b"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "29e7f2f7-6879-4a29-a425-4005eabc5f2e"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "0e57d1bc-5b88-4ea8-ae04-4c6400f4aa83"
+        },
+        {
+          "lmax": 42.65765459055811,
+          "id": "34030b56-f046-4b13-9ffb-763501eb5cc2"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "34030b56-f046-4b13-9ffb-763501eb5cc2"
+        }
+      ],
+      [
+        {
+          "lmin": 10.43469416314708,
+          "lmax": Infinity,
+          "id": "a6c3231b-2195-4a37-a73e-d7ad0ce06ccf"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "a2f75c7f-d8ac-48a6-93ec-da5f82d15abc"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "c9c9f660-7f6c-429f-b078-6ce052f83c2a"
+        },
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "bc1f2faa-ba6e-41cb-9f07-ec03ee391645"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "bc1f2faa-ba6e-41cb-9f07-ec03ee391645"
+        }
+      ],
+      [
+        {
+          "lmin": 10.148986097190352,
+          "lmax": Infinity,
+          "id": "6b4d1799-c0f0-4a57-9c9e-d753922fa651"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "7e4f8f73-9b12-4d93-a5e4-20aabf9c606d"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "a482a280-3d13-403e-8bd2-b132aac441d5"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "bf117e19-dc90-499f-a97e-6dd33416fde2"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "d0ed48e2-b294-4070-82a5-fe48ce7f3dce"
+        }
+      ],
+      [
+        {
+          "lmin": 11.093189874018016,
+          "lmax": Infinity,
+          "id": "c12c858d-cd78-4ec1-95c9-1b50e08eab70"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "f8f1796f-5684-4ffc-bc6f-e20b58da6c43"
+        }
+      ],
+      [],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "376a1ffa-7578-4416-9878-5d86d3ba5a71"
+        }
+      ],
+      [
+        {
+          "lmin": 12.526776440516812,
+          "lmax": Infinity,
+          "id": "f6bfcb98-a40e-4181-a35a-3f778f00bbd2"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "608fb0fb-28d6-4a47-a7c4-7eebc7918f9f"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "14941ee2-dec5-4a79-97cf-4d54ff226d56"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "e93ad4f9-715c-4454-ac00-a1d883d4a944"
+        },
+        {
+          "lmax": 35.965129520599454,
+          "id": "11c909df-6f95-451c-9969-78073ca7c739"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "11c909df-6f95-451c-9969-78073ca7c739"
+        }
+      ],
+      [
+        {
+          "lmin": 10.132679848419318,
+          "lmax": Infinity,
+          "id": "ee234c42-2ebd-4a8d-9776-f7e2203eb233"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "a4a62fcc-b731-4394-84c8-89113c30f87f"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "0d236147-bb58-4aaa-a687-de9a6f391501"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "5dd825a2-3bfa-416b-9cdc-e4ebdb753533"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "c8a65d4c-800f-4139-b101-ecd8b951c5ce"
+        },
+        {
+          "lmax": 46.3482444180965,
+          "id": "f078ddc2-3eb1-4e27-9912-d29cb80553d9"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "f078ddc2-3eb1-4e27-9912-d29cb80553d9"
+        }
+      ],
+      [
+        {
+          "lmin": 13.249422188897615,
+          "lmax": Infinity,
+          "id": "cd15af02-61c7-4d89-b909-1f0a02ce1aed"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "ccd7d923-7c4e-431f-8ce4-be31b09107a0"
+        }
+      ],
+      [],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "c173e0ba-5c6f-4a97-868b-5d897d4e85eb"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "6a7abbb5-39a3-42d5-873e-6730e7c88d44"
+        },
+        {
+          "lmax": 47.67797051627726,
+          "id": "5174ee55-86d6-4f4b-9513-ee1c5e067aca"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "5174ee55-86d6-4f4b-9513-ee1c5e067aca"
+        }
+      ],
+      [
+        {
+          "lmin": 11.102203110203483,
+          "lmax": Infinity,
+          "id": "25de4fff-4b5f-418a-999f-39b5062ad7c0"
+        }
+      ],
+      [
+        {
+          "lmin": 0,
+          "lmax": Infinity,
+          "id": "9f3d7d80-d4c3-4501-91da-ab7a8ca204a7"
+        }
+      ]
+    ]
+  }
+}

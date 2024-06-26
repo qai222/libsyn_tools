@@ -1,8 +1,8 @@
 import os
 
-from libsyn_tools.chem_schema.workflow import NetworkWorkflow
+from libsyn_tools.workflow import Workflow
 
-workflow = NetworkWorkflow(
+workflow = Workflow(
     routes_file="routes.json",
     work_folder=os.path.abspath(os.getcwd()),
     scraper_output="scraper_output.json",
@@ -11,4 +11,7 @@ workflow = NetworkWorkflow(
     sample_n_target=5,
 )
 
-workflow.export_reaction_network(dummy_quantify=True)
+if __name__ == '__main__':
+    workflow.export_reaction_network(dummy_quantify=True)
+    workflow.export_operation_network()
+    workflow.export_scheduler(max_capacity=1, max_module_number_per_type=1)
