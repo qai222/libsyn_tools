@@ -47,13 +47,13 @@ class SolverMILP(Solver):
         model = gp.Model("fjs")
 
         # get params and cleanup array types
-        p = np.array(self.input.p)
+        p = np.array(self.input.p, dtype=float)
         p[p == math.inf] = self.infinity
 
-        lmin = np.array(self.input.lmin)
+        lmin = np.array(self.input.lmin, dtype=float)
         lmin[lmin == - math.inf] = - self.infinity
 
-        lmax = np.array(self.input.lmax)
+        lmax = np.array(self.input.lmax, dtype=float)
         lmax[lmax == math.inf] = self.infinity
 
         K = self.input.K
@@ -91,65 +91,104 @@ class SolverMILP(Solver):
         var_x = model.addMVar((size_i, size_i, size_m), vtype=GRB.BINARY, name="var_x_ijm")
         var_y = model.addMVar((size_i, size_i, size_m), vtype=GRB.BINARY, name="var_y_ijm")
         var_z = model.addMVar((size_i, size_i, size_m), vtype=GRB.BINARY, name="var_z_ijm")
+        var_e_list = var_e.tolist()
+        var_s_list = var_s.tolist()
+        var_a_list = var_a.tolist()
+        var_x_list = var_x.tolist()
+        var_y_list = var_y.tolist()
+        var_z_list = var_z.tolist()
 
         ts_added_vars = time.time()
 
         # add constraints
+
+        # eq. (3)
+        # this is allowed in Gurobi 10.0
+        # see https://support.gurobi.com/hc/en-us/community/posts/360072196032
+        model.addConstr(var_e <= var_e_max, name="eq_3")
+        ts_added_eq_3 = time.time()
+        self.opt_log['added eq_3'] = ts_added_eq_3 - ts_added_vars
+
         for i in range(size_i):
-            # eq. (3)
-            model.addConstr(var_e[i] <= var_e_max, name="eq_3")
             # eq. (4)
             model.addConstr(
                 var_e[i] == var_s[i] + gp.quicksum(
                     p[i, m] * var_a[i, m] for m in range(size_m)
                 ), name="eq_4"
             )
+        ts_added_eq_4 = time.time()
+        self.opt_log['added eq_4'] = ts_added_eq_4 - ts_added_eq_3
+
+        for i in range(size_i):
             # eq. (5)
             model.addConstr(gp.quicksum(var_a[i, m] for m in range(size_m)) == 1, name="eq_5")
+        ts_added_eq_5 = time.time()
+        self.opt_log['added eq_5'] = ts_added_eq_5 - ts_added_eq_4
 
-        # TODO maybe `combinations` is enough?
+        # somehow `var_e[i]` is a `MVar`, I have to access the list to get `Var` to be used in `addLConstr`
         for i, j in itertools.product(range(size_i), range(size_i)):
             if i != j:
                 # eq. (6)
-                model.addConstr(var_e[i] <= var_s[j] - lmin[i, j], name="eq_6")
+                model.addLConstr(lhs=var_e_list[i] - var_s_list[j], sense="<=", rhs=-lmin[i, j], name="eq_6")
                 # eq. (7)
-                model.addConstr(var_s[j] <= var_e[i] + lmax[i, j], name="eq_7")
+                model.addLConstr(lhs=var_s_list[j] - var_e_list[i], sense="<=", rhs=lmax[i, j], name="eq_7")
+
+        ts_added_eq_6_eq_7 = time.time()
+        self.opt_log['added eq_6 eq_7'] = ts_added_eq_6_eq_7 - ts_added_eq_5
 
         for i, j in itertools.combinations(range(size_i), 2):  # i < j holds automatically
             for m in range(size_m):
                 # eq. (8)
-                model.addConstr(
-                    var_e[i] <= var_s[j] + big_m * (3 - var_x[i, j, m] - var_a[i, m] - var_a[j, m]), name="eq_8"
+                model.addLConstr(
+                    lhs=var_e_list[i], sense="<=",
+                    rhs=var_s_list[j] + big_m * (3 - var_x_list[i][j][m] - var_a_list[i][m] - var_a_list[j][m]),
+                    name="eq_8"
                 )
                 # eq. (9)
-                model.addConstr(
-                    var_s[j] <= var_e[i] + big_m * (2 + var_x[i, j, m] - var_a[i, m] - var_a[j, m]), name="eq_9"
+                model.addLConstr(
+                    lhs=var_s_list[j], sense="<=",
+                    rhs=var_e_list[i] + big_m * (2 + var_x_list[i][j][m] - var_a_list[i][m] - var_a_list[j][m]),
+                    name="eq_9"
                 )
                 # eq. (10)
-                model.addConstr(
-                    var_e[j] <= var_s[i] + big_m * (3 - var_y[i, j, m] - var_a[i, m] - var_a[j, m]), name="eq_10"
+                model.addLConstr(
+                    lhs=var_e_list[j], sense="<=",
+                    rhs=var_s_list[i] + big_m * (3 - var_y_list[i][j][m] - var_a_list[i][m] - var_a_list[j][m]),
+                    name="eq_10"
                 )
                 # eq. (11)
-                model.addConstr(
-                    var_s[i] <= var_e[j] + big_m * (2 + var_y[i, j, m] - var_a[i, m] - var_a[j, m]), name="eq_11"
+                model.addLConstr(
+                    lhs=var_s_list[i], sense="<=",
+                    rhs=var_e_list[j] + big_m * (2 + var_y_list[i][j][m] - var_a_list[i][m] - var_a_list[j][m]),
+                    name="eq_11"
                 )
 
-                # implied, may be good for performance
-                model.addConstr(var_x[i, j, m] + var_y[i, j, m] <= 1, name="implied eq 8-11")
+                # eq. (12)  # TODO maybe faster using `addMConstr`?
+                model.addLConstr(
+                    lhs=var_x_list[i][j][m] + var_y_list[i][j][m] + var_z_list[i][j][m], sense="=",
+                    rhs=1, name="eq_12"
+                )
 
-                # eq. (12)
-                model.addConstr(var_x[i, j, m] + var_y[i, j, m] + var_z[i, j, m] == 1, name="eq_12")
+                # # implied, may be good for performance
+                # model.addConstr(var_x[i, j, m] + var_y[i, j, m] <= 1, name="implied eq 8-11")
+
+        ts_added_eq_8_9_10_11_12 = time.time()
+        self.opt_log['added eq_8 eq_9 eq_10 eq_11 eq_12'] = ts_added_eq_8_9_10_11_12 - ts_added_eq_6_eq_7
 
         # eq. (13)
         for i, m in itertools.product(range(size_i), range(size_m)):
-            model.addConstr(
-                gp.quicksum(var_z[i, j, m] for j in range(size_i) if i != j) <= (K[m] - 1) * var_a[i, m] + self.eps,
-                name="eq_13",
+            model.addLConstr(
+                lhs=gp.quicksum(var_z_list[i][j][m] for j in range(size_i) if i != j), sense="<=",
+                rhs=(K[m] - 1) * var_a_list[i][m] + self.eps, name="eq_13"
             )
+        ts_added_eq_13 = time.time()
+        self.opt_log['added eq_13'] = ts_added_eq_13 - ts_added_eq_8_9_10_11_12
 
         # eq. (14) compatability
         for i, j, m in itertools.product(range(size_i), range(size_i), range(size_m)):
-            model.addConstr(var_z[i, j, m] <= C[i, j], name="eq_14", )  # C[i, i] is 1 by default
+            model.addLConstr(lhs=var_z_list[i][j][m], sense="<=", rhs=C[i, j], name="eq_14")  # C[i, i] is 1 by default
+        ts_added_eq_14 = time.time()
+        self.opt_log['added eq_14'] = ts_added_eq_14 - ts_added_eq_14
 
         ts_added_constraints = time.time()
         logger.warning("finish adding constraints")
