@@ -267,6 +267,9 @@ class SolverMILP(Solver):
             if E_max > big_m:
                 big_m = E_max
 
+        if big_m > self.infinity * 0.1:
+            raise RuntimeError(f"big_m is estimated ({big_m}) to be rather close to self.infinity ({self.infinity})!")
+
         return big_m + self.eps
 
     def solve(self):
