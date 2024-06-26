@@ -48,6 +48,16 @@ card_operation_network = get_card(
     width=20,
 )
 subpage_cards.append(card_operation_network)
+
+card_scheduler = get_card(
+    title="Scheduler",
+    text="The optimal schedule solved as a FJSS given a list of functional modules.",
+    link_text="Scheduler",
+    link_path="/scheduler",
+    width=20,
+)
+subpage_cards.append(card_scheduler)
+
 #
 # card_junior_simulator = get_card(
 #     title="Workstation Simulator",
