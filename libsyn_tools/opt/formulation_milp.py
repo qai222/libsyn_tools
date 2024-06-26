@@ -23,6 +23,10 @@ class SolverMILP(Solver):
 
     supress_gp_log: bool = False
 
+    @property
+    def include_shift_constraints(self):
+        return self.consider_shifts and self.input.frak_W
+
     def model_post_init(self, __context: Any) -> None:
         logger.info("\n" + pprint.pformat(self.input.summary))
 
@@ -167,6 +171,72 @@ class SolverMILP(Solver):
         ts_add_constraints_end = time.time()
         self.opt_log['total adding constraints'] = ts_add_constraints_end - ts_add_constraints_start
 
+    def model_add_work_shift_constraints(
+            self, model: gp.Model, big_m, size_i,
+            var_e_list, var_s_list,
+    ):
+        # TODO separate param, var, and constraint addition
+        # work shift params
+        size_n = len(self.input.frak_W)
+        S = self.input.S
+        E = self.input.E
+        frak_P = [self.input.frak_O.index(oid) for oid in self.input.frak_P]
+
+        var_Y = model.addMVar((size_i, size_n), vtype=GRB.BINARY, name="var_Y_in")
+        var_Z = model.addMVar((size_i, size_n), vtype=GRB.BINARY, name="var_Z_in")
+        var_A = model.addMVar((size_i, size_n), vtype=GRB.BINARY, name="var_A_in")
+        var_Y_list = var_Y.tolist()
+        var_Z_list = var_Z.tolist()
+        var_A_list = var_A.tolist()
+
+        # eq (14)
+        for i in frak_P:
+            model.addConstr(gp.quicksum(var_A[i, n] for n in range(size_n)) == 1, name="eq_14")
+
+        for i, n in itertools.product(frak_P, range(size_n)):
+            # eq (15)
+            model.addLConstr(
+                lhs=S[n],
+                sense="<=",
+                rhs=var_s_list[i] + big_m * (1 - var_Y_list[i][n]),
+                name="eq_15"
+            )
+            # eq (16)
+            model.addLConstr(
+                lhs=var_s_list[i],
+                sense="<=",
+                rhs=S[n] + big_m * var_Y_list[i][n],
+                name="eq_16"
+            )
+            # eq (17)
+            model.addLConstr(
+                lhs=var_e_list[i],
+                sense="<=",
+                rhs=E[n] + big_m * (1 - var_Z_list[i][n]),
+                name="eq_17"
+            )
+            # eq (18)
+            model.addLConstr(
+                lhs=E[n],
+                sense="<=",
+                rhs=var_e_list[i] + big_m * var_Z_list[i][n],
+                name="eq_18"
+            )
+            # eq (19)
+            model.addLConstr(
+                lhs=var_Y_list[i][n] + var_Z_list[i][n] - 2 * var_A_list[i][n],
+                sense=">=",
+                rhs=0,
+                name="eq_19"
+            )
+            # eq (20)
+            model.addLConstr(
+                lhs=var_A_list[i][n] - var_Y_list[i][n] - var_Z_list[i][n],
+                sense=">=",
+                rhs=-1,
+                name="eq_20"
+            )
+
     def estimate_big_m(self, p, lmin, size_i, size_m, dummy: bool = False) -> float:
         if dummy:
             return self.infinity
@@ -186,8 +256,18 @@ class SolverMILP(Solver):
                 if _lmin_i_j > lmin_i_max:
                     lmin_i_max = _lmin_i_j
             eq22_lhs.append(lmin_i_max)
-        big_m = sum(eq21_lhs) + sum(eq22_lhs) + self.eps
-        return big_m
+        big_m = sum(eq21_lhs) + sum(eq22_lhs)
+
+        # eq (23)
+        if self.include_shift_constraints:
+            E_max = 0
+            for w in self.input.frak_W:
+                if w.end_time > E_max:
+                    E_max = w.end_time
+            if E_max > big_m:
+                big_m = E_max
+
+        return big_m + self.eps
 
     def solve(self):
         # TODO work shift
@@ -229,6 +309,11 @@ class SolverMILP(Solver):
         )
         ts_added_main_constraints = time.time()
 
+        # add shift constraints
+        if self.include_shift_constraints:
+            self.model_add_work_shift_constraints(model, big_m, size_i, var_e_list, var_s_list)
+        ts_added_shift_constraints = time.time()
+
         # actual solve
         model.setObjective(var_e_max, GRB.MINIMIZE)
         model.optimize()
@@ -254,8 +339,9 @@ class SolverMILP(Solver):
 
         # logging
         self.opt_log["time adding vars"] = ts_added_vars - ts_start
-        self.opt_log["time adding constraints"] = ts_added_main_constraints - ts_added_vars
-        self.opt_log["time solved"] = ts_solved - ts_added_main_constraints
+        self.opt_log["time adding main constraints"] = ts_added_main_constraints - ts_added_vars
+        self.opt_log["time adding shift constraints"] = ts_added_shift_constraints - ts_added_main_constraints
+        self.opt_log["time solved"] = ts_solved - ts_added_shift_constraints
         self.opt_log["big m estimated as"] = big_m
         logger.info("\n" + pprint.pformat(self.opt_log))
 

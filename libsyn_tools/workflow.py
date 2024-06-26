@@ -66,7 +66,8 @@ class Workflow(BaseModel):
         operation_network = OperationNetwork.from_reaction_network(reaction_network)
         json_dump(operation_network.model_dump(), os.path.join(self.work_folder, self.operation_network_json))
 
-    def export_scheduler(self, max_capacity=1, max_module_number_per_type=1, temperature_threshold=50):
+    def export_scheduler(self, max_capacity=1, max_module_number_per_type=1, temperature_threshold=50,
+                         dummy_work_shifts=False, ):
 
         operation_network = json_load(os.path.join(self.work_folder, self.operation_network_json))
         operation_network = OperationNetwork(**operation_network)
@@ -80,6 +81,11 @@ class Workflow(BaseModel):
         si = SchedulerInput.build_input(
             operation_network, functional_modules, temperature_threshold=temperature_threshold
         )
+        if dummy_work_shifts:
+            work_shifts = si.get_dummy_work_shifts()
+        else:
+            work_shifts = None
+        si.frak_W = work_shifts
         solver = SolverMILP(input=si)
         solver.solve()
         json_dump(solver.input.model_dump(), os.path.join(self.work_folder, self.scheduler_input_json))

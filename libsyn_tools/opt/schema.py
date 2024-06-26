@@ -64,6 +64,16 @@ class SchedulerInput(BaseModel):
 
     functional_modules: list[FunctionalModule]
 
+    def get_dummy_work_shifts(self):
+        p_finite = np.array(self.p, dtype=float)
+        p_finite = p_finite[p_finite < math.inf]
+        p_max = p_finite.max()
+        duration = p_max * 1.5
+        interval = duration * 0.5
+        horizon = p_max * len(self.p)
+        work_shifts = WorkShift.get_regular_shifts(duration, interval, horizon)
+        return work_shifts
+
     @property
     def S(self) -> list[float] | None:
         """ work shift start time, indexed by n """

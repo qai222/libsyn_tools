@@ -2,7 +2,8 @@ import pytest
 
 from libsyn_tools.opt.formulation_milp import SolverMILP
 from libsyn_tools.opt.schema import SchedulerInput, random_functional_modules
-from .test_chem_schema import test_reaction_network1, OperationNetwork, test_reaction_network2, StateOfMatter, OperationType
+from .test_chem_schema import test_reaction_network1, OperationNetwork, test_reaction_network2, StateOfMatter, \
+    OperationType
 
 
 @pytest.fixture
@@ -69,5 +70,14 @@ class TestFormulationMILP:
         functional_modules = [fm for fm in functional_modules2 if
                               set(fm.can_process).issubset(required_operation_types)]
         si = SchedulerInput.build_input(operation_network2, functional_modules)
+        solver = SolverMILP(input=si)
+        solver.solve()
+
+    def test_solver2_work_shift(self, operation_network2, functional_modules2):
+        required_operation_types = set([o.type for o in operation_network2.operations])
+        functional_modules = [fm for fm in functional_modules2 if
+                              set(fm.can_process).issubset(required_operation_types)]
+        si = SchedulerInput.build_input(operation_network2, functional_modules)
+        si.frak_W = si.get_dummy_work_shifts()
         solver = SolverMILP(input=si)
         solver.solve()
