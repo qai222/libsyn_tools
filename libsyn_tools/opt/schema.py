@@ -163,10 +163,10 @@ class SchedulerInput(BaseModel):
             frak_P=frak_P,
             frak_M=frak_M,
             K=K,
-            p=p,
+            p=p.tolist(),
             frak_W=work_shifts,
             functional_modules=functional_modules,
-            C=C,
+            C=C.tolist(),
         )
         return scheduler_input
 

@@ -319,6 +319,12 @@ class OperationNetwork(Entity):
 
     adjacency_data: dict
 
+    def randomly_assign_temperature(self, temperature_range=(50, 300), seed=42):
+        random.seed(seed)
+        for op in self.operations:
+            if "temperature" in op.annotations and op.type == OperationType.Heating:
+                op.annotations['temperature'] = random.uniform(*temperature_range)
+
     def get_default_compatability(self, temperature_threshold: float) -> dict[str, dict[str, bool]]:
         """
         default compatability -- if two operations can be processed on the same module
@@ -348,7 +354,6 @@ class OperationNetwork(Entity):
                     c = 1
                 compatability[oid][ojd] = c
         return compatability
-
 
     @property
     def nx_digraph(self) -> nx.DiGraph:

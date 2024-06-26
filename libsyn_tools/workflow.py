@@ -66,16 +66,20 @@ class Workflow(BaseModel):
         operation_network = OperationNetwork.from_reaction_network(reaction_network)
         json_dump(operation_network.model_dump(), os.path.join(self.work_folder, self.operation_network_json))
 
-    def export_scheduler(self, max_capacity=1, max_module_number_per_type=1):
+    def export_scheduler(self, max_capacity=1, max_module_number_per_type=1, temperature_threshold=50):
 
         operation_network = json_load(os.path.join(self.work_folder, self.operation_network_json))
         operation_network = OperationNetwork(**operation_network)
 
-        functional_modules = random_functional_modules(max_capacity=max_capacity,
-                                                       max_module_number_per_type=max_module_number_per_type)
+        functional_modules = random_functional_modules(
+            max_capacity=max_capacity,
+            max_module_number_per_type=max_module_number_per_type,
+        )
         required_operation_types = set([o.type for o in operation_network.operations])
         functional_modules = [fm for fm in functional_modules if set(fm.can_process).issubset(required_operation_types)]
-        si = SchedulerInput.build_input(operation_network, functional_modules)
+        si = SchedulerInput.build_input(
+            operation_network, functional_modules, temperature_threshold=temperature_threshold
+        )
         solver = SolverMILP(input=si)
         solver.solve()
         json_dump(solver.input.model_dump(), os.path.join(self.work_folder, self.scheduler_input_json))

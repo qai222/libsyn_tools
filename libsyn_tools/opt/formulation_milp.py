@@ -58,6 +58,8 @@ class SolverMILP(Solver):
 
         K = self.input.K
 
+        C = np.array(self.input.C, dtype=int)
+
         # add vars following table 2
         size_i = len(self.input.frak_O)
         size_m = len(self.input.frak_M)
@@ -109,7 +111,7 @@ class SolverMILP(Solver):
         for i, j in itertools.product(range(size_i), range(size_i)):
             if i != j:
                 # eq. (6)
-                model.addConstr( var_e[i] <= var_s[j] - lmin[i, j], name="eq_6")
+                model.addConstr(var_e[i] <= var_s[j] - lmin[i, j], name="eq_6")
                 # eq. (7)
                 model.addConstr(var_s[j] <= var_e[i] + lmax[i, j], name="eq_7")
 
@@ -144,6 +146,10 @@ class SolverMILP(Solver):
                 gp.quicksum(var_z[i, j, m] for j in range(size_i) if i != j) <= (K[m] - 1) * var_a[i, m] + self.eps,
                 name="eq_13",
             )
+
+        # eq. (14) compatability
+        for i, j, m in itertools.product(range(size_i), range(size_i), range(size_m)):
+            model.addConstr(var_z[i, j, m] <= C[i, j], name="eq_14", )
 
         ts_added_constraints = time.time()
         logger.warning("finish adding constraints")
