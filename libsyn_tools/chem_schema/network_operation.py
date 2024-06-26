@@ -55,7 +55,7 @@ def _default_process_time(operation: Operation, multiplier: float = 1.0):
     elif operation.type == OperationType.Purification:
         # purification is limited by the batch size
         chemical = Chemical(**operation.annotations['chemical'])
-        n_batch = chemical.volume % purification_batch_volume + 1
+        n_batch = chemical.volume // purification_batch_volume + 1
         estimate = purification_cost_per_batch * n_batch
 
     elif operation.type == OperationType.CleanContainer:
