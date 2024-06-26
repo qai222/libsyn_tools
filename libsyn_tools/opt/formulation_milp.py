@@ -149,7 +149,7 @@ class SolverMILP(Solver):
 
         # eq. (14) compatability
         for i, j, m in itertools.product(range(size_i), range(size_i), range(size_m)):
-            model.addConstr(var_z[i, j, m] <= C[i, j], name="eq_14", )
+            model.addConstr(var_z[i, j, m] <= C[i, j], name="eq_14", )  # C[i, i] is 1 by default
 
         ts_added_constraints = time.time()
         logger.warning("finish adding constraints")
