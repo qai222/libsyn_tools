@@ -23,11 +23,12 @@ app = get_app()
 cyto.load_extra_layouts()
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 PAGE_ID_HEADER = "ReactionNetwork__"  # ID header for components in this page
+TARGET_JSON = "reaction_network.json"
+routes_folders = sorted(glob.glob(f"{THIS_DIR}/../routes/*"))
+routes_folders = [p for p in routes_folders if os.path.isfile(os.path.join(p, TARGET_JSON))]
 
 # selector for available routes
 component_selector_available_routes_id = PAGE_ID_HEADER + "component_selector_available_routes"
-routes_folders = sorted(glob.glob(f"{THIS_DIR}/../routes/*"))
-routes_folders = [p for p in routes_folders if os.path.isfile(os.path.join(p, "reaction_network.json"))]
 component_selector_available_routes = dbc.Select(
     id=component_selector_available_routes_id,
     options=[{"label": os.path.basename(p), "value": p} for p in routes_folders],
@@ -50,7 +51,7 @@ component_store_network = dcc.Store(id=component_store_network_id, storage_type=
 def load_reaction_network(network_folder: FilePath) -> dict:
     if not network_folder:
         return no_update
-    network_path = os.path.join(network_folder, "reaction_network.json")
+    network_path = os.path.join(network_folder, TARGET_JSON)
     return json_load(network_path)
 
 
