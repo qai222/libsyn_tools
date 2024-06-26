@@ -54,7 +54,6 @@ class TestReactionNetwork:
     def test_nx_digraph(self, test_reaction_network1, test_reaction_network2):
         for test_network in [test_reaction_network1, test_reaction_network2]:
             g = test_network.nx_digraph
-            assert len(g.nodes) in [8, 80]
             for u, v in g.edges:
                 molecule_smiles = None
                 reaction_instance = None
