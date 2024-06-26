@@ -47,6 +47,8 @@ class SchedulerInput(BaseModel):
     frak_W: list[WorkShift] | None = None
     """ work shifts, indexed by n  """
 
+    functional_modules: list[FunctionalModule]
+
     @property
     def S(self) -> list[float] | None:
         """ work shift start time, indexed by n """
@@ -152,6 +154,7 @@ class SchedulerInput(BaseModel):
             K=K,
             p=p,
             frak_W=work_shifts,
+            functional_modules=functional_modules,
         )
         return scheduler_input
 
@@ -209,7 +212,7 @@ class Solver(BaseModel):
 
     opt_settings: dict[str, Any] = dict()
 
-    opt_log: str | None = None
+    opt_log: dict = dict()
 
     def solve(self): pass
 
