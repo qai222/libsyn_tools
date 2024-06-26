@@ -176,9 +176,10 @@ class SchedulerOutput(BaseModel):
 
     def operation_view(self):
         view = []
-        for o in self.start_times:
+        for i, o in enumerate(self.start_times):
             d = dict(
                 operation_identifier=o,
+                milp_index=i,
                 assigned_to=self.assignments[o],
                 start_time=self.start_times[o],
                 end_time=self.end_times[o],

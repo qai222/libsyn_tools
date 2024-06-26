@@ -184,7 +184,8 @@ class SolverMILP(Solver):
         self.opt_log["time solved"] = ts_solved - ts_added_constraints
         self.opt_log["big m estimated as"] = big_m
 
-        # logger.info(pprint.pformat(self.output.operation_view()))
+        logger.info(pprint.pformat(self.output.operation_view()))
+        logger.info("\n" + pprint.pformat(self.opt_log))
 
         # other info that can be added to log
         # https://www.gurobi.com/documentation/current/refman/attributes.html
