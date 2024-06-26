@@ -13,10 +13,9 @@ from .schema import Solver, SchedulerOutput
 
 
 class SolverMILP(Solver):
-    # infinity: float = GRB.INFINITY
-    infinity: float = 1e10
+    infinity: float = 1e5  # use a small infinity to prevent numeric issues
 
-    eps: float = 1e-6
+    eps: float = 0.0
 
     def model_post_init(self, __context: Any) -> None:
         logger.info(pprint.pformat(self.input.summary))
@@ -96,7 +95,7 @@ class SolverMILP(Solver):
         # add constraints
         for i in range(size_i):
             # eq. (3)
-            model.addConstr(var_e_max >= var_e[i], name="eq_3")
+            model.addConstr(var_e[i] <= var_e_max, name="eq_3")
             # eq. (4)
             model.addConstr(
                 var_e[i] == var_s[i] + gp.quicksum(
@@ -110,7 +109,7 @@ class SolverMILP(Solver):
         for i, j in itertools.product(range(size_i), range(size_i)):
             if i != j:
                 # eq. (6)
-                model.addConstr(var_s[j] >= var_e[i] + lmin[i, j], name="eq_6")
+                model.addConstr( var_e[i] <= var_s[j] - lmin[i, j], name="eq_6")
                 # eq. (7)
                 model.addConstr(var_s[j] <= var_e[i] + lmax[i, j], name="eq_7")
 
@@ -122,7 +121,7 @@ class SolverMILP(Solver):
                 )
                 # eq. (9)
                 model.addConstr(
-                    var_e[i] >= var_s[j] - big_m * (2 + var_x[i, j, m] - var_a[i, m] - var_a[j, m]), name="eq_9"
+                    var_s[j] <= var_e[i] + big_m * (2 + var_x[i, j, m] - var_a[i, m] - var_a[j, m]), name="eq_9"
                 )
                 # eq. (10)
                 model.addConstr(
@@ -130,7 +129,7 @@ class SolverMILP(Solver):
                 )
                 # eq. (11)
                 model.addConstr(
-                    var_e[j] >= var_s[i] - big_m * (2 + var_y[i, j, m] - var_a[i, m] - var_a[j, m]), name="eq_11"
+                    var_s[i] <= var_e[j] + big_m * (2 + var_y[i, j, m] - var_a[i, m] - var_a[j, m]), name="eq_11"
                 )
 
                 # implied, may be good for performance
