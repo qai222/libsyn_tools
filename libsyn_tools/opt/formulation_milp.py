@@ -34,7 +34,6 @@ class SolverMILP(Solver):
         # TODO work shift
         # TODO tune up based on gp warnings
         # TODO inspect scale up
-        # TODO profile constraints addition & bulk addition implementation
 
         ts_start = time.time()
 
