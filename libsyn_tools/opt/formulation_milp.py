@@ -13,7 +13,7 @@ from .schema import Solver, SchedulerOutput
 
 
 class SolverMILP(Solver):
-    infinity: float = 1e5  # use a small infinity to prevent numeric issues
+    infinity: float = 1e8  # use a small infinity to prevent numeric issues
 
     eps: float = 0.0
 
@@ -80,96 +80,96 @@ class SolverMILP(Solver):
 
         ts_add_constraints_start = time.time()
 
-        # eq. (3)
+        # eq:emax
         # this is allowed in Gurobi 10.0
         # see https://support.gurobi.com/hc/en-us/community/posts/360072196032
-        model.addConstr(var_e <= var_e_max, name="eq_3")
-        ts_added_eq_3 = time.time()
-        self.opt_log['added eq_3'] = ts_added_eq_3 - ts_add_constraints_start
+        model.addConstr(var_e <= var_e_max, name="eq:emax")
+        ts_added_eq_emax = time.time()
+        self.opt_log['added eq:emax'] = ts_added_eq_emax - ts_add_constraints_start
 
+        # eq:processtime
         for i in range(size_i):
-            # eq. (4)
             model.addConstr(
                 var_e[i] == var_s[i] + gp.quicksum(
                     p[i, m] * var_a[i, m] for m in range(size_m)
-                ), name="eq_4"
+                ), name="eq:processtime"
             )
-        ts_added_eq_4 = time.time()
-        self.opt_log['added eq_4'] = ts_added_eq_4 - ts_added_eq_3
+        ts_added_eq_processtime = time.time()
+        self.opt_log['eq:processtime'] = ts_added_eq_processtime - ts_added_eq_emax
 
+        # eq:assign
         for i in range(size_i):
-            # eq. (5)
-            model.addConstr(gp.quicksum(var_a[i, m] for m in range(size_m)) == 1, name="eq_5")
-        ts_added_eq_5 = time.time()
-        self.opt_log['added eq_5'] = ts_added_eq_5 - ts_added_eq_4
+            model.addConstr(gp.quicksum(var_a[i, m] for m in range(size_m)) == 1, name="eq:assign")
+        ts_added_eq_assign = time.time()
+        self.opt_log['added eq:assign'] = ts_added_eq_assign - ts_added_eq_processtime
 
         # somehow `var_e[i]` is a `MVar`, I have to access the list to get `Var` to be used in `addLConstr`
         for i, j in itertools.product(range(size_i), range(size_i)):
             if i != j:
-                # eq. (6)
-                model.addLConstr(lhs=var_e_list[i] - var_s_list[j], sense="<=", rhs=-lmin[i, j], name="eq_6")
-                # eq. (7)
-                model.addLConstr(lhs=var_s_list[j] - var_e_list[i], sense="<=", rhs=lmax[i, j], name="eq_7")
-
-        ts_added_eq_6_eq_7 = time.time()
-        self.opt_log['added eq_6 eq_7'] = ts_added_eq_6_eq_7 - ts_added_eq_5
+                # eq:precedence1
+                model.addLConstr(lhs=var_e_list[i] - var_s_list[j], sense="<=", rhs=-lmin[i, j], name="eq:precedence1")
+                # eq:precedence2
+                model.addLConstr(lhs=var_s_list[j] - var_e_list[i], sense="<=", rhs=lmax[i, j], name="eq:precedence2")
+        ts_added_eq_precedence12 = time.time()
+        self.opt_log['added eq:precedence1 eq:precedence2'] = ts_added_eq_precedence12 - ts_added_eq_assign
 
         for i, j in itertools.combinations(range(size_i), 2):  # i < j holds automatically
             for m in range(size_m):
-                # eq. (8)
+                # eq:overlap1
                 model.addLConstr(
                     lhs=var_e_list[i], sense="<=",
                     rhs=var_s_list[j] + big_m * (3 - var_x_list[i][j][m] - var_a_list[i][m] - var_a_list[j][m]),
-                    name="eq_8"
+                    name="eq:overlap1"
                 )
-                # eq. (9)
+                # eq:overlap2
                 model.addLConstr(
                     lhs=var_s_list[j], sense="<=",
                     rhs=var_e_list[i] + big_m * (2 + var_x_list[i][j][m] - var_a_list[i][m] - var_a_list[j][m]),
-                    name="eq_9"
+                    name="eq:overlap2"
                 )
-                # eq. (10)
+                # eq:overlap3
                 model.addLConstr(
                     lhs=var_e_list[j], sense="<=",
                     rhs=var_s_list[i] + big_m * (3 - var_y_list[i][j][m] - var_a_list[i][m] - var_a_list[j][m]),
-                    name="eq_10"
+                    name="eq:overlap3"
                 )
-                # eq. (11)
+                # eq:overlap4
                 model.addLConstr(
                     lhs=var_s_list[i], sense="<=",
                     rhs=var_e_list[j] + big_m * (2 + var_y_list[i][j][m] - var_a_list[i][m] - var_a_list[j][m]),
-                    name="eq_11"
+                    name="eq:overlap4"
                 )
 
                 # # implied, may be good for performance
                 # model.addConstr(var_x[i, j, m] + var_y[i, j, m] <= 1, name="implied eq 8-11")
 
-                # eq. (12)  # TODO maybe faster using `addMConstr`?
+                # eq:overlap5
                 model.addLConstr(
                     lhs=var_x_list[i][j][m] + var_y_list[i][j][m] + var_z_list[i][j][m], sense="=",
-                    rhs=1, name="eq_12"
+                    rhs=1, name="eq:overlap5"
                 )
 
-        ts_added_eq_8_9_10_11_12 = time.time()
-        self.opt_log['added eq_8 eq_9 eq_10 eq_11 eq_12'] = ts_added_eq_8_9_10_11_12 - ts_added_eq_6_eq_7
+        ts_added_eq_overlap12345 = time.time()
+        self.opt_log['added eq:overlap12345'] = ts_added_eq_overlap12345 - ts_added_eq_precedence12
 
-        # eq. (13)
+        # eq:capacity
         for i, m in itertools.product(range(size_i), range(size_m)):
             model.addLConstr(
                 lhs=gp.quicksum(var_z_list[i][j][m] for j in range(size_i) if i != j), sense="<=",
-                rhs=(K[m] - 1) * var_a_list[i][m] + self.eps, name="eq_13"
+                rhs=(K[m] - 1) * var_a_list[i][m] + self.eps, name="eq:capacity"
             )
-        ts_added_eq_13 = time.time()
-        self.opt_log['added eq_13'] = ts_added_eq_13 - ts_added_eq_8_9_10_11_12
+        ts_added_eq_capacity = time.time()
+        self.opt_log['added eq:capacity'] = ts_added_eq_capacity - ts_added_eq_overlap12345
 
-        # eq. (14) compatability
+        # eq:compatibility
         for i, j, m in itertools.product(range(size_i), range(size_i), range(size_m)):
-            model.addLConstr(lhs=var_z_list[i][j][m], sense="<=", rhs=C[i, j], name="eq_14")  # C[i, i] is 1 by default
-        ts_added_eq_14 = time.time()
-        self.opt_log['added eq_14'] = ts_added_eq_14 - ts_added_eq_14
+            model.addLConstr(lhs=var_z_list[i][j][m], sense="<=", rhs=C[i, j],
+                             name="eq:compatibility")  # C[i, i] is 1 by default
+        ts_added_eq_compatibility = time.time()
+        self.opt_log['added eq:compatibility'] = ts_added_eq_compatibility - ts_added_eq_compatibility
 
-        ts_add_constraints_end = time.time()
-        self.opt_log['total adding constraints'] = ts_add_constraints_end - ts_add_constraints_start
+        ts_add_main_constraints_end = time.time()
+        self.opt_log['total adding main constraints'] = ts_add_main_constraints_end - ts_add_constraints_start
 
     def model_add_work_shift_constraints(
             self, model: gp.Model, big_m, size_i,
@@ -189,52 +189,52 @@ class SolverMILP(Solver):
         var_Z_list = var_Z.tolist()
         var_A_list = var_A.tolist()
 
-        # eq (14)
+        # eq:shift1
         for i in frak_P:
-            model.addConstr(gp.quicksum(var_A[i, n] for n in range(size_n)) == 1, name="eq_14")
+            model.addConstr(gp.quicksum(var_A[i, n] for n in range(size_n)) == 1, name="eq:shift1")
 
         for i, n in itertools.product(frak_P, range(size_n)):
-            # eq (15)
+            # eq:shift2
             model.addLConstr(
                 lhs=S[n],
                 sense="<=",
                 rhs=var_s_list[i] + big_m * (1 - var_Y_list[i][n]),
-                name="eq_15"
+                name="eq:shift2"
             )
-            # eq (16)
+            # eq:shift3
             model.addLConstr(
                 lhs=var_s_list[i],
                 sense="<=",
                 rhs=S[n] + big_m * var_Y_list[i][n],
-                name="eq_16"
+                name="eq:shift3"
             )
-            # eq (17)
+            # eq:shift4
             model.addLConstr(
                 lhs=var_e_list[i],
                 sense="<=",
                 rhs=E[n] + big_m * (1 - var_Z_list[i][n]),
-                name="eq_17"
+                name="eq:shift4"
             )
-            # eq (18)
+            # eq:shift5
             model.addLConstr(
                 lhs=E[n],
                 sense="<=",
                 rhs=var_e_list[i] + big_m * var_Z_list[i][n],
-                name="eq_18"
+                name="eq:shift5"
             )
             # eq (19)
             model.addLConstr(
                 lhs=var_Y_list[i][n] + var_Z_list[i][n] - 2 * var_A_list[i][n],
                 sense=">=",
                 rhs=0,
-                name="eq_19"
+                name="eq:shift6"
             )
             # eq (20)
             model.addLConstr(
                 lhs=var_A_list[i][n] - var_Y_list[i][n] - var_Z_list[i][n],
                 sense=">=",
                 rhs=-1,
-                name="eq_20"
+                name="eq:shift7"
             )
 
     def estimate_big_m(self, p, lmin, size_i, size_m, dummy: bool = False) -> float:
