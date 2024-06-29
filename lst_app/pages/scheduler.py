@@ -64,7 +64,7 @@ def visualize_scheduler_output(folder: FilePath) -> go.Figure:
 
     fmid2fm = {fm.identifier: fm for fm in scheduler_input.functional_modules}
 
-    fig = go.Figure()
+    fig = go.Figure(layout=go.Layout(margin={"t": 0}))
     for rid, operations in operation_network.operations_by_reaction.items():
         y = []
         x = []
