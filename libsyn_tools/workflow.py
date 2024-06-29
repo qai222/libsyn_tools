@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os.path
 
+from loguru import logger
+
 from libsyn_tools.chem_schema.network_operation import OperationNetwork
 from libsyn_tools.chem_schema.network_reaction import ReactionNetwork
 from libsyn_tools.chem_schema.reaction import ChemicalReaction
@@ -64,6 +66,7 @@ class Workflow(BaseModel):
             if len([c for c in r.reactants + r.reagents if c.state_of_matter == StateOfMatter.LIQUID]) == 0:
                 r.reactants[0].state_of_matter = StateOfMatter.LIQUID
         operation_network = OperationNetwork.from_reaction_network(reaction_network)
+        logger.info(f"# of operations: {len(operation_network.operations)}")
         json_dump(operation_network.model_dump(), os.path.join(self.work_folder, self.operation_network_json))
 
     def export_scheduler(self, max_capacity=1, max_module_number_per_type=1, temperature_threshold=50,
