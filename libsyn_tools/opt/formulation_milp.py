@@ -13,7 +13,7 @@ from .schema import Solver, SchedulerOutput
 
 
 class SolverMILP(Solver):
-    infinity: float = 1e8  # use a small infinity to prevent numeric issues
+    infinity: float = 1e6  # use a small infinity to prevent numeric issues
 
     eps: float = 0.0
 
@@ -294,6 +294,9 @@ class SolverMILP(Solver):
 
         # model init
         model = gp.Model("FJSS-MILP")
+
+        if self.time_limit:
+            model.setParam("TimeLimit", self.time_limit)
 
         # add variables
         (
