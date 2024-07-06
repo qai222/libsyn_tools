@@ -245,6 +245,8 @@ class Solver(BaseModel):
 
     time_cost: float | None = None
 
+    time_limit: float | None = None
+
     opt_settings: dict[str, Any] = dict()
 
     opt_log: dict = dict()
