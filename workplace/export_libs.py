@@ -119,7 +119,7 @@ def export_summary_table_group(prefix: str, export_folder: FilePath, temperature
 
 if __name__ == '__main__':
     EXPORT_LIBS_PATH = os.path.join(os.getcwd(), "LIBS")
-    X_MAX = 4
+    X_MAX = 10
     Y_MAX = 10
     TEMPERATURE_THRESHOLD = 30
     PREFIX = "FDA"
