@@ -10,6 +10,7 @@ from gurobipy import GRB
 from loguru import logger
 
 from .schema import Solver, SchedulerOutput
+from ..utils import FilePath
 
 
 class SolverMILP(Solver):
@@ -272,7 +273,7 @@ class SolverMILP(Solver):
 
         return big_m + self.eps
 
-    def solve(self):
+    def solve(self, logfile:FilePath = None):
         # TODO inspect scale up
 
         ts_start = time.time()
@@ -292,6 +293,9 @@ class SolverMILP(Solver):
 
         # model init
         model = gp.Model("FJSS-MILP")
+
+        if logfile:
+            model.setParam("LogFile", logfile)
 
         if self.time_limit:
             model.setParam("TimeLimit", self.time_limit)
