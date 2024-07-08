@@ -79,6 +79,44 @@ def export_summary_table(prefix: str, export_folder: FilePath, temperature_thres
     return pd.DataFrame.from_records(records)
 
 
+def export_summary_table_group(prefix: str, export_folder: FilePath, temperature_threshold=30):
+    assert prefix in ("FDA", "VS")
+    records = []
+    for x in range(100):
+        group_records = []
+        for y in range(100):
+            lib_dir = os.path.join(export_folder, f"{prefix}-{x:02}-{y:02}")
+            if not os.path.exists(lib_dir):
+                continue
+            reaction_network = ReactionNetwork(**json_load(lib_dir + "/reaction_network.json"))
+            operation_network = OperationNetwork(**json_load(lib_dir + "/operation_network.json"))
+
+            # calculate temperature bins
+            temperatures = [r.temperature for r in reaction_network.chemical_reactions]
+            temperatures = sorted(temperatures)
+            groups = []
+            for _, g in groupby(temperatures, lambda tt: (tt - 1) // temperature_threshold):
+                groups.append(list(g))
+
+            record = {"# temperature bins": len(groups)}
+            record.update(reaction_network.summary)
+            record.update(operation_network.summary)
+            group_records.append(record)
+
+        lib_group_name = f"{prefix}-{x:02}"
+        if len(group_records) == 0:
+            continue
+        df_group = pd.DataFrame.from_records(group_records)
+        lib_group_record = dict(name=lib_group_name)
+        for column in df_group.columns:
+            lib_group_record[column + " [min]"] = df_group[column].min()
+            lib_group_record[column + " [max]"] = df_group[column].max()
+            lib_group_record[column + " [mean]"] = df_group[column].mean()
+            lib_group_record[column + " [std]"] = df_group[column].std()
+        records.append(lib_group_record)
+    return pd.DataFrame.from_records(records)
+
+
 if __name__ == '__main__':
     EXPORT_LIBS_PATH = os.path.join(os.getcwd(), "LIBS")
     X_MAX = 4
@@ -89,4 +127,8 @@ if __name__ == '__main__':
     export_main(up_to_x=X_MAX, up_to_y=Y_MAX, prefix=PREFIX, export_to=EXPORT_LIBS_PATH)
     DF = export_summary_table(prefix=PREFIX, export_folder=EXPORT_LIBS_PATH,
                               temperature_threshold=TEMPERATURE_THRESHOLD)
-    DF.to_csv(f"LIBS_{PREFIX}.csv", index=False)
+    DF.to_csv(f"LIBS_{PREFIX}_individual.csv", index=False)
+
+    DF = export_summary_table_group(prefix=PREFIX, export_folder=EXPORT_LIBS_PATH,
+                                    temperature_threshold=TEMPERATURE_THRESHOLD)
+    DF.to_csv(f"LIBS_{PREFIX}_group.csv", index=False)
