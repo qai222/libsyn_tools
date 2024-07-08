@@ -60,24 +60,31 @@ def parse_chemscraper_output(scraper_output: FilePath) -> dict[str, tuple[str | 
     return output_data
 
 
-def parse_sparrow_routes(routes_file: FilePath, sample_seed: int = None, sample_n_target: int = None):
+def parse_sparrow_routes(
+        routes_file: FilePath, sample_seed: int = None, sample_n_target: int = None,
+        specified_targets: list[str] = None,
+):
     """
     this method converts the "routes.json" file from sparrow/askcos to a list of reaction smiles
 
+    :param specified_targets: if manually specify targets
     :param sample_n_target: if randomly sample the target list
-    :param sample_seed:
+    :param sample_seed: if None, do not set seed
     :param routes_file: the file path
     :return: a list of reagent-free reaction smiles
     """
     routes = json_load(routes_file)
     routes = {k: routes[k] for k in routes if len(routes[k]['Reactions']) > 1}  # exclude orphans
 
-    if sample_seed is None:
-        sample_seed = 42
+    if sample_seed is not None:
+        random.seed(sample_seed)
 
     if sample_n_target:
-        random.seed(sample_seed)
+        assert specified_targets is None
         routes = {k: routes[k] for k in random.sample(sorted(routes.keys()), k=sample_n_target)}
+    elif specified_targets is not None:
+        assert sample_n_target is None
+        routes = {k: routes[k] for k in sorted(specified_targets)}
     else:
         routes = {k: routes[k] for k in sorted(routes.keys())}
 
