@@ -273,8 +273,6 @@ class SolverMILP(Solver):
         return big_m + self.eps
 
     def solve(self):
-        # TODO work shift
-        # TODO tune up based on gp warnings
         # TODO inspect scale up
 
         ts_start = time.time()
@@ -297,6 +295,12 @@ class SolverMILP(Solver):
 
         if self.time_limit:
             model.setParam("TimeLimit", self.time_limit)
+
+        # focus on feasible solution
+        model.setParam("MIPFocus", 1)
+
+        # based on log, see https://support.gurobi.com/hc/en-us/community/posts/360077323472
+        model.setParam("BarHomogeneous", 1)
 
         # add variables
         (
@@ -332,24 +336,29 @@ class SolverMILP(Solver):
             logger.warning(model.Status)
         env.close()
 
-        # collect output
-        var_s_values = np.empty(size_i)
-        var_e_values = np.empty(size_i)
-        var_a_values = np.empty((size_i, size_m))
-        for i in range(size_i):
-            var_s_values[i] = var_s[i].X
-            var_e_values[i] = var_e[i].X
-            for m in range(size_m):
-                var_a_values[i, m] = var_a[i, m].X
-        self.output = SchedulerOutput.from_MILP(self.input, var_s_values, var_e_values, var_a_values)
-
         # logging
         self.opt_log["time adding vars"] = ts_added_vars - ts_start
         self.opt_log["time adding main constraints"] = ts_added_main_constraints - ts_added_vars
         self.opt_log["time adding shift constraints"] = ts_added_shift_constraints - ts_added_main_constraints
         self.opt_log["time solved"] = ts_solved - ts_added_shift_constraints
         self.opt_log["big m estimated as"] = big_m
+        self.opt_log["gurobi status"] = model.Status
+        self.opt_log["gurobi solution count"] = model.SolCount
         logger.info("\n" + pprint.pformat(self.opt_log))
+
+        if model.SolCount:
+            # collect output
+            var_s_values = np.empty(size_i)
+            var_e_values = np.empty(size_i)
+            var_a_values = np.empty((size_i, size_m))
+            for i in range(size_i):
+                var_s_values[i] = var_s[i].X
+                var_e_values[i] = var_e[i].X
+                for m in range(size_m):
+                    var_a_values[i, m] = var_a[i, m].X
+            self.output = SchedulerOutput.from_MILP(self.input, var_s_values, var_e_values, var_a_values)
+        else:
+            self.output = SchedulerOutput()  # empty output when no solution found
 
         # # print out all vars
         # all_vars = model.getVars()

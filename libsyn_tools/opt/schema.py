@@ -104,9 +104,11 @@ class SchedulerInput(BaseModel):
 
     @classmethod
     def build_input(
-            cls, operation_network: OperationNetwork, functional_modules: list[FunctionalModule],
+            cls,
+            rng: random.Random,
+            operation_network: OperationNetwork, functional_modules: list[FunctionalModule],
+            temperature_threshold: float,
             human_supervision_types: list[OperationType] = None, work_shifts: list[WorkShift] = None,
-            temperature_threshold: float = 50,
     ):
         # check if operable
         operation_types = set([o.type for o in operation_network.operations])
@@ -116,7 +118,7 @@ class SchedulerInput(BaseModel):
         assert operation_types.issubset(set(operable_operation_types))
 
         # calculate process time
-        default_process_time(operation_network.operations, functional_modules)
+        default_process_time(operation_network.operations, functional_modules, rng)
 
         # operation helper
         n_operations = len(operation_network.operations)
@@ -208,6 +210,9 @@ class SchedulerOutput(BaseModel):
     functional_modules: list[str] = []
     """ functional module identifiers, consistent with input, note this is a subset of the range of `assignments` """
 
+    notes: dict = dict()
+    """ additional notes """
+
     def operation_view(self):
         view = []
         for i, o in enumerate(self.start_times):
@@ -235,6 +240,29 @@ class SchedulerOutput(BaseModel):
         output.functional_modules = [*scheduler_input.frak_M]  # make a copy
         return output
 
+    def validate_schedule(self, scheduler_input: SchedulerInput, eps=1e-6):
+        report = {
+            "ordinary precedence valid": True,
+            "lmax precedence valid": True,
+            "lmin precedence valid": True,
+        }
+        size_i = len(scheduler_input.frak_O)
+        for i in range(size_i):
+            for j in range(size_i):
+                lmax = scheduler_input.lmax[i][j]
+                lmin = scheduler_input.lmin[i][j]
+                s_j = self.start_times[scheduler_input.frak_O[j]]
+                e_i = self.end_times[scheduler_input.frak_O[i]]
+                if lmax == math.inf and lmin == - math.inf:
+                    continue
+                elif lmin == 0 and lmax == math.inf:
+                    report['ordinary precedence valid'] = bool(s_j > e_i - eps)
+                elif lmin > 0 and lmax == math.inf:
+                    report['lmin precedence valid'] = bool(s_j > e_i + lmin - eps)
+                elif lmin >= 0 and lmax < math.inf:
+                    report['lmax precedence valid'] = bool(e_i + lmax + eps > s_j > e_i + lmin - eps)
+        return report
+
 
 class Solver(BaseModel):
     """ actual solver of a specific formulation """
@@ -254,19 +282,18 @@ class Solver(BaseModel):
     def solve(self): pass
 
 
-def random_functional_modules(random_seed: int = 42, max_capacity: int = 3, max_module_number_per_type: int = 3) -> \
+def random_functional_modules(rng: random.Random, max_capacity: int = 3, max_module_number_per_type: int = 3) -> \
         list[FunctionalModule]:
     fms = []
-    random.seed(random_seed)
     capacity_range = [1, max_capacity]
     module_number_range = [1, max_module_number_per_type]
     for t in OperationType:
-        module_number = random.randint(*module_number_range)
+        module_number = rng.randint(*module_number_range)
         for i in range(module_number):
             m = FunctionalModule(
                 name=f"{t}-{i}",
                 can_process=[t, ],
-                capacity=random.randint(*capacity_range),
+                capacity=rng.randint(*capacity_range),
             )
             fms.append(m)
     return fms
