@@ -128,16 +128,16 @@ class Workflow(BaseModel):
 
         json_dump(si.model_dump(), os.path.join(self.work_folder, self.scheduler_input_json))
 
-    def export_solver(self, baseline=False):
+    def export_solver(self, baseline, time_limit, gb_threads):
         si = json_load(os.path.join(self.work_folder, self.scheduler_input_json))
         si = SchedulerInput(**si)
 
         if baseline:
             solver = SolverBaseline(input=si)
+            solver.solve()
         else:
-            solver = SolverMILP(input=si, time_limit=3600)
-
-        solver.solve()
+            solver = SolverMILP(input=si, time_limit=time_limit)
+            solver.solve(logfile=os.path.join(self.work_folder, "gurobi.log"), threads=gb_threads)
 
         if baseline:
             solver.output.notes['validation'] = solver.output.validate_schedule(solver.input)
