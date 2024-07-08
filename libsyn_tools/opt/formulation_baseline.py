@@ -28,11 +28,23 @@ class SolverBaseline(Solver):
         for i in range(size_i):
             i_to_possible_ms[i] = [m for m in range(size_m) if self.input.p[i][m] < math.inf]
 
-        occupied_until = {m: 0.0 for m in range(size_m)}
+        occupied_until = defaultdict(dict)
+        for m in range(size_m):
+            for slot in range(self.input.K[m]):
+                occupied_until[m][slot] = 0.0
+
         assigned = []
         var_a_im = np.zeros((size_i, size_m))
         var_s_i = np.zeros(size_i)
         var_e_i = np.zeros(size_i)
+
+        var_a_msi = defaultdict(lambda: defaultdict(dict))
+        var_a_ims = defaultdict(lambda: defaultdict(dict))
+        for i in range(size_i):
+            for m in range(size_m):
+                for k in range(self.input.K[m]):
+                    var_a_msi[m][k][i] = 0
+                    var_a_ims[i][m][k] = 0
 
         while len(assigned) < size_i:
             # get unassigned operations
@@ -42,30 +54,53 @@ class SolverBaseline(Solver):
             can_be_assigned = [i for i in unassigned if set(i_to_precedents[i]).issubset(set(assigned))]
 
             # prioritize "can be assigned" operations based on possible end times
-            possible_end_times = []
+            assignment_candidates = []
             for i in can_be_assigned:
-                precedent_end_time = 0 if len(i_to_precedents[i]) == 0 else max(var_e_i[j] for j in i_to_precedents[i])
-                selected_m = None
-                selected_possible_end_time = math.inf
-                selected_possible_start_time = None
+                # find latest precedent + lmin, note lmax is not considered in this algorithm
+                latest_precedent_end_time = 0
+                if len(i_to_precedents[i]):
+                    for j in i_to_precedents[i]:
+                        e_j = var_e_i[j]
+                        if e_j + self.input.lmin[j][i] > latest_precedent_end_time:
+                            latest_precedent_end_time = e_j + self.input.lmin[j][i]
+
+                # greedy assignment for this candidate
+                possible_assignment_for_i = []
                 for m in i_to_possible_ms[i]:
-                    m_is_occupied_until = occupied_until[m]
                     processing_time = self.input.p[i][m]
-                    min_start_time = max(m_is_occupied_until, precedent_end_time)
-                    possible_end_time = min_start_time + processing_time
-                    if possible_end_time < selected_possible_end_time:
-                        selected_m = m
-                        selected_possible_end_time = possible_end_time
-                        selected_possible_start_time = min_start_time
-                possible_end_times.append((i, selected_m, selected_possible_end_time, selected_possible_start_time))
-            to_be_assigned = sorted(possible_end_times, key=lambda x: x[2])[0]
-            to_be_assigned_i, to_be_assigned_m, to_be_assigned_end_time, to_be_assigned_start_time = to_be_assigned
+                    # find the latest incompatible job that is assigned to the same m
+                    incompatible_i = None
+                    for _incompatible_i in range(size_i):
+                        if var_a_im[_incompatible_i][m] == 1 and not self.input.C[_incompatible_i][i]:
+                            incompatible_i = _incompatible_i
+                    if incompatible_i is None:
+                        incompatible_i_end_time = 0
+                    else:
+                        incompatible_i_end_time = var_e_i[incompatible_i]
+
+                    for slot in range(self.input.K[m]):
+                        # find possible start time
+                        possible_start_times = [
+                            occupied_until[m][slot],  # cannot start if the slot is occupied
+                            latest_precedent_end_time,  # cannot start if precedents are not finished
+                            incompatible_i_end_time,  # cannot start if incompatible are not finished
+                        ]
+                        possible_start_time = max(possible_start_times)
+                        possible_end_time = possible_start_time + processing_time
+                        possible_assignment_for_i.append(
+                            [i, possible_start_time, possible_end_time, m, slot]
+                        )
+                possible_assignment_for_i = sorted(possible_assignment_for_i, key=lambda x: x[2])[0]
+                assignment_candidates.append(possible_assignment_for_i)
+
+            assignment_candidate = sorted(assignment_candidates, key=lambda x: x[2])[0]
+            assign_i, assign_s_i, assign_e_i, assign_m, assign_slot = assignment_candidate
 
             # assignment
-            var_s_i[to_be_assigned_i] = to_be_assigned_start_time
-            var_e_i[to_be_assigned_i] = to_be_assigned_end_time
-            occupied_until[to_be_assigned_m] = to_be_assigned_end_time
-            var_a_im[to_be_assigned_i][to_be_assigned_m] = 1
-            assigned.append(to_be_assigned_i)
+            var_s_i[assign_i] = assign_s_i
+            var_e_i[assign_i] = assign_e_i
+            occupied_until[assign_m][assign_slot] = assign_e_i
+            var_a_im[assign_i][assign_m] = 1
+            assigned.append(assign_i)
 
         self.output = SchedulerOutput.from_MILP(self.input, var_s_i, var_e_i, var_a_im)
