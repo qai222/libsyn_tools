@@ -125,7 +125,7 @@ class OperationGraph(Entity):
         return {o.identifier: o for o in operations if o}
 
     @classmethod
-    def from_reaction(cls, reaction: ChemicalReaction, rng: random.Random, lmin_range=(10, 15), lmax_range=(30, 60)):
+    def from_reaction(cls, reaction: ChemicalReaction, rng: random.Random, lmin_range=(10, 120), lmax_range=(15, 120)):
         # TODO this is still a rather ad-hoc template,
         #  users should be able to define their own template via a better interface
         """
