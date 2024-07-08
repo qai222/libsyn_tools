@@ -58,7 +58,7 @@ FMS_LIST = [FMS_1, FMS_2, FMS_3]
 
 
 def run_one(runs_folder: FilePath, libs_folder: FilePath, prefix: str, x: int, y: int, fms_index: int,
-            has_work_shifts: bool, temperature_threshold: float):
+            has_work_shifts: bool, temperature_threshold: float, time_limit: int, gb_threads: int):
     fms = FMS_LIST[fms_index]
 
     lib_dir = os.path.join(libs_folder, f"{prefix}-{x:02}-{y:02}")
@@ -73,8 +73,8 @@ def run_one(runs_folder: FilePath, libs_folder: FilePath, prefix: str, x: int, y
     json_dump([fm.model_dump() for fm in fms], os.path.join(run_dir, workflow.functional_modules_json))
     workflow.export_scheduler_input(rng=random.Random(42), temperature_threshold=temperature_threshold,
                                     dummy_work_shifts=has_work_shifts)
-    workflow.export_solver(baseline=False)
-    workflow.export_solver(baseline=True)
+    workflow.export_solver(baseline=False, time_limit=time_limit, gb_threads=gb_threads)
+    workflow.export_solver(baseline=True, time_limit=time_limit, gb_threads=gb_threads)
 
 
 if __name__ == '__main__':
@@ -82,6 +82,8 @@ if __name__ == '__main__':
     LIBS_FOLDER = os.path.join(os.getcwd(), "LIBS")
     PREFIX = "FDA"
     TEMPERATURE_THRESHOLD = 30
+    TIME_LIMIT = 3600
+    GB_THREADS = 48
 
     X_MAX = 4
     Y_MAX = 10
@@ -90,4 +92,4 @@ if __name__ == '__main__':
         for Y in range(1, Y_MAX + 1):
             for IFM in range(len(FMS_LIST)):
                 run_one(RUNS_FOLDER, LIBS_FOLDER, PREFIX, X, Y, IFM, has_work_shifts=False,
-                        temperature_threshold=TEMPERATURE_THRESHOLD)
+                        temperature_threshold=TEMPERATURE_THRESHOLD, time_limit=TIME_LIMIT, gb_threads=GB_THREADS)
