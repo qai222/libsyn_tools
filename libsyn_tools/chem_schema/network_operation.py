@@ -15,7 +15,7 @@ from .reaction import ChemicalReaction, ChemicalReactionSpecificationLevel
 from ..utils import CytoNode, CytoEdge, CytoEdgeData, CytoNodeData, drawing_url
 
 
-def _default_process_time(operation: Operation, multiplier: float = 1.0):
+def _default_process_time(operation: Operation, rng: random.Random, multiplier: float = 1.0, ):
     """
     gives the default estimates by the operation's type and some of its properties
 
@@ -27,11 +27,13 @@ def _default_process_time(operation: Operation, multiplier: float = 1.0):
     setup_time = 0.6  # min
     solid_dispensing_rate = 4.3  # g/min
     liquid_dispensing_rate = 79  # mL/min
-    heating_period = 73  # min
+    heating_period_min = 120  # min
+    heating_period_max = 420  # min
     purification_cost_per_batch = 49  # min
     purification_batch_volume = 100  # mL
     clean_container_cost = 2.3  # min
-    concentration_cost = 36  # min
+    concentration_cost_min = 16  # min
+    concentration_cost_max = 120  # min
     transfer_container_cost = 0.5  # min
 
     if operation.type == OperationType.TransferSolid:
@@ -49,8 +51,8 @@ def _default_process_time(operation: Operation, multiplier: float = 1.0):
         estimate = transfer_container_cost
 
     elif operation.type == OperationType.Heating:
-        # use default heating time
-        estimate = heating_period
+        # a random heating time
+        estimate = rng.uniform(heating_period_min, heating_period_max)
 
     elif operation.type == OperationType.Purification:
         # purification is limited by the batch size
@@ -63,8 +65,8 @@ def _default_process_time(operation: Operation, multiplier: float = 1.0):
         estimate = clean_container_cost
 
     elif operation.type == OperationType.Concentration:
-        # a flat cost for concentration
-        estimate = concentration_cost
+        # a random cost for concentration
+        estimate = rng.uniform(concentration_cost_min, concentration_cost_max)
 
     else:
         raise ValueError(f"unsupported operation type: {operation.type}")
@@ -72,15 +74,14 @@ def _default_process_time(operation: Operation, multiplier: float = 1.0):
     return estimate * multiplier
 
 
-def default_process_time(operations: list[Operation], functional_modules: list[FunctionalModule], seed: int = 42):
+def default_process_time(operations: list[Operation], functional_modules: list[FunctionalModule], rng: random.Random):
     """ calculate process times for a list of operations """
-    random.seed(seed)
     for op in operations:
         op.process_times = dict()
     for fm in functional_modules:
         for op in operations:
             if op.type in fm.can_process:
-                pt = _default_process_time(op, multiplier=random.uniform(0.8, 1.2))
+                pt = _default_process_time(op, rng=rng, multiplier=rng.uniform(0.8, 1.2))
             else:
                 pt = math.inf
             op.process_times[fm.identifier] = pt
@@ -124,7 +125,7 @@ class OperationGraph(Entity):
         return {o.identifier: o for o in operations if o}
 
     @classmethod
-    def from_reaction(cls, reaction: ChemicalReaction, lmin_range=(10, 15), lmax_range=(30, 60)):
+    def from_reaction(cls, reaction: ChemicalReaction, rng: random.Random, lmin_range=(10, 15), lmax_range=(30, 60)):
         # TODO this is still a rather ad-hoc template,
         #  users should be able to define their own template via a better interface
         """
@@ -247,7 +248,7 @@ class OperationGraph(Entity):
         # add precedence relationships
         og.purify.precedents.append(og.concentrate.identifier)  # concentrate before purification
         og.concentrate.precedents.append(og.heat.identifier)  # heating before concentration
-        og.lmin[og.heat.identifier][og.concentrate.identifier] = random.uniform(*lmin_range)  # minimum lag for cooling
+        og.lmin[og.heat.identifier][og.concentrate.identifier] = rng.uniform(*lmin_range)  # minimum lag for cooling
         # additions before heating
         for addition in [*og.add_liquids.values()] + [*og.add_solutions.values()] + [og.add_solvent, ]:
             if addition:
@@ -266,7 +267,7 @@ class OperationGraph(Entity):
             add_solution = og.add_solutions[solid_id]
             add_solution.precedents.append(transfer_liquid.identifier)
             # once the solution is made there is a lmax to the actual heating
-            og.lmax[transfer_liquid.identifier][og.heat.identifier] = random.uniform(*lmax_range)
+            og.lmax[transfer_liquid.identifier][og.heat.identifier] = rng.uniform(*lmax_range)
         og.reaction = reaction
         for operation in og.operation_dictionary.values():
             operation.from_reaction = reaction.identifier
@@ -319,11 +320,11 @@ class OperationNetwork(Entity):
 
     adjacency_data: dict
 
-    def randomly_assign_temperature(self, temperature_range=(50, 300), seed=42):
-        random.seed(seed)
+    def randomly_assign_temperature(self, rng: random.Random, temperature_range=(50, 300)):
+        # when not using ASKCOS
         for op in self.operations:
             if "temperature" in op.annotations and op.type == OperationType.Heating:
-                op.annotations['temperature'] = random.uniform(*temperature_range)
+                op.annotations['temperature'] = rng.uniform(*temperature_range)
 
     def get_default_compatability(self, temperature_threshold: float) -> dict[str, dict[str, bool]]:
         """
@@ -381,11 +382,10 @@ class OperationNetwork(Entity):
         return d
 
     @classmethod
-    def from_reaction_network(cls, reaction_network: ReactionNetwork):
+    def from_reaction_network(cls, reaction_network: ReactionNetwork, rng: random.Random):
 
-        random.seed(42)  # a random.uniform maybe used in `OperationGraph.from_reaction`
         operation_graphs = [
-            OperationGraph.from_reaction(r) for r in reaction_network.chemical_reactions
+            OperationGraph.from_reaction(r, rng) for r in reaction_network.chemical_reactions
         ]
 
         # connecting operation graphs: if a starting operation X of a reaction uses SMILES1,

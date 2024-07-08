@@ -8,7 +8,7 @@ import networkx as nx
 from .base import Entity
 from .chemical import Chemical
 from .reaction import ChemicalReaction
-from ..utils import is_uuid, calculate_mw, CytoEdge, CytoEdgeData, CytoNodeData, CytoNode, drawing_url
+from ..utils import is_uuid, calculate_mw, CytoEdge, CytoEdgeData, CytoNodeData, CytoNode, drawing_url, StateOfMatter
 
 
 class ReactionNetwork(Entity):
@@ -129,7 +129,7 @@ class ReactionNetwork(Entity):
         # lookup table for product -> reaction
         product_smi_to_reaction = dict()
         for cr in self.chemical_reactions:
-            assert cr.is_uniproduct, "network can only be quantified when all reactions are uni-product"
+            assert cr.is_uniproduct, f"network can only be quantified when all reactions are uni-product, but you have: {cr.reaction_smiles}"
             product_smi_to_reaction[cr.product_smiles] = cr
 
         # create a tree from the reversed network to run bfs
@@ -196,7 +196,7 @@ class ReactionNetwork(Entity):
         for u, v in self.edges:
             edge_data = CytoEdgeData(id=str((u, v)), source=u, target=v)
             reaction_identifier, molecular_smiles, relation = (u, v, "production") if is_uuid(u) else (
-            v, u, "consumption")
+                v, u, "consumption")
             reaction = self.entity_dictionary[reaction_identifier]
             chemical_in_this_reaction = reaction.smiles2chemical[molecular_smiles]
             edge_data['reaction_to_chemical_relation'] = relation
@@ -207,9 +207,20 @@ class ReactionNetwork(Entity):
 
     @property
     def summary(self):
+        solids = []
+        liquids = []
+        for c in self.entity_dictionary.values():
+            if isinstance(c, Chemical):
+                if c.state_of_matter == StateOfMatter.LIQUID:
+                    liquids.append(c)
+                elif c.state_of_matter == StateOfMatter.SOLID:
+                    solids.append(c)
+
         return {
             "# reactions": len(self.chemical_reactions),
             "# targets": len([n for n in self.molecular_nodes if self.nx_digraph.out_degree(n) == 0]),
             "# molecular SMILES": len(self.molecular_smiles_table),
+            "# solids": len(solids),
+            "# liquids": len(liquids),
             "# starting materials": len([n for n in self.molecular_nodes if self.nx_digraph.in_degree(n) == 0]),
         }
