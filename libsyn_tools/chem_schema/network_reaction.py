@@ -76,10 +76,13 @@ class ReactionNetwork(Entity):
         return d
 
     @classmethod
-    def from_reactions(cls, reactions: list[ChemicalReaction]) -> ReactionNetwork:
+    def from_reactions(cls, reactions: list[ChemicalReaction], ignore_multi_prod:bool=False) -> ReactionNetwork:
         molecular_smiles = []
         edges = []
+        network_reactions = []
         for reaction in reactions:
+            if ignore_multi_prod and not reaction.is_uniproduct:
+                continue
             for chemical in reaction.chemicals:
                 molecular_smiles.append(chemical.smiles)
                 assert len(chemical.is_consumed_by) + len(chemical.is_produced_by) == 1
@@ -88,9 +91,10 @@ class ReactionNetwork(Entity):
                 else:
                     edge = (chemical.smiles, reaction.identifier)
                 edges.append(edge)
+            network_reactions.append(reaction)
         molecular_smiles = sorted(set(molecular_smiles))
         edges = sorted(set(edges))
-        return cls(chemical_reactions=reactions, molecular_nodes=molecular_smiles, edges=edges)
+        return cls(chemical_reactions=network_reactions, molecular_nodes=molecular_smiles, edges=edges)
 
     def dummy_quantify(self, by_mass=False):
         """
