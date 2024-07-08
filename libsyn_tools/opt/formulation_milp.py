@@ -273,7 +273,7 @@ class SolverMILP(Solver):
 
         return big_m + self.eps
 
-    def solve(self, logfile:FilePath = None):
+    def solve(self, logfile: FilePath = None, threads: int = 0):
         # TODO inspect scale up
 
         ts_start = time.time()
@@ -296,6 +296,9 @@ class SolverMILP(Solver):
 
         if logfile:
             model.setParam("LogFile", logfile)
+
+        if threads:
+            model.setParam("Threads", threads)
 
         if self.time_limit:
             model.setParam("TimeLimit", self.time_limit)
