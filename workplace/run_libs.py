@@ -65,6 +65,8 @@ def run_one(runs_folder: FilePath, libs_folder: FilePath, prefix: str, x: int, y
     if not os.path.exists(lib_dir):
         return
     run_dir = os.path.join(runs_folder, f"{prefix}-{x:02}-{y:02}-{fms_index}-{int(has_work_shifts)}")
+    if os.path.exists(run_dir):
+        return
 
     shutil.copytree(lib_dir, run_dir)
 

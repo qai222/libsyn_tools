@@ -79,7 +79,7 @@ def export_summary_table(prefix: str, export_folder: FilePath, temperature_thres
     return pd.DataFrame.from_records(records)
 
 
-def export_summary_table_group(prefix: str, export_folder: FilePath, temperature_threshold=30):
+def export_summary_table_group(prefix: str, export_folder: FilePath, temperature_threshold=30, as_ranges=True):
     assert prefix in ("FDA", "VS")
     records = []
     for x in range(100):
@@ -109,10 +109,17 @@ def export_summary_table_group(prefix: str, export_folder: FilePath, temperature
         df_group = pd.DataFrame.from_records(group_records)
         lib_group_record = dict(name=lib_group_name)
         for column in df_group.columns:
-            lib_group_record[column + " [min]"] = df_group[column].min()
-            lib_group_record[column + " [max]"] = df_group[column].max()
-            lib_group_record[column + " [mean]"] = df_group[column].mean()
-            lib_group_record[column + " [std]"] = df_group[column].std()
+            if as_ranges:
+                val_min, val_max = df_group[column].min(), df_group[column].max()
+                if val_min == val_max:
+                    lib_group_record[column] = "{:.0f}".format(val_min)
+                else:
+                    lib_group_record[column] = "[{:.0f}, {:.0f}]".format(val_min, val_max)
+            else:
+                lib_group_record[column + " [min]"] = df_group[column].min()
+                lib_group_record[column + " [max]"] = df_group[column].max()
+                lib_group_record[column + " [mean]"] = df_group[column].mean()
+                lib_group_record[column + " [std]"] = df_group[column].std()
         records.append(lib_group_record)
     return pd.DataFrame.from_records(records)
 
