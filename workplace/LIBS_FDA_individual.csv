@@ -1,4 +1,4 @@
-library_name,# temperature bins,# reactions,# targets,# molecular SMILES,# solids,# liquids,# starting materials,# operations,# type Concentration,# type Heating,# type Purification,# type TransferLiquid,# type TransferSolid
+library_name,# temperature bins,# reactions,# targets,# molecular SMILES,# solids,# liquids,# starting materials,# operations,# type OperationType.Concentration,# type OperationType.Heating,# type OperationType.Purification,# type OperationType.TransferLiquid,# type OperationType.TransferSolid
 FDA-01-01,4,4,1,14,10,8,10,34,4,4,4,16,6
 FDA-01-02,3,5,1,21,13,12,16,47,5,5,5,24,8
 FDA-01-03,4,5,1,20,18,13,15,62,5,5,5,34,13
