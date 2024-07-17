@@ -240,13 +240,28 @@ class SchedulerOutput(BaseModel):
         output.functional_modules = [*scheduler_input.frak_M]  # make a copy
         return output
 
-    def validate_schedule(self, scheduler_input: SchedulerInput, eps=1e-6):
+    def validate_schedule(self, scheduler_input: SchedulerInput, eps=1e-6, consider_work_shifts: bool = True):
         report = {
             "ordinary precedence valid": True,
             "lmax precedence valid": True,
             "lmin precedence valid": True,
+            "work shift valid": None,
         }
         size_i = len(scheduler_input.frak_O)
+
+        if scheduler_input.frak_W and consider_work_shifts:
+            report["work shift valid"] = True
+            for i in range(size_i):
+                if scheduler_input.frak_O[i] not in scheduler_input.frak_P:
+                    continue
+                assigned_n = None
+                for n in range(len(scheduler_input.frak_W)):
+                    if scheduler_input.S[n] <= self.start_times[scheduler_input.frak_O[i]] <= self.end_times[
+                        scheduler_input.frak_O[i]] <= scheduler_input.E[n]:
+                        assigned_n = n
+                if assigned_n is None:
+                    report["work shift valid"] = False
+
         for i in range(size_i):
             for j in range(size_i):
                 lmax = scheduler_input.lmax[i][j]

@@ -11,6 +11,12 @@ from .schema import Solver, SchedulerOutput
 
 
 class SolverBaseline(Solver):
+    consider_shifts: bool = True
+
+    @property
+    def include_shift_constraints(self):
+        # TODO DRY
+        return self.consider_shifts and self.input.frak_W
 
     def model_post_init(self, __context: Any) -> None:
         logger.info("\n" + pprint.pformat(self.input.summary))
@@ -86,6 +92,25 @@ class SolverBaseline(Solver):
                             incompatible_i_end_time,  # cannot start if incompatible are not finished
                         ]
                         possible_start_time = max(possible_start_times)
+
+                        if self.include_shift_constraints:
+                            # TODO need to validate the work shift list is ordered
+                            size_n = len(self.input.frak_W)
+                            if self.input.frak_O[i] in self.input.frak_P:
+                                n_assigned = None
+                                for n in range(size_n):
+                                    S_n = self.input.S[n]
+                                    E_n = self.input.E[n]
+                                    if S_n <= possible_start_time <= E_n and possible_start_time + processing_time <= E_n:
+                                        n_assigned = n
+                                        break
+                                    elif S_n >= possible_start_time:
+                                        n_assigned = n
+                                        possible_start_time = S_n
+                                        assert E_n >= S_n + processing_time, f"the processing time of {i} on {m} is longer than a shift!"
+                                        break
+                                assert n_assigned is not None, "shift not found!"
+
                         possible_end_time = possible_start_time + processing_time
                         possible_assignment_for_i.append(
                             [i, possible_start_time, possible_end_time, m, slot]
