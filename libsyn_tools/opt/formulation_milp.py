@@ -24,6 +24,8 @@ class SolverMILP(Solver):
 
     supress_gp_log: bool = False
 
+    greedy_init: bool = True
+
     @property
     def include_shift_constraints(self):
         return self.consider_shifts and self.input.frak_W
@@ -65,6 +67,29 @@ class SolverMILP(Solver):
         var_x_list = var_x.tolist()
         var_y_list = var_y.tolist()
         var_z_list = var_z.tolist()
+
+        # warm start with greedy
+        if self.greedy_init:
+            from .formulation_baseline import SolverBaseline
+            baseline_solver = SolverBaseline(input=self.input)
+            baseline_solver.solve()
+            validations = baseline_solver.output.validate_schedule(scheduler_input=self.input,
+                                                                   consider_work_shifts=self.include_shift_constraints)
+            if any(v is False for v in validations.values()):
+                logger.warning("infeasible greedy solution, do not run warm start")
+                # logger.warning("infeasible greedy solution, warm start with only assignment")
+                # for i, oid in enumerate(self.input.frak_O):
+                #     for m, mid in enumerate(self.input.frak_M):
+                #         if baseline_solver.output.assignments[oid] == mid:
+                #             var_a_list[i][m].Start = 1
+            else:
+                logger.critical("feasible greedy solution, warm start with assignment and s/e times")
+                var_s.Start = [baseline_solver.output.start_times[oid] for oid in self.input.frak_O]
+                var_e.Start = [baseline_solver.output.end_times[oid] for oid in self.input.frak_O]
+                for i, oid in enumerate(self.input.frak_O):
+                    for m, mid in enumerate(self.input.frak_M):
+                        if baseline_solver.output.assignments[oid] == mid:
+                            var_a_list[i][m].Start = 1
         return var_e_max, var_s, var_e, var_a, var_x, var_y, var_z, var_e_list, var_s_list, var_a_list, var_x_list, var_y_list, var_z_list
 
     def model_add_main_constraints(
@@ -308,6 +333,12 @@ class SolverMILP(Solver):
 
         # based on log, see https://support.gurobi.com/hc/en-us/community/posts/360077323472
         model.setParam("BarHomogeneous", 1)
+
+        # focus on feasible solution
+        model.setParam("MIPFocus", 1)
+
+        # spend more time using heuristics
+        model.setParam("Heuristics", 0.5)
 
         # add variables
         (
