@@ -66,6 +66,7 @@ class Workflow(BaseModel):
     def export_operation_network(self, rng: random.Random):
         reaction_network = json_load(os.path.join(self.work_folder, self.reaction_network_json))
         reaction_network = ReactionNetwork(**reaction_network)
+        reaction_network.dummy_quantify(by_mass=False)
         for r in reaction_network.chemical_reactions:
             if len([c for c in r.reactants + r.reagents if c.state_of_matter == StateOfMatter.LIQUID]) == 0:
                 r.reactants[0].state_of_matter = StateOfMatter.LIQUID
@@ -104,7 +105,9 @@ class Workflow(BaseModel):
                     fms.append(m)
         json_dump([fm.model_dump() for fm in fms], os.path.join(self.work_folder, self.functional_modules_json))
 
-    def export_scheduler_input(self, rng: random.Random, temperature_threshold, dummy_work_shifts=False):
+    def export_scheduler_input(self, rng: random.Random,
+                               # temperature_threshold,
+                               dummy_work_shifts=False):
 
         operation_network = json_load(os.path.join(self.work_folder, self.operation_network_json))
         operation_network = OperationNetwork(**operation_network)
@@ -118,8 +121,10 @@ class Workflow(BaseModel):
         ]
         si = SchedulerInput.build_input(
             rng,
-            operation_network, functional_modules, temperature_threshold=temperature_threshold
+            operation_network, functional_modules,
+            # temperature_threshold=temperature_threshold
         )
+        logger.info(f"{operation_network.max_processing_times}")
         if dummy_work_shifts:
             work_shifts = si.get_dummy_work_shifts()
         else:
@@ -135,12 +140,17 @@ class Workflow(BaseModel):
         if baseline:
             solver = SolverBaseline(input=si)
             solver.solve()
+            solver.output.notes['validation'] = solver.output.validate_schedule(solver.input)
         else:
             solver = SolverMILP(input=si, time_limit=time_limit)
             solver.solve(logfile=os.path.join(self.work_folder, "gurobi.log"), threads=gb_threads)
+            if solver.opt_log['gurobi status'] == 3 or (solver.opt_log['gurobi status'] == 9 and solver.opt_log['gurobi solution count'] == 0):  # infeasible model or zero solution
+                solver.output.notes['validation'] = {}
+            else:
+                solver.output.notes['validation'] = solver.output.validate_schedule(solver.input)
+
 
         if baseline:
-            solver.output.notes['validation'] = solver.output.validate_schedule(solver.input)
             json_dump(solver.model_dump(), os.path.join(self.work_folder, self.solver_baseline_json))
         else:
             json_dump(solver.model_dump(), os.path.join(self.work_folder, self.solver_milp_json))
