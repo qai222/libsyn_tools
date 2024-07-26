@@ -22,9 +22,16 @@ def collect(runs_folder: FilePath):
         record = {
             "name": run_folder,
             "baseline solution": max(solver_baseline.output.end_times.values()),
-            "baseline valid": all(solver_baseline.output.notes['validation'].values()),
-            "milp runtime": solver_milp.opt_log['time solved']
+            "baseline valid": all(v for v in solver_baseline.output.notes['validation'].values() if v is not None),
+            "milp valid": all(v for v in solver_milp.output.notes['validation'].values() if v is not None),
+            "milp runtime": solver_milp.opt_log['time solved'],
+            "milp feasible": solver_milp.opt_log['gurobi status'] != 3,
         }
+
+        for k, v in solver_baseline.output.notes['validation'].items():
+            record[f"baseline validation: {k}"] = v
+        for k, v in solver_milp.output.notes['validation'].items():
+            record[f"milp validation: {k}"] = v
 
         if solver_milp.output.end_times:
             record["milp solution"] = max(solver_milp.output.end_times.values())
