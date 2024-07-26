@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 from enum import Enum
 from typing import Any
@@ -21,6 +23,10 @@ class OperationType(str, Enum):
     Purification = 'Purification'
 
     Concentration = 'Concentration'
+
+    ConcentrationAndPurification = 'ConcentrationAndPurification'
+
+    MakeSolution = 'MakeSolution'
 
 
 class Operation(Entity):
