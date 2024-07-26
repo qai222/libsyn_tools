@@ -1,6 +1,5 @@
 import os
 import random
-from itertools import groupby
 
 import pandas as pd
 
@@ -11,7 +10,7 @@ from libsyn_tools.utils import json_load
 from libsyn_tools.workflow import Workflow
 
 """
-export reaction and operation networks of VS-x and FDA-x
+export reaction networks of VS-x and FDA-x
 """
 
 
@@ -26,7 +25,7 @@ FDA_SET = _parse_set(ROUTES_PATH_FDA)
 VS_SET = _parse_set(ROUTES_PATH_VS)
 
 
-def export_main(up_to_x: int, up_to_y: int, prefix: str, export_to: FilePath):
+def export_main(up_to_x: int, up_to_y: int, prefix: str, export_to: FilePath, export_operation_only: bool):
     if prefix == "FDA":
         targets = FDA_SET
         routes_file = ROUTES_PATH_FDA
@@ -50,11 +49,12 @@ def export_main(up_to_x: int, up_to_y: int, prefix: str, export_to: FilePath):
                 work_folder=wdir,
                 scraper_output=None,
             )
-            workflow.export_reaction_network(query_askcos=True, dummy_quantify=True, specified_targets=targets_x_y)
+            if not export_operation_only:
+                workflow.export_reaction_network(query_askcos=True, dummy_quantify=True, specified_targets=targets_x_y)
             workflow.export_operation_network(rng=rng)
 
 
-def export_summary_table(prefix: str, export_folder: FilePath, temperature_threshold=30):
+def export_summary_table(prefix: str, export_folder: FilePath, ):
     assert prefix in ("FDA", "VS")
     records = []
     for x in range(100):
@@ -65,21 +65,14 @@ def export_summary_table(prefix: str, export_folder: FilePath, temperature_thres
             reaction_network = ReactionNetwork(**json_load(lib_dir + "/reaction_network.json"))
             operation_network = OperationNetwork(**json_load(lib_dir + "/operation_network.json"))
 
-            # calculate temperature bins
-            temperatures = [r.temperature for r in reaction_network.chemical_reactions]
-            temperatures = sorted(temperatures)
-            groups = []
-            for _, g in groupby(temperatures, lambda tt: (tt - 1) // temperature_threshold):
-                groups.append(list(g))
-
-            record = {"library_name": os.path.basename(lib_dir), "# temperature bins": len(groups)}
+            record = {"library_name": os.path.basename(lib_dir)}
             record.update(reaction_network.summary)
             record.update(operation_network.summary)
             records.append(record)
     return pd.DataFrame.from_records(records)
 
 
-def export_summary_table_group(prefix: str, export_folder: FilePath, temperature_threshold=30, as_ranges=True):
+def export_summary_table_group(prefix: str, export_folder: FilePath, as_ranges=True):
     assert prefix in ("FDA", "VS")
     records = []
     for x in range(100):
@@ -91,14 +84,7 @@ def export_summary_table_group(prefix: str, export_folder: FilePath, temperature
             reaction_network = ReactionNetwork(**json_load(lib_dir + "/reaction_network.json"))
             operation_network = OperationNetwork(**json_load(lib_dir + "/operation_network.json"))
 
-            # calculate temperature bins
-            temperatures = [r.temperature for r in reaction_network.chemical_reactions]
-            temperatures = sorted(temperatures)
-            groups = []
-            for _, g in groupby(temperatures, lambda tt: (tt - 1) // temperature_threshold):
-                groups.append(list(g))
-
-            record = {"# temperature bins": len(groups)}
+            record = {}
             record.update(reaction_network.summary)
             record.update(operation_network.summary)
             group_records.append(record)
@@ -128,14 +114,14 @@ if __name__ == '__main__':
     EXPORT_LIBS_PATH = os.path.join(os.getcwd(), "LIBS")
     X_MAX = 10
     Y_MAX = 10
-    TEMPERATURE_THRESHOLD = 30
     PREFIX = "FDA"
 
-    export_main(up_to_x=X_MAX, up_to_y=Y_MAX, prefix=PREFIX, export_to=EXPORT_LIBS_PATH)
-    DF = export_summary_table(prefix=PREFIX, export_folder=EXPORT_LIBS_PATH,
-                              temperature_threshold=TEMPERATURE_THRESHOLD)
+    export_main(
+        up_to_x=X_MAX, up_to_y=Y_MAX, prefix=PREFIX, export_to=EXPORT_LIBS_PATH,
+        export_operation_only=True  # set to False if fresh start
+    )
+    DF = export_summary_table(prefix=PREFIX, export_folder=EXPORT_LIBS_PATH, )
     DF.to_csv(f"LIBS_{PREFIX}_individual.csv", index=False)
 
-    DF = export_summary_table_group(prefix=PREFIX, export_folder=EXPORT_LIBS_PATH,
-                                    temperature_threshold=TEMPERATURE_THRESHOLD)
+    DF = export_summary_table_group(prefix=PREFIX, export_folder=EXPORT_LIBS_PATH, )
     DF.to_csv(f"LIBS_{PREFIX}_group.csv", index=False)

@@ -107,7 +107,7 @@ class ReactionNetwork(Entity):
             cr.reaction_extent = 1.0
             cr.expected_yields = {cr.products[0].identifier: 1.0}
         self.quantify(
-            targets={smi: 1.0 for smi in self.target_smiles},
+            targets={smi: 0.01 for smi in self.target_smiles},
             intended_ratios={cr.identifier: None for cr in self.chemical_reactions},
             expected_yields={cr.identifier: None for cr in self.chemical_reactions},
             by_mass=by_mass

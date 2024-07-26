@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import math
 from enum import Enum
 from typing import Any
 
@@ -20,6 +23,10 @@ class OperationType(str, Enum):
     Purification = 'Purification'
 
     Concentration = 'Concentration'
+
+    ConcentrationAndPurification = 'ConcentrationAndPurification'
+
+    MakeSolution = 'MakeSolution'
 
 
 class Operation(Entity):
@@ -46,6 +53,9 @@ class Operation(Entity):
         """ the identifiers of the functional modules that can process this operation """
         return sorted([k for k, v in self.process_times.items() if v < 1e8])
 
+    @property
+    def finite_process_times(self) -> dict[str, float]:
+        return {k: v for k, v in self.process_times.items() if v < math.inf}
 
 class FunctionalModule(Entity):
     """ a functional module is a set of hardware units that can perform one or more operations """

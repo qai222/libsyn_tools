@@ -62,6 +62,13 @@ class SolverBaseline(Solver):
             # prioritize "can be assigned" operations based on possible end times
             assignment_candidates = []
             for i in can_be_assigned:
+                # if the candidate has a lmax link to already assigned operation, find the min of such lmax
+                lmax_assigned_to_i = [self.input.lmax[assigned_j][i] for assigned_j in assigned]
+                if len(lmax_assigned_to_i):
+                    lmax_assigned_to_i = min(lmax_assigned_to_i)
+                else:
+                    lmax_assigned_to_i = math.inf
+
                 # find latest precedent + lmin, note lmax is not considered in this algorithm
                 latest_precedent_end_time = 0
                 if len(i_to_precedents[i]):
@@ -113,13 +120,13 @@ class SolverBaseline(Solver):
 
                         possible_end_time = possible_start_time + processing_time
                         possible_assignment_for_i.append(
-                            [i, possible_start_time, possible_end_time, m, slot]
+                            [i, possible_start_time, possible_end_time, m, slot, lmax_assigned_to_i]
                         )
                 possible_assignment_for_i = sorted(possible_assignment_for_i, key=lambda x: x[2])[0]
                 assignment_candidates.append(possible_assignment_for_i)
 
-            assignment_candidate = sorted(assignment_candidates, key=lambda x: x[2])[0]
-            assign_i, assign_s_i, assign_e_i, assign_m, assign_slot = assignment_candidate
+            assignment_candidate = sorted(assignment_candidates, key=lambda x: (x[5], x[2]))[0]
+            assign_i, assign_s_i, assign_e_i, assign_m, assign_slot, lmax_to_assign = assignment_candidate
 
             # assignment
             var_s_i[assign_i] = assign_s_i

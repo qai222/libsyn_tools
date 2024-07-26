@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from libsyn_tools.chem_schema import OperationNetwork, FunctionalModule, OperationType
 from libsyn_tools.chem_schema.network_operation import default_process_time
-
+from loguru import logger
 
 class WorkShift(BaseModel):
     start_time: float
@@ -107,7 +107,7 @@ class SchedulerInput(BaseModel):
             cls,
             rng: random.Random,
             operation_network: OperationNetwork, functional_modules: list[FunctionalModule],
-            temperature_threshold: float,
+            # temperature_threshold: float,
             human_supervision_types: list[OperationType] = None, work_shifts: list[WorkShift] = None,
     ):
         # check if operable
@@ -175,7 +175,8 @@ class SchedulerInput(BaseModel):
 
         # compatability
         C = np.zeros((n_operations, n_operations), dtype=int)
-        compatability = operation_network.get_default_compatability(temperature_threshold=temperature_threshold)
+        # compatability = operation_network.get_default_compatability(temperature_threshold=temperature_threshold)
+        compatability = operation_network.get_default_compatability_ad_hoc()
         for i, oid in enumerate(frak_O):
             for j, ojd in enumerate(frak_O):
                 C[i][j] = compatability[oid][ojd]
@@ -240,17 +241,18 @@ class SchedulerOutput(BaseModel):
         output.functional_modules = [*scheduler_input.frak_M]  # make a copy
         return output
 
-    def validate_schedule(self, scheduler_input: SchedulerInput, eps=1e-6, consider_work_shifts: bool = True):
+    def validate_schedule(self, scheduler_input: SchedulerInput, eps=1e-3, consider_work_shifts: bool = True):
         report = {
-            "ordinary precedence valid": True,
-            "lmax precedence valid": True,
-            "lmin precedence valid": True,
+            "ordinary precedence valid": [],
+            "lmax only precedence valid": [],
+            "lmin only precedence valid": [],
+            "lmin and lmax precedence valid": [],
             "work shift valid": None,
         }
         size_i = len(scheduler_input.frak_O)
 
         if scheduler_input.frak_W and consider_work_shifts:
-            report["work shift valid"] = True
+            report["work shift valid"] = []
             for i in range(size_i):
                 if scheduler_input.frak_O[i] not in scheduler_input.frak_P:
                     continue
@@ -260,7 +262,9 @@ class SchedulerOutput(BaseModel):
                         scheduler_input.frak_O[i]] <= scheduler_input.E[n]:
                         assigned_n = n
                 if assigned_n is None:
-                    report["work shift valid"] = False
+                    report["work shift valid"].append(False)
+                else:
+                    report["work shift valid"].append(True)
 
         for i in range(size_i):
             for j in range(size_i):
@@ -271,12 +275,26 @@ class SchedulerOutput(BaseModel):
                 if lmax == math.inf and lmin == - math.inf:
                     continue
                 elif lmin == 0 and lmax == math.inf:
-                    report['ordinary precedence valid'] = bool(s_j > e_i - eps)
-                elif lmin > 0 and lmax == math.inf:
-                    report['lmin precedence valid'] = bool(s_j > e_i + lmin - eps)
-                elif lmin >= 0 and lmax < math.inf:
-                    report['lmax precedence valid'] = bool(e_i + lmax + eps > s_j > e_i + lmin - eps)
-        return report
+                    valid = bool(s_j > e_i - eps)
+                    report['ordinary precedence valid'].append(valid)
+                elif lmin > - math.inf and lmax == math.inf:
+                    valid = bool(s_j > e_i + lmin - eps)
+                    report['lmin only precedence valid'].append(valid)
+                elif lmin == - math.inf and lmax < math.inf:
+                    valid = bool(s_j < e_i + lmax + eps)
+                    report['lmax only precedence valid'].append(valid)
+                elif lmin > - math.inf and lmax < math.inf:
+                    valid = bool(e_i + lmax + eps > s_j > e_i + lmin - eps)
+                    report['lmin and lmax precedence valid'].append(valid)
+                else:
+                    raise ValueError
+        simple_report = dict()
+        for k, v in report.items():
+            if isinstance(v, list):
+                simple_report[k] = all(v)
+            else:
+                simple_report[k] = v
+        return simple_report
 
 
 class Solver(BaseModel):

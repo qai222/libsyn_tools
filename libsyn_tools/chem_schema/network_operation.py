@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import math
 import random
 from collections import defaultdict, Counter
 
 import networkx as nx
+import numpy as np
 from loguru import logger
 from networkx.readwrite import json_graph
 from plotly.colors import DEFAULT_PLOTLY_COLORS, unlabel_rgb
@@ -25,16 +28,18 @@ def _default_process_time(operation: Operation, rng: random.Random, multiplier: 
     """
 
     setup_time = 0.6  # min
-    solid_dispensing_rate = 4.3  # g/min
-    liquid_dispensing_rate = 79  # mL/min
-    heating_period_min = 120  # min
-    heating_period_max = 420  # min
+    solid_dispensing_rate = 15  # g/min
+    liquid_dispensing_rate = 43  # mL/min
+    heating_period_min = 60  # min
+    heating_period_max = 360  # min
     purification_cost_per_batch = 49  # min
     purification_batch_volume = 100  # mL
     clean_container_cost = 2.3  # min
     concentration_cost_min = 16  # min
-    concentration_cost_max = 120  # min
+    concentration_cost_max = 60  # min
     transfer_container_cost = 0.5  # min
+    dissolution_min = 0  # min
+    dissolution_max = 15  # min
 
     if operation.type == OperationType.TransferSolid:
         # for solid transfer, time = setup time + amount / dispensing rate
@@ -44,7 +49,7 @@ def _default_process_time(operation: Operation, rng: random.Random, multiplier: 
     elif operation.type == OperationType.TransferLiquid:
         # no setup time needed for liquid
         chemical = Chemical(**operation.annotations['chemical'])
-        estimate = chemical.mass / liquid_dispensing_rate
+        estimate = chemical.volume / liquid_dispensing_rate
 
     elif operation.type == OperationType.TransferContainer:
         # a flat time cost
@@ -68,9 +73,21 @@ def _default_process_time(operation: Operation, rng: random.Random, multiplier: 
         # a random cost for concentration
         estimate = rng.uniform(concentration_cost_min, concentration_cost_max)
 
+    elif operation.type == OperationType.ConcentrationAndPurification:
+        chemical = Chemical(**operation.annotations['chemical'])
+        n_batch = chemical.volume // purification_batch_volume + 1
+        estimate = purification_cost_per_batch * n_batch
+        estimate += rng.uniform(concentration_cost_min, concentration_cost_max)
+
+    elif operation.type == OperationType.MakeSolution:
+        # chemical = Chemical(**operation.annotations['solid_chemical'])
+        estimate = setup_time  # + chemical.mass / solid_dispensing_rate
+        chemical = Chemical(**operation.annotations['liquid_chemical'])
+        estimate += chemical.volume / liquid_dispensing_rate
+        estimate = rng.uniform(dissolution_min, dissolution_max)
     else:
         raise ValueError(f"unsupported operation type: {operation.type}")
-
+    logger.info(f"{operation.type}: {estimate * multiplier} min")
     return estimate * multiplier
 
 
@@ -81,10 +98,13 @@ def default_process_time(operations: list[Operation], functional_modules: list[F
     for fm in functional_modules:
         for op in operations:
             if op.type in fm.can_process:
-                pt = _default_process_time(op, rng=rng, multiplier=rng.uniform(0.8, 1.2))
+                pt = _default_process_time(op, rng=rng, multiplier=rng.uniform(0.7, 1.3))
             else:
                 pt = math.inf
             op.process_times[fm.identifier] = pt
+    for op in operations:
+        logger.info(
+            f"{op.type}: processing time mean {np.mean(list(op.finite_process_times.values()))} std {np.std(list(op.finite_process_times.values()))}")
 
 
 class OperationGraph(Entity):
@@ -92,23 +112,18 @@ class OperationGraph(Entity):
 
     functional_modules: list[FunctionalModule] = []
 
-    make_solutions: dict[str, tuple[Operation, Operation]] = dict()
-    """ solid solute identifier -> (transfer solid, transfer liquid) """
+    make_solutions: dict[str, Operation] = dict()
+    """ solid solute xor solvent identifier -> (make solution) """
 
     add_solutions: dict[str, Operation] = dict()
-    """ solid solute identifier -> transfer liquid """
+    """ solid solute xor solvent identifier -> transfer liquid """
 
     add_liquids: dict[str, Operation] = dict()
     """ liquid identifier -> transfer liquid, this excludes the solvent """
 
-    add_solvent: Operation | None = None
-    """ if no solid then add solvent first """
-
     heat: Operation | None = None
 
-    purify: Operation | None = None
-
-    concentrate: Operation | None = None
+    concentrate_and_purify: Operation | None = None
 
     lmin: dict[str, dict[str, float]] = dict()
 
@@ -117,15 +132,14 @@ class OperationGraph(Entity):
     @property
     def operation_dictionary(self) -> dict[str, Operation]:
         operations = []
-        for o1, o2 in self.make_solutions.values():
-            operations += [o1, o2]
+        operations += [*self.make_solutions.values()]
         operations += [*self.add_solutions.values()]
         operations += [*self.add_liquids.values()]
-        operations += [self.add_solvent, self.heat, self.purify, self.concentrate]
+        operations += [self.heat, self.concentrate_and_purify]
         return {o.identifier: o for o in operations if o}
 
     @classmethod
-    def from_reaction(cls, reaction: ChemicalReaction, rng: random.Random, lmin_range=(10, 120), lmax_range=(15, 120)):
+    def from_reaction(cls, reaction: ChemicalReaction, rng: random.Random, lmin_range=(10, 60), lmax_range=(30, 90)):
         # TODO this is still a rather ad-hoc template,
         #  users should be able to define their own template via a better interface
         """
@@ -173,23 +187,17 @@ class OperationGraph(Entity):
             mass_ratios = [m / sum(masses) for m in masses]
             for solid, ratio in zip(solids, mass_ratios):
                 solvent_this_fold = solvent * ratio
-                # solid transfer to make solution
-                transfer_solid = Operation(
-                    type=OperationType.TransferSolid,
+                # make solution, we then apply lmax between this and heating
+                make_solution = Operation(
+                    type=OperationType.MakeSolution,
                     annotations={
-                        "chemical": solid.model_dump(),
-                        "notes": f"transfer solid {solid.smiles} for making solution for {solid.smiles}"
+                        "solid_chemical": solid.model_dump(),
+                        "liquid_chemical": solvent_this_fold.model_dump(),
+                        "notes": f"making {solvent.smiles} solution for {solid.smiles}"
                     },
+
                 )
-                # liquid transfer to make solution, we then apply lmax between this and heating
-                transfer_liquid = Operation(
-                    type=OperationType.TransferLiquid,
-                    annotations={
-                        "chemical": solvent_this_fold.model_dump(),
-                        "notes": f"transfer solvent {solvent.smiles} for making solution for {solid.smiles}"
-                    },
-                )
-                og.make_solutions[solid.identifier] = (transfer_solid, transfer_liquid)
+                og.make_solutions[solid.identifier] = make_solution
 
                 # solution addition to reaction vessel
                 mix = solvent_this_fold + solid
@@ -212,7 +220,7 @@ class OperationGraph(Entity):
                     "notes": f"add all solvent {solvent.smiles}"
                 },
             )
-            og.add_solvent = solvent_addition
+            og.make_solutions[solvent.identifier] = solvent_addition
 
         # additions for liquids in reactants/reagents excluding the solvent
         remaining_liquids = liquids[:-1]
@@ -234,40 +242,36 @@ class OperationGraph(Entity):
             }
         )
 
-        og.purify = Operation(
-            type=OperationType.Purification,
+        og.concentrate_and_purify = Operation(
+            type=OperationType.ConcentrationAndPurification,
             annotations={"chemical": reaction.products[0].model_dump(),
-                         "notes": f"purify the product: {reaction.product_smiles}"}
-        )
-
-        og.concentrate = Operation(
-            type=OperationType.Concentration,
-            annotations={"notes": f"concentrate the raw product: {reaction.product_smiles}"}
+                         "notes": f"purify and concentrate the product: {reaction.product_smiles}"}
         )
 
         # add precedence relationships
-        og.purify.precedents.append(og.concentrate.identifier)  # concentrate before purification
-        og.concentrate.precedents.append(og.heat.identifier)  # heating before concentration
-        og.lmin[og.heat.identifier][og.concentrate.identifier] = rng.uniform(*lmin_range)  # minimum lag for cooling
+        og.concentrate_and_purify.precedents.append(og.heat.identifier)  # heating before concentration
+        og.lmin[og.heat.identifier][og.concentrate_and_purify.identifier] = rng.uniform(
+            *lmin_range)  # minimum lag for cooling
         # additions before heating
-        for addition in [*og.add_liquids.values()] + [*og.add_solutions.values()] + [og.add_solvent, ]:
+        for addition in [*og.add_liquids.values()] + [*og.add_solutions.values()]:
             if addition:
                 og.heat.precedents.append(addition.identifier)
-        # solvent/solutions addition before liquids
-        for add_liquid in [*og.add_liquids.values()]:
-            if og.add_solvent:
-                add_liquid.precedents.append(og.add_solvent.identifier)
-            else:
-                for add_solution in [*og.add_solutions.values()]:
-                    add_liquid.precedents.append(add_solution.identifier)
-        # first solid then liquid in making solutions
-        for solid_id, (transfer_solid, transfer_liquid) in og.make_solutions.items():
-            transfer_liquid.precedents.append(transfer_solid.identifier)
+
+        # # solvent/solutions addition before liquids
+        # for add_liquid in [*og.add_liquids.values()]:
+        #     for add_solution in [*og.add_solutions.values()]:
+        #         add_liquid.precedents.append(add_solution.identifier)
+
+        for solid_id, make_solution in og.make_solutions.items():
             # need to first make the solution then add to reaction vessel
-            add_solution = og.add_solutions[solid_id]
-            add_solution.precedents.append(transfer_liquid.identifier)
-            # once the solution is made there is a lmax to the actual heating
-            og.lmax[transfer_liquid.identifier][og.heat.identifier] = rng.uniform(*lmax_range)
+            try:
+                add_solution = og.add_solutions[solid_id]
+                add_solution.precedents.append(make_solution.identifier)
+                # once the solution is made there is a lmax to the actual heating
+                og.lmax[make_solution.identifier][og.heat.identifier] = rng.uniform(*lmax_range)
+            except KeyError:  # when solid_id is actually solvent_id
+                assert len(solids) == 0
+
         og.reaction = reaction
         for operation in og.operation_dictionary.values():
             operation.from_reaction = reaction.identifier
@@ -326,6 +330,51 @@ class OperationNetwork(Entity):
             if "temperature" in op.annotations and op.type == OperationType.Heating:
                 op.annotations['temperature'] = rng.uniform(*temperature_range)
 
+    def get_default_compatability_ad_hoc(self) -> dict[str, dict[str, bool]]:
+        """
+        compatability by ad hoc rules
+
+        :return: d[oid][oid] -> bool
+        """
+
+        def temperature_rule(temp: float) -> str:
+            temp_c = temp - 273.15
+            if 35 < temp_c < 85:
+                return "mild"
+            elif 85 <= temp_c < 150:
+                return "hot"
+            elif 150 <= temp_c:
+                return "hot+"
+            elif 20 < temp_c <= 35:
+                return "rt"
+            elif -5 < temp_c <= 20:
+                return "cold"
+            elif temp_c <= -5:
+                return "cold+"
+
+        compatability = defaultdict(dict)
+        for o_i in self.operations:
+            oid = o_i.identifier
+            for o_j in self.operations:
+                ojd = o_j.identifier
+                if oid == ojd:
+                    c = 1
+                elif o_i.type != o_j.type:  # this seems unnecessary as it is disallowed by `can_process`
+                    c = 0
+                elif o_i.type == o_j.type == OperationType.Heating:
+                    o_i_temperature = o_i.annotations['temperature']
+                    o_j_temperature = o_j.annotations['temperature']
+                    if o_i_temperature is None or o_j_temperature is None:
+                        c = 1  # by default, we **allow** them to be processed on the same module
+                    elif temperature_rule(o_j_temperature) == temperature_rule(o_i_temperature):
+                        c = 1
+                    else:
+                        c = 0
+                else:
+                    c = 1
+                compatability[oid][ojd] = c
+        return compatability
+
     def get_default_compatability(self, temperature_threshold: float) -> dict[str, dict[str, bool]]:
         """
         default compatability -- if two operations can be processed on the same module
@@ -368,6 +417,16 @@ class OperationNetwork(Entity):
         return operations
 
     @property
+    def max_processing_times(self):
+        mpt = dict()
+        for o in self.operations:
+            try:
+                mpt[o.identifier + f'--{o.type}'] = max([pt for pt in o.process_times.values() if pt < math.inf])
+            except ValueError:
+                mpt[o.identifier + f'--o.type'] = math.inf
+        return mpt
+
+    @property
     def operations_by_reaction(self) -> dict[str, list[Operation]]:
         d = defaultdict(list)
         for o in self.operations:
@@ -396,9 +455,12 @@ class OperationNetwork(Entity):
         }
         for og in operation_graphs:
             for starting_operation_x in og.starting_operations:
-                if 'chemical' in starting_operation_x.annotations:
-                    need_smiles = Chemical(**starting_operation_x.annotations['chemical']).smiles
-                    if need_smiles in smiles_to_ending_operation:
+                for chemical_key in ['chemical', 'solid_chemical', 'liquid_chemical']:
+                    try:
+                        need_smiles = Chemical(**starting_operation_x.annotations[chemical_key]).smiles
+                    except KeyError:
+                        need_smiles = None
+                    if need_smiles is not None and need_smiles in smiles_to_ending_operation:
                         ending_operation_y = smiles_to_ending_operation[need_smiles]
                         starting_operation_x.precedents.append(ending_operation_y.identifier)
         g = nx.DiGraph()
