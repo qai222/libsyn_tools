@@ -328,17 +328,28 @@ class SolverMILP(Solver):
         if self.time_limit:
             model.setParam("TimeLimit", self.time_limit)
 
-        # focus on feasible solution
-        model.setParam("MIPFocus", 1)
-
         # based on log, see https://support.gurobi.com/hc/en-us/community/posts/360077323472
-        model.setParam("BarHomogeneous", 1)
+        # 2nd thought from https://support.gurobi.com/hc/en-us/community/posts/4408013659025
+        # model.setParam("BarHomogeneous", 1)
 
         # focus on feasible solution
         model.setParam("MIPFocus", 1)
 
-        # spend more time using heuristics
-        model.setParam("Heuristics", 0.5)
+        # # spend no time using heuristics
+        # model.setParam("Heuristics", 0)
+
+        # # better chance for feasible solution
+        # model.setParam("NoRelHeurTime", int(self.time_limit * 0.4))
+
+        # set this to zero as I saw more than one "Total elapsed time",
+        # see https://www.gurobi.com/documentation/current/refman/degenmoves.html
+        model.setParam("DegenMoves", 0)
+
+        # # use barrier for node relaxation
+        # model.setParam("NodeMethod", 2)
+
+        # empirically primal simplex often outperforms others
+        model.setParam("Method", 0)
 
         # add variables
         (
