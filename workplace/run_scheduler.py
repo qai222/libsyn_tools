@@ -91,7 +91,7 @@ parser.add_argument('--gb-threads', type=int, default=12, help='threads for Guro
 parser.add_argument('--runs-folder', type=str, default="RUNS", help='runs folder path')
 parser.add_argument('--libs-folder', type=str, default="LIBS", help='libs folder path')
 parser.add_argument('--fms-index', type=int, help='index of the functional module set')
-parser.add_argument('--work-shift', type=bool, help='if include work shifts')
+parser.add_argument('--work-shift', action="store_true", help='if include work shifts')
 
 args = parser.parse_args()
 
