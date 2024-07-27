@@ -115,6 +115,7 @@ if __name__ == '__main__':
     X_MAX = 10
     Y_MAX = 10
     PREFIX = "FDA"
+    # PREFIX = "VS"
 
     export_main(
         up_to_x=X_MAX, up_to_y=Y_MAX, prefix=PREFIX, export_to=EXPORT_LIBS_PATH,
