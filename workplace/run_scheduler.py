@@ -2,7 +2,7 @@ import argparse
 import os
 import random
 import shutil
-
+from loguru import logger
 from libsyn_tools.utils import FilePath, json_dump
 from libsyn_tools.workflow import Workflow, OperationType, FunctionalModule
 
@@ -65,9 +65,11 @@ def run_one(runs_folder: FilePath, libs_folder: FilePath, prefix: str, x: int, y
 
     lib_dir = os.path.join(libs_folder, f"{prefix}-{x:02}-{y:02}")
     if not os.path.exists(lib_dir):
+        logger.critical(f"Library folder not found: {lib_dir}")
         return
     run_dir = os.path.join(runs_folder, f"{prefix}-{x:02}-{y:02}-{fms_index}-{int(has_work_shifts)}")
     if os.path.exists(run_dir):
+        logger.critical(f"Run folder already exists: {lib_dir}")
         return
 
     shutil.copytree(lib_dir, run_dir)
