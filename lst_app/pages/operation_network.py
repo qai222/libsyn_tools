@@ -57,6 +57,7 @@ cyto_stylesheet = OperationNetwork.get_cyto_stylesheet()
 component_cytoscape_id = PAGE_ID_HEADER + "component_cytoscape"
 component_cytoscape = cyto.Cytoscape(
     id=component_cytoscape_id,
+    wheelSensitivity=0.01,
     layout={
         'name': 'dagre',
         'nodeDimensionsIncludeLabels': True,
