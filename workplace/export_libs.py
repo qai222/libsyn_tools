@@ -112,14 +112,14 @@ def export_summary_table_group(prefix: str, export_folder: FilePath, as_ranges=T
 
 if __name__ == '__main__':
     EXPORT_LIBS_PATH = os.path.join(os.getcwd(), "LIBS")
-    X_MAX = 10
+    X_MAX = 9
     Y_MAX = 10
     PREFIX = "FDA"
     # PREFIX = "VS"
 
     export_main(
         up_to_x=X_MAX, up_to_y=Y_MAX, prefix=PREFIX, export_to=EXPORT_LIBS_PATH,
-        export_operation_only=True  # set to False if fresh start
+        export_operation_only=False  # set to False if fresh start
     )
     DF = export_summary_table(prefix=PREFIX, export_folder=EXPORT_LIBS_PATH, )
     DF.to_csv(f"LIBS_{PREFIX}_individual.csv", index=False)
