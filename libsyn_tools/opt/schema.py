@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections
 import itertools
 import math
 import random
@@ -258,8 +259,8 @@ class SchedulerOutput(BaseModel):
                     continue
                 assigned_n = None
                 for n in range(len(scheduler_input.frak_W)):
-                    if scheduler_input.S[n] <= self.start_times[scheduler_input.frak_O[i]] <= self.end_times[
-                        scheduler_input.frak_O[i]] <= scheduler_input.E[n]:
+                    if scheduler_input.S[n] - eps <= self.start_times[scheduler_input.frak_O[i]] <= self.end_times[
+                        scheduler_input.frak_O[i]] <= scheduler_input.E[n] + eps:
                         assigned_n = n
                 if assigned_n is None:
                     report["work shift valid"].append(False)
