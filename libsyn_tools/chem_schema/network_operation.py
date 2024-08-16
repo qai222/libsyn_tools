@@ -253,7 +253,7 @@ class OperationGraph(Entity):
         og.lmin[og.heat.identifier][og.concentrate_and_purify.identifier] = rng.uniform(
             *lmin_range)  # minimum lag for cooling
         # additions before heating
-        for addition in [*og.add_liquids.values()] + [*og.add_solutions.values()]:
+        for addition in [*og.add_liquids.values()] + [*og.add_solutions.values()] + [*og.make_solutions.values()]:
             if addition:
                 og.heat.precedents.append(addition.identifier)
 
