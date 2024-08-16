@@ -13,24 +13,40 @@ from libsyn_tools.chem_schema import OperationNetwork
 from libsyn_tools.opt.formulation_baseline import SolverBaseline, SchedulerOutput
 from libsyn_tools.opt.formulation_milp import SolverMILP
 from libsyn_tools.opt.schema import SchedulerInput
-from libsyn_tools.utils import json_load
+from libsyn_tools.utils import json_load, FilePath
 
 sns.set_theme()
-RUNS_FOLDER = os.path.abspath("../workplace/RUNS")
-# RUN_NAME = "FDA-03-09-0-0"
-# RUN_NAME = "FDA-03-09-1-0"
-# RUN_NAME = "VS-07-10-1-1"
-RUN_NAME = "VS-04-06-0-1"
-RUN_FOLDER = os.path.join(RUNS_FOLDER, RUN_NAME)
-SAVE_FOLDER = os.path.abspath(f"float/{RUN_NAME}")
-os.makedirs(SAVE_FOLDER, exist_ok=True)
-
-SOLVER_BASELINE = SolverBaseline(**json_load(os.path.join(RUN_FOLDER, "solver_baseline.json")))
-SOLVER_MILP = SolverMILP(**json_load(os.path.join(RUN_FOLDER, "solver_milp.json")))
-OPERATION_NETWORK = OperationNetwork(**json_load(os.path.join(RUN_FOLDER, "operation_network.json")))
 
 
-def get_schedule_df(scheduler_output: SchedulerOutput, scheduler_input: SchedulerInput):
+# # RUN_NAME = "FDA-03-09-0-0"
+# # RUN_NAME = "FDA-03-09-1-0"
+# # RUN_NAME = "VS-07-10-1-1"
+# RUN_NAME = "VS-04-06-0-1"
+# RUNS_FOLDER = os.path.abspath("../workplace/RUNS")
+
+
+def plot_gantt(runs_foler: FilePath, run_name: str, save_float_folder: FilePath, anno_reaction_index: bool):
+    runs_folder = os.path.abspath(runs_foler)
+    run_folder = os.path.join(runs_folder, run_name)
+    save_float_folder = os.path.abspath(save_float_folder)
+    save_folder = os.path.join(save_float_folder, run_name)
+    os.makedirs(save_folder, exist_ok=True)
+    solver_baseline = SolverBaseline(**json_load(os.path.join(run_folder, "solver_baseline.json")))
+    solver_milp = SolverMILP(**json_load(os.path.join(run_folder, "solver_milp.json")))
+    operation_network = OperationNetwork(**json_load(os.path.join(run_folder, "operation_network.json")))
+
+    fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(8, 4), sharex=True, sharey=True)
+    ax2.set_xlabel("Time (min)")
+    plot_gantt_ax(solver_milp, operation_network, ax=ax1, trans=False, anno_reaction_index=anno_reaction_index, subfig_title="(A) Optimal schedule")
+    plot_gantt_ax(solver_baseline, operation_network, ax=ax2, trans=False, anno_reaction_index=anno_reaction_index, subfig_title="(B) Baseline schedule")
+    fig.tight_layout()
+    fig.savefig(os.path.join(save_folder, f"gantt-{run_name}.pdf"))
+
+    return solver_baseline, solver_milp, operation_network
+
+
+def get_schedule_df(scheduler_output: SchedulerOutput, scheduler_input: SchedulerInput,
+                    operation_network: OperationNetwork):
     records = scheduler_output.operation_view()
     df = pd.DataFrame.from_records(records)
     fm_groups = defaultdict(list)
@@ -42,28 +58,31 @@ def get_schedule_df(scheduler_output: SchedulerOutput, scheduler_input: Schedule
         fm_new_name = f"{fm.can_process[0]}-{fm_groups[fm.can_process[0]].index(fm.identifier)}"
         print(fm.identifier, fm_new_name)
         if "Heating" in fm_new_name:
-            fm_new_name = fm_new_name.replace("Heating", "H")
+            fm_new_name = fm_new_name.replace("Heating", "Heater")
         elif "ConcentrationAndPurification" in fm_new_name:
-            fm_new_name = fm_new_name.replace("ConcentrationAndPurification", "CP")
+            fm_new_name = fm_new_name.replace("ConcentrationAndPurification", "Workup station")
         fm_rename[fm.identifier] = fm_new_name.split(".")[-1]
 
     df["assigned_to_new_name"] = [fm_rename[n] for n in df['assigned_to'].tolist()]
-    df["reaction_identifier"] = [OPERATION_NETWORK.operation_dictionary[n].from_reaction for n in
+    df["reaction_identifier"] = [operation_network.operation_dictionary[n].from_reaction for n in
                                  df['operation_identifier'].tolist()]
     df["duration"] = df["end_time"] - df["start_time"]
     df.to_csv("gantt_chart.csv", index=False)
     return df
 
 
-def plot_gantt_ax(solver: SolverMILP | SolverBaseline, ax: plt.Axes, trans: bool, anno_reaction_index: bool,
+def plot_gantt_ax(solver: SolverMILP | SolverBaseline, operation_network: OperationNetwork, ax: plt.Axes, trans: bool,
+                  anno_reaction_index: bool,
                   subfig_title: str):
     height = 0.5
-    df = get_schedule_df(solver.output, solver.input)
+    df = get_schedule_df(solver.output, solver.input, operation_network)
     fms = sorted(df['assigned_to_new_name'].unique())
     reaction_ids = sorted(df["reaction_identifier"].unique().tolist())
     reaction_indexer = {
         rid: ii for ii, rid in enumerate(reaction_ids)
     }
+    for rid, ii in reaction_indexer.items():
+        print(ii, rid)
 
     color_list = mcolors.TABLEAU_COLORS.copy()
     pattern_list = ('', '/', '-', '.', 'x', '+', '\\', '*', 'o', 'O',)
@@ -73,9 +92,9 @@ def plot_gantt_ax(solver: SolverMILP | SolverBaseline, ax: plt.Axes, trans: bool
     for rid in reaction_ids:
         pc_dict[rid] = next(pc_tuples)
 
-    fms = [fm for fm in fms if fm.startswith("H") or fm.startswith("CP")]
+    fms = [fm for fm in fms if fm.startswith("H") or fm.startswith("Workup")]
 
-    for reaction_id, operations in OPERATION_NETWORK.operations_by_reaction.items():
+    for reaction_id, operations in operation_network.operations_by_reaction.items():
         reaction_df = df[df['reaction_identifier'] == reaction_id].copy()
         reaction_df = reaction_df[reaction_df["assigned_to_new_name"].isin(fms)]
         reaction_df["gantt_y"] = [fms.index(fm) for fm in reaction_df['assigned_to_new_name'].tolist()]
@@ -121,15 +140,6 @@ def plot_gantt_ax(solver: SolverMILP | SolverBaseline, ax: plt.Axes, trans: bool
                 break
 
     ax.set_yticks(range(len(fms)))
+    ax.set_ylim([0-0.5, len(fms)-0.5+0.2])
     ax.set_yticklabels(fms)
     ax.set_title(subfig_title, loc='left')
-
-
-fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(8, 8), sharex=True, sharey=True)
-ax2.set_xlabel("Time (min)")
-# plot_gantt_ax(SOLVER_MILP, ax=ax1, trans=True, anno_reaction_index=False, subfig_title= "(A) Optimal solution")
-# plot_gantt_ax(SOLVER_BASELINE, ax=ax2, trans=True, anno_reaction_index=False, subfig_title="(B) Baseline solution")
-plot_gantt_ax(SOLVER_MILP, ax=ax1, trans=False, anno_reaction_index=True, subfig_title="(A) Optimal solution")
-plot_gantt_ax(SOLVER_BASELINE, ax=ax2, trans=False, anno_reaction_index=True, subfig_title="(B) Baseline solution")
-fig.tight_layout()
-fig.savefig(os.path.join(SAVE_FOLDER, f"gantt-{RUN_NAME}.png"))

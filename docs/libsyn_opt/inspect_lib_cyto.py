@@ -6,18 +6,25 @@ import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 import networkx as nx
 import requests
-from dash import Dash
+from dash import Dash, Output, Input, html, ctx, dcc, callback
 
 from libsyn_tools.chem_schema import ReactionNetwork
 from libsyn_tools.utils import json_load, CytoNodeData, drawing_url, CytoNode, CytoEdge, CytoEdgeData
+
+"""
+download example see 
+https://dash.plotly.com/cytoscape/images
+"""
+
 
 app = Dash(
     name=__name__,
     title="LibSyn",
     external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME],
 )
+server = app.server
 cyto.load_extra_layouts()
-RUNS_FOLDER = "../workplace/RUNS"
+RUNS_FOLDER = "../../workplace/RUNS"
 RUNS_FOLDER = os.path.abspath(RUNS_FOLDER)
 RUN_NAME = "FDA-03-09-0-0"
 # RUN_NAME = "VS-07-10-0-0"
@@ -28,13 +35,21 @@ STYLE_SHEET = [
         'selector': 'edge',
         'style': {
             'curve-style': 'unbundled-bezier',
+            # 'curve-style': 'bezier',
             'taxi-direction': 'vertical',
             'target-arrow-shape': 'triangle',
             'target-arrow-color': 'black',
             'target-arrow-width': '2',
             "opacity": "0.9",
             "line-color": "black",
-            "overlay-padding": "3px"
+            "overlay-padding": "3px",
+            'label': "data(reaction_index)",
+            "font-size": "40px",
+            "arrow-scale": 2,
+            'text-margin-y': -30,  # https://github.com/cytoscape/cytoscape.js/issues/1374#issuecomment-267486645
+            'text-margin-x': -20,
+            # "text-valign": "top",
+            # "text-halign": "center",
         }
     },
     {
@@ -130,10 +145,20 @@ def get_routes_graph_cyto(reaction_network: ReactionNetwork):
     nodes = []
     edges = []
 
+
     reaction_ids = sorted([cr.identifier for cr in reaction_network.chemical_reactions])
     reaction_indexer = {
-        cr.identifier: ii for ii, cr in enumerate(reaction_ids)
+        cr: ii for ii, cr in enumerate(reaction_ids)
     }
+    for rid, ii in reaction_indexer.items():
+        print(ii, rid, reaction_network.entity_dictionary[rid].reaction_smiles)
+
+    product_to_reaction_index = dict()
+    reactant_to_reaction_index = dict()
+    for reaction in reaction_network.chemical_reactions:
+        product_to_reaction_index[reaction.product_smiles]= reaction_indexer[reaction.identifier]
+        for r in reaction.reactants:
+            reactant_to_reaction_index[r.smiles] = reaction_indexer[reaction.identifier]
 
     for idx, n in enumerate(sorted(routes_rng.nodes)):
         node_data = CytoNodeData(id=n, label=n, )
@@ -171,14 +196,17 @@ def get_routes_graph_cyto(reaction_network: ReactionNetwork):
         nodes.append(node)
 
     for u, v in routes_rng.edges:
-        edge_data = CytoEdgeData(id=str((u, v)), source=u, target=v)
+        rid = product_to_reaction_index[v]
+        edge_data = CytoEdgeData(id=str((u, v)), source=u, target=v, reaction_index=rid)
         edge = CytoEdge(data=edge_data, classes="")
         edges.append(edge)
     return nodes + edges
 
 
+
 component_cytoscape = cyto.Cytoscape(
-    id="component_cytoscape",
+    # id="component_cytoscape",
+    id='cytoscape-image-export',
     wheelSensitivity=0.01,
     layout={
         'name': 'dagre',
@@ -195,7 +223,39 @@ component_cytoscape = cyto.Cytoscape(
     elements=get_routes_graph_cyto(load_reaction_network())
 )
 
-app.layout = component_cytoscape
+app.layout = html.Div([
+    html.Div(children=[
+        component_cytoscape
+    ]),
+
+    html.Div(children=[
+        html.Div('Download graph:'),
+        html.Button("as svg", id="btn-get-svg"),
+    ])
+])
+
+@callback(
+    Output("cytoscape-image-export", "generateImage"),
+        Input("btn-get-svg", "n_clicks"),)
+def get_image(get_svg_clicks):
+
+    # File type to output of 'svg, 'png', 'jpg', or 'jpeg' (alias of 'jpg')
+
+    # 'store': Stores the image data in 'imageData' !only jpg/png are supported
+    # 'download'`: Downloads the image as a file with all data handling
+    # 'both'`: Stores image data and downloads image as file.
+    action = 'store'
+    ftype = "png"
+
+    if ctx.triggered:
+        if ctx.triggered_id == "btn-get-svg":
+            action = "download"
+            ftype = "svg"
+    # QA: somehow I have to first init ftype with "png" when dash init, otherwise I got error:
+    # Failed to execute 'readAsDataURL' on 'FileReader': parameter 1 is not of type 'Blob'.
+
+    return {'type': ftype, 'action': action}
+
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=8064, debug=True)
+    app.run(port=8064, debug=True)
