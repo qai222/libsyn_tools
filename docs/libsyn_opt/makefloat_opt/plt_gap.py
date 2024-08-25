@@ -9,8 +9,6 @@ import seaborn as sns
 
 from makefloat_opt.schema import SchedulerRun, split_runs
 
-sns.set_theme()
-
 
 def get_gaps(
         runs: list[SchedulerRun],
@@ -34,7 +32,11 @@ def get_gaps(
 def plot_gaps_ax(runs: list[SchedulerRun], subfig_title: str, prefix: str, ax: plt.Axes, remove_legend, ms_hue):
     df = pd.DataFrame.from_records([r.model_dump() for r in runs])
     df['percentage gap'] = get_gaps(runs)
-    df['Module set'] = [f"FMS-{ifm}" for ifm in df['ifm'].tolist()]
+    fms_translator = {
+        "FMS-0": "LAB-1",
+        "FMS-1": "LAB-2",
+    }
+    df['Module set'] = [fms_translator[f"FMS-{ifm}"] for ifm in df['ifm'].tolist()]
 
     marker_shape = itertools.cycle(['D', 'o', 'p', 'd', 'v', 'D', '*', 'o', ])
     color_selector = itertools.cycle(
@@ -54,6 +56,7 @@ def plot_gaps_ax(runs: list[SchedulerRun], subfig_title: str, prefix: str, ax: p
             gap_series = df[df["Module set"] == ms]['percentage gap']
             print(subfig_title, ms, gap_series.min(), gap_series.max(), gap_series.mean())
             # df[['name', 'percentage gap']].to_csv(f"gaps--{subfig_title}.csv")
+            df[['name', 'gurobi_status', 'percentage gap']].to_csv(f"gaps--{subfig_title}.csv")
         # p = sns.catplot(df, x="percentage gap", y="n_target", ax=ax, hue="Module set", orient="h", alpha=.5, markers=markers, s=10, jitter=False)
     else:
         p = sns.stripplot(df, x="percentage gap", y="n_target", ax=ax, orient="h", alpha=.5, s=10, marker="D",
@@ -61,7 +64,7 @@ def plot_gaps_ax(runs: list[SchedulerRun], subfig_title: str, prefix: str, ax: p
 
     gaps = [v for v in df['percentage gap'].tolist() if not pd.isna(v)]
     print(subfig_title, sum(gaps) / len(gaps))
-    ax.set_xlabel("Gap (%)")
+    ax.set_xlabel("Makespan gap (%)", fontsize=13)
     ax.set_ylabel("")
     labels = [item.get_text() for item in ax.get_yticklabels()]
     yticks = ax.get_yticks()
@@ -77,7 +80,7 @@ def plot_gaps_ax(runs: list[SchedulerRun], subfig_title: str, prefix: str, ax: p
             except AttributeError:
                 pass
     # ax.set_title(subfig_title, fontsize='large', loc='center')
-    ax.set_title(subfig_title, loc='left')
+    ax.set_title(subfig_title, y=1.0, x=-0.085)
 
 
 def plot_gaps(runs: list[SchedulerRun], figname: str, ms_hue: bool):
@@ -92,6 +95,6 @@ def plot_gaps(runs: list[SchedulerRun], figname: str, ms_hue: bool):
     ax4.legend(loc='lower right', bbox_to_anchor=(1.0, -.45),
                fancybox=True, shadow=False, ncol=2)
 
-    # fig.supylabel("Number of target chemicals")
+    fig.supylabel("Chemical library", fontsize=13)
     fig.tight_layout()
     fig.savefig(figname, dpi=600)

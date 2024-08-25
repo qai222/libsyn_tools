@@ -7,13 +7,15 @@ import seaborn as sns
 
 from makefloat_opt.schema import SchedulerRun, split_runs
 
-sns.set_theme()
 
-
-def plot_status_ax(runs: list[SchedulerRun], subfig_title: str, ax: plt.Axes, prefix:str):
+def plot_status_ax(runs: list[SchedulerRun], subfig_title: str, ax: plt.Axes, prefix: str):
     df = pd.DataFrame.from_records([r.model_dump() for r in runs])
     df['Solver status'] = df['gurobi_status'].fillna(value='No solution')
+    df.loc[df['Solver status'] == 'Feasible', 'Solver status'] = 'Suboptimal'
     p = sns.histplot(df, y="n_target", ax=ax, hue="Solver status", multiple="stack", discrete=True, )
+
+    p.legend_.set_title(None)
+
     # ax.set_ylabel("Number of target chemicals")
     ax.set_ylabel("")
     ax.set_xlabel("Scheduler instance count")
@@ -32,7 +34,8 @@ def plot_status_ax(runs: list[SchedulerRun], subfig_title: str, ax: plt.Axes, pr
     ax.set_ylim([9.5, 0.5])
 
     # ax.set_title(subfig_title, fontsize='large', loc='center')
-    ax.set_title(subfig_title, loc='left')
+    ax.set_title(subfig_title, x=-0.082, y=1.0)
+
     return ax
 
 
@@ -46,7 +49,8 @@ def plot_status(runs: list[SchedulerRun], figname: str):
     plot_status_ax(runs_vs_ws1, subfig_title="(D)", ax=ax4, prefix="VS")
 
     sns.move_legend(ax4, loc='upper center', bbox_to_anchor=(0.5, -.45),
-               fancybox=True, shadow=False, ncol=3)
+                    fancybox=True, shadow=False, ncol=3)
+
     ax1.get_legend().remove()
     ax2.get_legend().remove()
     ax3.get_legend().remove()

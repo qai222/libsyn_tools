@@ -39,6 +39,28 @@ class SchedulerRun(BaseModel):
     runtime_milp: float | None
 
     @property
+    def is_valid_baseline(self):
+        valid = True
+        for v in self.validation_baseline.values():
+            if v is None:
+                continue
+            if v is False:
+                valid = False
+                break
+        return valid
+
+    @property
+    def is_valid_milp(self):
+        valid = True
+        for v in self.validation_milp.values():
+            if v is None:
+                continue
+            if v is False:
+                valid = False
+                break
+        return valid
+
+    @property
     def percentage_gap(self) -> float | None:
         if self.solution_milp is None:
             return None
@@ -62,9 +84,11 @@ class SchedulerRun(BaseModel):
         solver_milp = os.path.join(run_folder, "solver_milp.json")
         if os.path.exists(solver_milp) and json_load(solver_milp)['output']['end_times']:
             solver_milp = SolverMILP(**json_load(solver_milp))
-            solver_milp.output.notes['validation'] = solver_milp.output.validate_schedule(solver_milp.input)
+
             # revalidate just to be safe
-            validation_milp = solver_baseline.output.notes['validation']
+            solver_milp.output.notes['validation'] = solver_milp.output.validate_schedule(solver_milp.input)
+            validation_milp = solver_milp.output.notes['validation']
+
             solution_milp = max(solver_milp.output.end_times.values())
             gurobi_status = gurobi_status_dict[solver_milp.opt_log['gurobi status']]
             runtime_milp = solver_milp.opt_log['time solved']
