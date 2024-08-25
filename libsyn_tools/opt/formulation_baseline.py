@@ -18,8 +18,8 @@ class SolverBaseline(Solver):
         # TODO DRY
         return self.consider_shifts and self.input.frak_W
 
-    def model_post_init(self, __context: Any) -> None:
-        logger.info("\n" + pprint.pformat(self.input.summary))
+    # def model_post_init(self, __context: Any) -> None:
+    #     logger.info("\n" + pprint.pformat(self.input.summary))
 
     def solve(self):
         size_i = len(self.input.frak_O)
@@ -136,3 +136,4 @@ class SolverBaseline(Solver):
             assigned.append(assign_i)
 
         self.output = SchedulerOutput.from_MILP(self.input, var_s_i, var_e_i, var_a_im)
+

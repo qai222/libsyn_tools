@@ -30,8 +30,8 @@ class SolverMILP(Solver):
     def include_shift_constraints(self):
         return self.consider_shifts and self.input.frak_W
 
-    def model_post_init(self, __context: Any) -> None:
-        logger.info("\n" + pprint.pformat(self.input.summary))
+    # def model_post_init(self, __context: Any) -> None:
+    #     logger.info("\n" + pprint.pformat(self.input.summary))
 
     def prepare_input(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[int], np.ndarray, int, int]:
         # get params and cleanup array types
