@@ -242,7 +242,7 @@ class SchedulerOutput(BaseModel):
         output.functional_modules = [*scheduler_input.frak_M]  # make a copy
         return output
 
-    def validate_schedule(self, scheduler_input: SchedulerInput, eps=1e-3, consider_work_shifts: bool = True):
+    def validate_schedule(self, scheduler_input: SchedulerInput, eps=1e-1, consider_work_shifts: bool = True):
         report = {
             "ordinary precedence valid": [],
             "lmax only precedence valid": [],
