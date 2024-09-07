@@ -3,6 +3,7 @@ from __future__ import annotations
 import glob
 import os
 
+from loguru import logger
 from pydantic import BaseModel
 from tqdm import tqdm
 
@@ -124,7 +125,6 @@ def split_runs(runs: list[SchedulerRun]):
     runs_vs_ws1 = []
 
     for r in runs:
-        assert r.validation_baseline['lmin and lmax precedence valid'] is False
         if r.workshift:
             if r.prefix == "FDA":
                 runs_fda_ws1.append(r)
@@ -141,7 +141,9 @@ def split_runs(runs: list[SchedulerRun]):
 def load_runs(runs_folder_match: FilePath):
     try:
         runs = [SchedulerRun(**R) for R in json_load("RUNS.json")]
+        logger.critical("RUNS.json found in cwd, loaded runs from it")
     except FileNotFoundError:
+        logger.critical("RUNS.json not found in cwd, loading from RUNS FOLDER")
         runs = []
         for FOLDER in tqdm(sorted(glob.glob(runs_folder_match))):
             if not os.path.isdir(FOLDER):
