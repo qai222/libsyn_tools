@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import random
 from collections import defaultdict, Counter
-
+import numpy as np
 import networkx as nx
 from loguru import logger
 from networkx.readwrite import json_graph
