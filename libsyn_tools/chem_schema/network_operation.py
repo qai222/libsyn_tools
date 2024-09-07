@@ -5,7 +5,6 @@ import random
 from collections import defaultdict, Counter
 
 import networkx as nx
-import numpy as np
 from loguru import logger
 from networkx.readwrite import json_graph
 from plotly.colors import DEFAULT_PLOTLY_COLORS, unlabel_rgb

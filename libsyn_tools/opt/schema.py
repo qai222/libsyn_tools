@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import collections
 import itertools
 import math
 import random
@@ -12,6 +11,7 @@ from pydantic import BaseModel
 from libsyn_tools.chem_schema import OperationNetwork, FunctionalModule, OperationType
 from libsyn_tools.chem_schema.network_operation import default_process_time
 from loguru import logger
+
 
 class WorkShift(BaseModel):
     start_time: float
@@ -277,9 +277,13 @@ class SchedulerOutput(BaseModel):
                     continue
                 elif lmin == 0 and lmax == math.inf:
                     valid = bool(s_j > e_i - eps)
+                    if not valid:
+                        logger.critical(f"first {i}--{e_i} {j}--{s_j}")
                     report['ordinary precedence valid'].append(valid)
                 elif lmin > - math.inf and lmax == math.inf:
                     valid = bool(s_j > e_i + lmin - eps)
+                    if not valid:
+                        logger.critical(f"{i} {j} {lmin} {s_j - e_i}")
                     report['lmin only precedence valid'].append(valid)
                 elif lmin == - math.inf and lmax < math.inf:
                     valid = bool(s_j < e_i + lmax + eps)

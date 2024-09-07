@@ -124,7 +124,7 @@ class Workflow(BaseModel):
             operation_network, functional_modules,
             # temperature_threshold=temperature_threshold
         )
-        logger.info(f"{operation_network.max_processing_times}")
+        # logger.info(f"{operation_network.max_processing_times}")
         if dummy_work_shifts:
             work_shifts = si.get_dummy_work_shifts()
         else:
@@ -138,17 +138,23 @@ class Workflow(BaseModel):
         si = SchedulerInput(**si)
 
         if baseline:
-            solver = SolverBaseline(input=si)
+            solver = SolverBaseline(
+                input=si,
+                operation_network=OperationNetwork(
+                    **json_load(os.path.join(self.work_folder, self.operation_network_json))),
+                reaction_network=ReactionNetwork(
+                    **json_load(os.path.join(self.work_folder, self.reaction_network_json)))
+            )
             solver.solve()
             solver.output.notes['validation'] = solver.output.validate_schedule(solver.input)
         else:
             solver = SolverMILP(input=si, time_limit=time_limit)
             solver.solve(logfile=os.path.join(self.work_folder, "gurobi.log"), threads=gb_threads)
-            if solver.opt_log['gurobi status'] == 3 or (solver.opt_log['gurobi status'] == 9 and solver.opt_log['gurobi solution count'] == 0):  # infeasible model or zero solution
+            if solver.opt_log['gurobi status'] == 3 or (solver.opt_log['gurobi status'] == 9 and solver.opt_log[
+                'gurobi solution count'] == 0):  # infeasible model or zero solution
                 solver.output.notes['validation'] = {}
             else:
                 solver.output.notes['validation'] = solver.output.validate_schedule(solver.input)
-
 
         if baseline:
             json_dump(solver.model_dump(), os.path.join(self.work_folder, self.solver_baseline_json))
