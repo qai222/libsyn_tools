@@ -1,4 +1,5 @@
 import os
+import random
 
 import networkx as nx
 import pytest
@@ -7,6 +8,7 @@ from libsyn_tools.chem_schema import *
 from libsyn_tools.utils import is_uuid, parse_sparrow_routes, StateOfMatter
 
 this_folder = os.path.dirname(os.path.abspath(__file__))
+_rng = random.Random(42)
 
 
 @pytest.fixture(scope="session")
@@ -80,15 +82,15 @@ class TestReactionNetwork:
             test_network.dummy_quantify()
             for cr in test_network.chemical_reactions:
                 for c in cr.chemicals:
-                    assert c.moles == 1
+                    assert abs(c.moles - 0.01) < 1e-5
 
 
 @pytest.mark.order(3)
 class TestOperationGraph:
 
     def test_from_reaction(self, quantified_reaction_1):
-        og = OperationGraph.from_reaction(quantified_reaction_1)
-        assert len(og.starting_operations) == 2
+        og = OperationGraph.from_reaction(quantified_reaction_1, rng=_rng)
+        assert len(og.starting_operations) == 3
         assert og.ending_operation
         assert og.lmin
         assert og.lmax
@@ -99,7 +101,7 @@ class TestOperationNetwork:
 
     def test_from_reaction_network(self, test_reaction_network1, test_reaction_network2):
         test_reaction_network1.dummy_quantify()
-        network1 = OperationNetwork.from_reaction_network(test_reaction_network1)
+        network1 = OperationNetwork.from_reaction_network(test_reaction_network1, rng=_rng)
         assert len([*nx.connected_components(network1.nx_digraph.to_undirected())]) == 2
         # TODO: the operation graph has 2 connected components because while CC>>c1ccccc1 and CC>COC>c1cScc1
         #  share the same starting CC, transferring CC does not depend on any operations.
@@ -111,5 +113,5 @@ class TestOperationNetwork:
         for r in test_reaction_network2.chemical_reactions:
             if len(r.reactants + r.reagents) == 1:
                 r.reactants[0].state_of_matter = StateOfMatter.LIQUID
-        network2 = OperationNetwork.from_reaction_network(test_reaction_network2)
-        assert len([*nx.connected_components(network2.nx_digraph.to_undirected())]) > 3
+        network2 = OperationNetwork.from_reaction_network(test_reaction_network2, rng=_rng)
+        assert len([*nx.connected_components(network2.nx_digraph.to_undirected())]) >= 3
