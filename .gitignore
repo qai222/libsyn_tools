@@ -321,6 +321,6 @@ fabric.properties
 
 /lsopt/
 /libsyn_tools/utils/askcos_url.txt
-/workplace/RUNS/
-/workplace/LIBS/
-/workplace/RUNS_baseline/
+/workplace_opt/RUNS/
+/workplace_opt/LIBS/
+/workplace_opt/RUNS_baseline/

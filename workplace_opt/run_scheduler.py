@@ -6,7 +6,7 @@ import shutil
 from loguru import logger
 
 from libsyn_tools.utils import FilePath, json_dump
-from libsyn_tools.workflow import Workflow, OperationType, FunctionalModule
+from libsyn_tools.opt.workflow import Workflow, OperationType, FunctionalModule
 
 
 def _get_fms(module_settings):

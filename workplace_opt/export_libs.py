@@ -7,7 +7,7 @@ from libsyn_tools.chem_schema import ReactionNetwork, OperationNetwork
 from libsyn_tools.opt.example_routes import ROUTES_PATH_VS, ROUTES_PATH_FDA
 from libsyn_tools.utils import FilePath
 from libsyn_tools.utils import json_load
-from libsyn_tools.workflow import Workflow
+from libsyn_tools.opt.workflow import Workflow
 
 """
 export reaction networks of VS-x and FDA-x
