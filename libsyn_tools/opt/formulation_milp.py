@@ -2,7 +2,7 @@ import itertools
 import math
 import pprint
 import time
-from typing import Any
+from typing import Optional
 
 import gurobipy as gp
 import numpy as np
@@ -10,21 +10,36 @@ from gurobipy import GRB
 from loguru import logger
 
 from .schema import Solver, SchedulerOutput
+from ..chem_schema import OperationNetwork, ReactionNetwork
 from ..utils import FilePath
 
 
 class SolverMILP(Solver):
-    infinity: float = 1e6  # use a small infinity to prevent numeric issues
+    """ MILP solver """
+
+    infinity: float = 1e6
+    """ use a small infinity to prevent `numeric issues` in gurobi """
 
     eps: float = 0.0
+    """ epsilon for floating point inequalities """
 
     dummy_big_m: bool = False
+    """ if skip big m estimation and use a dummy large big m instead """
 
     consider_shifts: bool = True
+    """ if considers work shifts """
 
     supress_gp_log: bool = False
+    """ if supress gurobi log """
 
-    greedy_init: bool = True
+    greedy_init: bool = False
+    """ if use the greedy solution to warm start """
+
+    operation_network: Optional[OperationNetwork] = None
+    """ operation network, required for greedy warm start """
+
+    reaction_network: Optional[ReactionNetwork] = None
+    """ reaction network, required for greedy warm start """
 
     @property
     def include_shift_constraints(self):
@@ -71,7 +86,10 @@ class SolverMILP(Solver):
         # warm start with greedy
         if self.greedy_init:
             from .formulation_baseline import SolverBaseline
-            baseline_solver = SolverBaseline(input=self.input)
+            assert self.operation_network is not None and self.reaction_network is not None
+            baseline_solver = SolverBaseline(
+                input=self.input, operation_network=self.operation_network, reaction_network=self.reaction_network
+            )
             baseline_solver.solve()
             validations = baseline_solver.output.validate_schedule(scheduler_input=self.input,
                                                                    consider_work_shifts=self.include_shift_constraints)
@@ -296,8 +314,8 @@ class SolverMILP(Solver):
         if big_m > self.infinity * 0.1:
             # raise RuntimeError(f"big_m is estimated ({big_m}) to be rather close to self.infinity ({self.infinity})!")
             self.infinity = big_m * 10
-            logger.critical(f"big_m is estimated ({big_m}) to be rather close to self.infinity ({self.infinity})!, increase inf to {self.infinity}")
-
+            logger.critical(
+                f"big_m is estimated ({big_m}) to be rather close to self.infinity ({self.infinity})!, increase inf to {self.infinity}")
 
         return big_m + self.eps
 
