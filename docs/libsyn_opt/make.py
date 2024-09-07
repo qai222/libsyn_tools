@@ -41,7 +41,7 @@ if __name__ == '__main__':
     plot_gaps(RUNS, figname="float/gaps.pdf", ms_hue=True).to_csv("gaps_table.csv", index=False)
 
     logger.critical(">> DIFF <<")
-    plot_diffs_from_runs(OptimalRUNS, figname="scheduler_diff.pdf").to_csv("schedule_diffs_optimal.csv", index=False)
+    plot_diffs_from_runs(OptimalRUNS, figname="float/scheduler_diff.pdf").to_csv("schedule_diffs_optimal.csv", index=False)
 
     plot_status(RUNS, figname="float/status.pdf")
 
