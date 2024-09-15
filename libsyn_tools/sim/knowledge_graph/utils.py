@@ -17,6 +17,7 @@ def pydantic_to_ontology_class(pydantic_class: Type[BaseModel], base_ontology_cl
     """
     create an ontology class from a pydantic class
     # TODO right now this only considers data properties
+    # TODO would it be good to have data property names as "has_<field name>"?
 
     originally by Jiaru
 
@@ -56,7 +57,6 @@ def pydantic_to_ontology_class(pydantic_class: Type[BaseModel], base_ontology_cl
         )
 
         # this is ugly but somehow `data_property_lookup` could be None instead of `{}`
-        data_property_exists = None
         if base_ontology_class.rdfs_isDefinedBy.data_property_lookup is None:
             data_property_exists = False
         elif data_property_predicate_iri in base_ontology_class.rdfs_isDefinedBy.data_property_lookup:
