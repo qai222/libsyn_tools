@@ -1,12 +1,18 @@
-networkx==3.3
-loguru==0.7.2
-pydantic==2.7.4
-pysmiles==1.1.2
-periodictable==1.7.0
-gurobipy==11.0.2
+# general
 scipy==1.14.0
 pytest==8.2.2
 pytest-order==1.2.1
+loguru==0.7.2
+# schema
+networkx==3.3
+pydantic==2.7.4
+pysmiles==1.1.2
+periodictable==1.7.0
 dash-bootstrap-components==1.6.0
 dash_cytoscape==1.0.2
 dash==2.17.1
+# opt
+gurobipy==11.0.2
+# sim
+simpy==4.1.1
+casymda==0.2.29

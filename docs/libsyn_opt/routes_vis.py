@@ -254,7 +254,7 @@ def get_image(get_svg_clicks):
 
 
 if __name__ == '__main__':
-    RUNS_FOLDER = "../../workplace/RUNS"
+    RUNS_FOLDER = "../../workplace_opt/RUNS"
     RUNS_FOLDER = os.path.abspath(RUNS_FOLDER)
     # RUN_NAME = "FDA-03-09-0-0"
     # RUN_NAME = "VS-07-01-1-1"

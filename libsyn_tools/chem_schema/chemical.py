@@ -99,8 +99,8 @@ class Chemical(Chemical_):
         )
 
     def split(self, portions: list[float]) -> list[Chemical]:
-        if abs(sum(portions) - 1) < 1e-6:
-            logger.warning("non-unity splitting")
+        if abs(sum(portions) - 1) > 1e-6:
+            logger.warning(f"non-unity splitting: {portions}")
         return [self * p for p in portions]
 
     def __mul__(self, other: float) -> Chemical:

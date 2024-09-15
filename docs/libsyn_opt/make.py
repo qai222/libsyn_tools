@@ -27,7 +27,7 @@ if __name__ == '__main__':
     logger.remove(0)
     logger.add(sys.stderr, level="CRITICAL")
 
-    RUNS_FOLDER_MATCH = "../../workplace/RUNS/*"
+    RUNS_FOLDER_MATCH = "../../workplace_opt/RUNS/*"
     RUNS = load_runs(RUNS_FOLDER_MATCH)
 
     report_validation(RUNS)
@@ -47,8 +47,8 @@ if __name__ == '__main__':
 
     plot_runtime(RUNS, figname="float/runtime.pdf")
 
-    plot_gantt(runs_foler="../../workplace/RUNS", run_name="FDA-03-09-0-0", save_float_folder="./float",
+    plot_gantt(runs_foler="../../workplace_opt/RUNS", run_name="FDA-03-09-0-0", save_float_folder="./float",
                anno_reaction_index=True, multi_capacity=False)
 
-    plot_gantt(runs_foler="../../workplace/RUNS", run_name="VS-04-06-1-1", save_float_folder="./float",
+    plot_gantt(runs_foler="../../workplace_opt/RUNS", run_name="VS-04-06-1-1", save_float_folder="./float",
                anno_reaction_index=False, multi_capacity=True, figsize=(8, 4))
