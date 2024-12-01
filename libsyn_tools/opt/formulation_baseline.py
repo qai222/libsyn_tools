@@ -9,6 +9,7 @@ from collections import defaultdict
 import numpy as np
 from loguru import logger
 from pydantic import BaseModel
+from typing import Any
 
 from .schema import Solver, SchedulerOutput, SchedulerInput
 from ..chem_schema import ReactionNetwork, OperationNetwork, OperationType
@@ -205,6 +206,11 @@ def iterate_by_reaction(operation_network: OperationNetwork, reaction_network: R
         unvisited = [r.identifier for r in reaction_network.chemical_reactions if r.identifier not in visited]
         reactions_can_visit = [rid for rid in unvisited if
                                set(reaction_to_reaction_precedents[rid]).issubset(set(visited))]
+        # we further sort the candidate reactions based on number of precedents
+        # so those with fewer precedents are prioritized
+        reactions_can_visit = sorted(
+            reactions_can_visit, key=lambda x: len(reaction_to_reaction_precedents[x])
+        )
         visited.append(reactions_can_visit[0])
         assert len(visited) <= n_reaction
         niter += 1
