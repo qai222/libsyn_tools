@@ -133,7 +133,7 @@ class Workflow(BaseModel):
 
         json_dump(si.model_dump(), os.path.join(self.work_folder, self.scheduler_input_json))
 
-    def export_solver(self, baseline, time_limit, gb_threads):
+    def export_solver(self, baseline, time_limit, gb_threads, super_big_m=False):
         si = json_load(os.path.join(self.work_folder, self.scheduler_input_json))
         si = SchedulerInput(**si)
 
@@ -149,6 +149,8 @@ class Workflow(BaseModel):
             solver.output.notes['validation'] = solver.output.validate_schedule(solver.input)
         else:
             solver = SolverMILP(input=si, time_limit=time_limit)
+            if super_big_m:
+                solver.super_big_m = True
             solver.solve(logfile=os.path.join(self.work_folder, "gurobi.log"), threads=gb_threads)
             if solver.opt_log['gurobi status'] == 3 or (solver.opt_log['gurobi status'] == 9 and solver.opt_log[
                 'gurobi solution count'] == 0):  # infeasible model or zero solution

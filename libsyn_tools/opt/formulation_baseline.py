@@ -208,9 +208,14 @@ def iterate_by_reaction(operation_network: OperationNetwork, reaction_network: R
                                set(reaction_to_reaction_precedents[rid]).issubset(set(visited))]
         # we further sort the candidate reactions based on number of precedents
         # so those with fewer precedents are prioritized
-        reactions_can_visit = sorted(
-            reactions_can_visit, key=lambda x: len(reaction_to_reaction_precedents[x])
-        )
+        if len(visited):
+            reactions_can_visit = sorted(
+                reactions_can_visit, key=lambda x: (visited[-1] in reaction_to_reaction_precedents[x], len(reaction_to_reaction_precedents[x]))
+            )
+        else:
+            reactions_can_visit = sorted(
+                reactions_can_visit, key=lambda x: len(reaction_to_reaction_precedents[x])
+            )
         visited.append(reactions_can_visit[0])
         assert len(visited) <= n_reaction
         niter += 1

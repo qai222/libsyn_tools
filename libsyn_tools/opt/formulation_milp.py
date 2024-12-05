@@ -26,6 +26,9 @@ class SolverMILP(Solver):
     dummy_big_m: bool = False
     """ if skip big m estimation and use a dummy large big m instead """
 
+    super_big_m: Optional[bool] = None
+    """ if use a super big m = 1e3 * infinity """
+
     consider_shifts: bool = True
     """ if considers work shifts """
 
@@ -329,6 +332,8 @@ class SolverMILP(Solver):
 
         # estimate big m, if dummy then self.infinity is used
         big_m = self.estimate_big_m(p, lmin, size_i, size_m, self.dummy_big_m)
+        if self.super_big_m:
+            big_m = self.infinity * 1e3
 
         # setup gurobi env
         env = gp.Env(empty=self.supress_gp_log)

@@ -88,7 +88,12 @@ def run_one(runs_folder: FilePath, libs_folder: FilePath, prefix: str, x: int, y
 
     json_dump([fm.model_dump() for fm in fms], os.path.join(run_dir, workflow.functional_modules_json))
     workflow.export_scheduler_input(rng=random.Random(42), dummy_work_shifts=has_work_shifts)
-    workflow.export_solver(baseline=False, time_limit=time_limit, gb_threads=gb_threads)
+    if x <= 3:
+        # FDA-2-2-1-0 needs super big m
+        use_super_big_m = True
+    else:
+        use_super_big_m = False
+    workflow.export_solver(baseline=False, time_limit=time_limit, gb_threads=gb_threads, super_big_m=use_super_big_m)
     workflow.export_solver(baseline=True, time_limit=time_limit, gb_threads=gb_threads)
 
 
