@@ -7,10 +7,11 @@ from collections import defaultdict
 import matplotlib as mpl
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
+import networkx as nx
 import pandas as pd
 from loguru import logger
 
-from libsyn_tools.chem_schema import OperationNetwork, FunctionalModule, OperationType
+from libsyn_tools.chem_schema import OperationNetwork, FunctionalModule, OperationType, ReactionNetwork
 from libsyn_tools.opt.formulation_baseline import SolverBaseline, SchedulerOutput
 from libsyn_tools.opt.formulation_milp import SolverMILP
 from libsyn_tools.opt.schema import SchedulerInput
@@ -32,20 +33,47 @@ def plot_gantt(runs_foler: FilePath, run_name: str, save_float_folder: FilePath,
     functional_modules = [FunctionalModule(**fm) for fm in
                           json_load(os.path.join(run_folder, "functional_modules.json"))]
 
+    reaction_network = ReactionNetwork(**json_load(os.path.join(run_folder, "reaction_network.json")))
+    color_selector = itertools.cycle(
+        ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray',
+         'tab:olive', 'tab:cyan', ])
+    target_to_color = {t: next(color_selector) for t in reaction_network.target_smiles}
+    color_to_target = {v: k for k,v in target_to_color.items()}
+    reaction_to_color_by_route = dict()
+    reaction_network_graph = reaction_network.nx_digraph
+    for r in reaction_network.chemical_reactions:
+        for t in reaction_network.target_smiles:
+            if nx.has_path(reaction_network_graph, r.identifier, t):
+                reaction_to_color_by_route[r.identifier] = target_to_color[t]
+
     if figsize is None:
         figsize = (8, 4)
     fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=figsize, sharex=True, sharey=True)
     ax2.set_xlabel("Time (min)")
     if multi_capacity:
         plot_gantt_ax_multi_capacity(solver_milp, operation_network, functional_modules, ax1,
-                                     subfig_title="(A) Optimal schedule")
+                                     subfig_title="(A) Optimal schedule",
+                                     precompute_facecolor=reaction_to_color_by_route,
+                                     facecolor_to_legend_label=color_to_target,
+                                     )
         plot_gantt_ax_multi_capacity(solver_baseline, operation_network, functional_modules, ax2,
-                                     subfig_title="(B) Baseline schedule")
+                                     subfig_title="(B) Baseline schedule",
+                                     precompute_facecolor=reaction_to_color_by_route,
+                                     facecolor_to_legend_label=color_to_target,
+                                     )
+        # ax1.legend()
     else:
         plot_gantt_ax(solver_milp, operation_network, ax=ax1, trans=False, anno_reaction_index=anno_reaction_index,
-                      subfig_title="(A) Optimal schedule")
+                      subfig_title="(A) Optimal schedule",
+                      precompute_facecolor=reaction_to_color_by_route,
+                      facecolor_to_legend_label=color_to_target,
+                      )
         plot_gantt_ax(solver_baseline, operation_network, ax=ax2, trans=False, anno_reaction_index=anno_reaction_index,
-                      subfig_title="(B) Baseline schedule")
+                      subfig_title="(B) Baseline schedule",
+                      precompute_facecolor=reaction_to_color_by_route,
+                      facecolor_to_legend_label=color_to_target,
+                      )
+        # ax1.legend()
     fig.tight_layout()
     fig.savefig(os.path.join(save_folder, f"gantt-{run_name}.pdf"))
 
@@ -80,7 +108,9 @@ def get_schedule_df(scheduler_output: SchedulerOutput, scheduler_input: Schedule
 
 def plot_gantt_ax(solver: SolverMILP | SolverBaseline, operation_network: OperationNetwork, ax: plt.Axes, trans: bool,
                   anno_reaction_index: bool,
-                  subfig_title: str):
+                  subfig_title: str,
+                  precompute_facecolor:dict=None, facecolor_to_legend_label:dict=None
+                  ):
     height = 0.5
     df = get_schedule_df(solver.output, solver.input, operation_network)
     fms = sorted(df['assigned_to_new_name'].unique())
@@ -99,16 +129,29 @@ def plot_gantt_ax(solver: SolverMILP | SolverBaseline, operation_network: Operat
 
     fms = [fm for fm in fms if fm.startswith("H") or fm.startswith("W")]
 
+    already_shown_facecolors = set()
     for reaction_id, operations in operation_network.operations_by_reaction.items():
         reaction_df = df[df['reaction_identifier'] == reaction_id].copy()
         reaction_df = reaction_df[reaction_df["assigned_to_new_name"].isin(fms)]
         reaction_df["gantt_y"] = [fms.index(fm) for fm in reaction_df['assigned_to_new_name'].tolist()]
         reaction_pattern, reaction_color = pc_dict[reaction_id]
+
+        if precompute_facecolor:
+            reaction_pattern = ""
+            reaction_color = precompute_facecolor[reaction_id]
         reaction_color_rgba = mcolors.to_rgba(reaction_color)
+
         if trans:
             reaction_color_rgba = list(reaction_color_rgba)
             reaction_color_rgba[-1] = 0.4
             reaction_color_rgba = tuple(reaction_color_rgba)
+
+        bar_label = None
+        if facecolor_to_legend_label:
+            if reaction_color not in already_shown_facecolors:
+                bar_label = facecolor_to_legend_label[reaction_color]
+                already_shown_facecolors.add(reaction_color)
+
         bars = ax.barh(
             y=reaction_df["gantt_y"],
             width=reaction_df['duration'],
@@ -116,6 +159,7 @@ def plot_gantt_ax(solver: SolverMILP | SolverBaseline, operation_network: Operat
             left=reaction_df['start_time'],
             linewidth=0.0,
             color=reaction_color_rgba,
+            label=bar_label,
         )
         if reaction_pattern != "":
             for b in bars:
@@ -161,7 +205,8 @@ def overlaps_with(scheduled_operation1: dict, scheduled_operation2: dict) -> boo
 def plot_gantt_ax_multi_capacity(
         solver: SolverMILP | SolverBaseline, operation_network: OperationNetwork,
         functional_modules: list[FunctionalModule],
-        ax: plt.Axes, subfig_title: str
+        ax: plt.Axes, subfig_title: str,
+        precompute_facecolor: dict = None, facecolor_to_legend_label:dict = None
 ):
     bar_height = 0.5
     inter_bar_spacing = bar_height * 2
@@ -205,6 +250,7 @@ def plot_gantt_ax_multi_capacity(
         pc_dict[rid] = next(pc_tuples)
 
     scheduled_operations = []
+    already_shown_facecolors = set()
     for record in df.to_dict('records'):
         so = {
             "assigned_to_module": record["assigned_to"],
@@ -215,6 +261,9 @@ def plot_gantt_ax_multi_capacity(
             "reaction": record["reaction_identifier"],
         }
         reaction_pattern, reaction_color = pc_dict[so["reaction"]]
+        if precompute_facecolor:
+            reaction_pattern = ""
+            reaction_color = precompute_facecolor[so['reaction']]
         so["bar_pattern"] = reaction_pattern
         so["bar_color"] = reaction_color
         scheduled_operations.append(so)
@@ -248,12 +297,18 @@ def plot_gantt_ax_multi_capacity(
         sos_y = [so_y_ + fm_y - sos_y_center for so_y_ in sos_y]  # translate center of bars to fm_y
 
         for iso, so_to_plot in enumerate(sos_to_plot):
+            bar_label = None
+            if facecolor_to_legend_label:
+                if so_to_plot['bar_color'] not in already_shown_facecolors:
+                    bar_label = facecolor_to_legend_label[so_to_plot['bar_color']]
+                    already_shown_facecolors.add(so_to_plot['bar_color'])
             bars = ax.barh(
                 y=sos_y[iso],
                 width=so_to_plot["duration"],
                 height=bar_height,
                 left=so_to_plot['start_time'],
                 color=so_to_plot["bar_color"],
+                label=bar_label,
                 linewidth=0.0,
             )
             logger.info(

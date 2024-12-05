@@ -106,10 +106,13 @@ def plot_diffs(df, figname):
     all_percentage_n_assign = df["percentage_n_assign"]
     all_sequence_difference = df["Sequence difference"]
 
+    all_sequence_difference_exclude_12 = df[df["targets"] > 2]["Sequence difference"]
+
     logger.critical(f"""
     global DIFF
-    percentage_n_assign: {all_percentage_n_assign.min()} - {all_percentage_n_assign.max()}, mean: {all_percentage_n_assign.mean()}
+    percentage_n_assign: {all_percentage_n_assign.min()} - {all_percentage_n_assign.max()}, mean: {all_percentage_n_assign.mean()}, 95 percentile: {all_percentage_n_assign.quantile(0.95)}
     Sequence_difference: {all_sequence_difference.min()} - {all_sequence_difference.max()}, mean: {all_sequence_difference.mean()}
+    Sequence_difference exclude 12: {all_sequence_difference_exclude_12.min()} - {all_sequence_difference_exclude_12.max()}, mean: {all_sequence_difference_exclude_12.mean()}
     """)
 
     # # df = df[df["targets"] > 2]

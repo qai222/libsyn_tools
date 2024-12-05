@@ -18,6 +18,26 @@ def plot_runtime_ax(runs: list[SchedulerRun], subfig_title: str, ax: plt.Axes, r
         alpha=.5, s=10, jitter=False, linewidth=1, marker="x"
 
     )
+    xs = df['n_target'].unique()
+    for x in xs:
+        df_dist = df[df['n_target'] == x]
+        counts = df_dist['gurobi_status'].value_counts().to_dict()
+        n_optimal = counts.get('Optimal', 0)
+        n_feasible = counts.get('Feasible', 0)
+        n_nosol = 20 - n_optimal - n_feasible
+        annotation = f"{n_optimal}/{n_feasible}/{n_nosol}"
+        ax.annotate(
+            annotation,
+            xy=(x - 1, 3600 * 3 * 5),
+            fontsize=10,
+            xycoords="data",
+            va='bottom',
+            ha='center',
+        )
+
+    ax.set_ylim([1e-2, 3600 * 3 * 100])
+    # df = df.groupby(by=)
+    # print(df)
     ax.axhline(y=3600 * 3, label="3 hrs", color="red", ls=":")
     ax.set_ylabel("MILP runtime")
     ax.set_xlabel("Number of target chemicals")

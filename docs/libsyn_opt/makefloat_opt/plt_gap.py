@@ -58,7 +58,7 @@ def plot_gaps_ax_box_whisker(
          'tab:olive', 'tab:cyan', ])
     colors = {i: next(color_selector) for i in df["Module set"].unique()}
 
-    ax.set_xlim([-5, 75])
+    ax.set_xlim([-5, 65])
 
     assert len(hues) == 2  # hardcoded for 2 hues
     for iy, y in enumerate(ys):
@@ -77,7 +77,7 @@ def plot_gaps_ax_box_whisker(
             ax.annotate(
                 f'n={count}',
                 xy=(x_max + 3, group_y),
-                fontsize=9,
+                fontsize=8,
                 xycoords="data",
                 va='center',
                 ha='left',
@@ -88,7 +88,7 @@ def plot_gaps_ax_box_whisker(
                     group_dist, x="percentage gap", y="n_target", ax=ax,
                     dodge=True,
                     hue="Module set", orient="h",
-                    flierprops={"marker": "x", "markersize": 5, "markeredgecolor": colors[hue]},
+                    flierprops={"marker": "x", "markersize": 4, "markeredgecolor": colors[hue]},
                     medianprops={"linewidth": 1.5},
                     positions=[group_y],
                     width=box_or_strip_width,
@@ -99,15 +99,15 @@ def plot_gaps_ax_box_whisker(
             else:
                 ax.scatter(
                     x=group_dist['percentage gap'], y=[group_y, ] * len(group_dist),
-                    marker='x', s=25, c=colors[hue], lw=1, label=label,
+                    marker='x', s=16, c=colors[hue], lw=1, label=label,
                     alpha=0.7,
                 )
     gaps = [v for v in df['percentage gap'].tolist() if not pd.isna(v)]
     logger.critical(f"mean: {sum(gaps) / len(gaps)}")
     ax.set_xlabel("Makespan gap (%)", fontsize=13)
     ax.set_ylabel("")
-    labels = [item.get_text() for item in ax.get_yticklabels()]
-    yticks = ax.get_yticks()
+    labels = [y for y in ys]
+    yticks = [y - 1 for y in ys]
     if "FDA" == prefix:
         labels = [f"FDA.{int(l):02}" for l in labels]
     else:
@@ -115,7 +115,7 @@ def plot_gaps_ax_box_whisker(
     ax.set_yticks(yticks, labels)
     # ax.set_title(subfig_title, fontsize='large', loc='center')
     ax.set_ylim([max(yticks) + box_or_strip_width * 1.5, min(yticks) - box_or_strip_width * 1.5])
-    ax.set_title(subfig_title, y=1.0, x=-0.085)
+    ax.set_title(subfig_title, y=0.88, x=-0.18)
     ax.grid(axis='y')
     return df[['name', 'gurobi_status', 'percentage gap']]
 
@@ -183,7 +183,9 @@ def plot_gaps_ax(
 def plot_gaps(runs: list[SchedulerRun], figname: str, ms_hue: bool, box_whisker=True):
     runs_fda_ws0, runs_fda_ws1, runs_vs_ws0, runs_vs_ws1 = split_runs(runs)
     # fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(nrows=2, ncols=2, figsize=(8, 10), sharey="row", sharex=True)
-    fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=4, ncols=1, figsize=(8, 12), sharey="row", sharex=True)
+    fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=4, ncols=1, figsize=(6, 9), sharey="row", sharex=True, layout="compressed"
+                                             )
+    fig.supylabel("Chemical library\n", fontsize=13)
     if box_whisker:
         df_a = plot_gaps_ax_box_whisker(runs_fda_ws0, subfig_title="(A)", ax=ax1, remove_legend=True, ms_hue=ms_hue,
                                         prefix="FDA")
@@ -199,10 +201,9 @@ def plot_gaps(runs: list[SchedulerRun], figname: str, ms_hue: bool, box_whisker=
         df_c = plot_gaps_ax(runs_vs_ws0, subfig_title="(C)", ax=ax3, remove_legend=True, ms_hue=ms_hue, prefix="VS")
         df_d = plot_gaps_ax(runs_vs_ws1, subfig_title="(D)", ax=ax4, remove_legend=True, ms_hue=ms_hue, prefix="VS")
 
-    ax4.legend(loc='lower right', bbox_to_anchor=(1.0, -.28),
+    ax1.legend(loc='lower right', bbox_to_anchor=(1.0, 0.82),
                fancybox=True, shadow=False, ncol=2)
-    fig.supylabel("Chemical library", fontsize=13)
-    fig.tight_layout()
+    # fig.tight_layout()
     fig.savefig(figname, dpi=600)
 
     df = pd.concat([df_a, df_b, df_c, df_d], axis=0)

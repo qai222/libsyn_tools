@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import seaborn as sns
-
+import numpy as np
 sns.set_theme()
 
 from makefloat_opt.plt_gap import plot_gaps
@@ -34,6 +34,25 @@ if __name__ == '__main__':
 
     OptimalRUNS = [R for R in RUNS if R.gurobi_status == "Optimal"]
 
+    logger.critical(">> RUN STATS <<")
+    N_OPTIMAL = 0
+    N_SUBOPTIMAL = 0
+    N_NOSOL = 0
+    for R in RUNS:
+        if R.gurobi_status == "Optimal":
+            N_OPTIMAL += 1
+        elif R.gurobi_status == "Feasible":
+            N_SUBOPTIMAL += 1
+        else:
+            N_NOSOL += 1
+    logger.critical(f"OPTIMAL/SUBOPTIMAL/NOSOL: {N_OPTIMAL}/{N_SUBOPTIMAL}/{N_NOSOL}")
+    PG_OPTIMAL = [R.percentage_gap for R in OptimalRUNS]
+    logger.critical(f"PG OPTIMAL MIN/MAX/MEAN: {np.min(PG_OPTIMAL)}/{np.max(PG_OPTIMAL)}/{np.mean(PG_OPTIMAL)}")
+    PG_ALL = [R.percentage_gap for R in RUNS if R.percentage_gap is not None]
+    logger.critical(f"PG ALL MIN/MAX/MEAN: {np.min(PG_ALL)}/{np.max(PG_ALL)}/{np.mean(PG_ALL)}")
+    PG_NEGATIVE = [PG for PG in PG_ALL if PG < 0]
+    logger.critical(f"PG NEGATIVE: {len(PG_NEGATIVE)} ")
+
     logger.critical(">> OPTIMAL GAPS <<")
     plot_gaps(OptimalRUNS, figname="float/gaps_optimal.pdf", ms_hue=True).to_csv("gaps_table_optimal.csv", index=False)
 
@@ -50,5 +69,5 @@ if __name__ == '__main__':
     plot_gantt(runs_foler="../../workplace_opt/RUNS", run_name="FDA-03-09-0-0", save_float_folder="./float",
                anno_reaction_index=True, multi_capacity=False)
 
-    plot_gantt(runs_foler="../../workplace_opt/RUNS", run_name="VS-04-06-1-1", save_float_folder="./float",
-               anno_reaction_index=False, multi_capacity=True, figsize=(8, 4))
+    plot_gantt(runs_foler="../../workplace_opt/RUNS", run_name="VS-04-07-1-1", save_float_folder="./float",
+               anno_reaction_index=False, multi_capacity=True, figsize=(8, 5))

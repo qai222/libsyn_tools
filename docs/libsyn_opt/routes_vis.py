@@ -257,7 +257,7 @@ if __name__ == '__main__':
     RUNS_FOLDER = "../../workplace_opt/RUNS"
     RUNS_FOLDER = os.path.abspath(RUNS_FOLDER)
     # RUN_NAME = "FDA-03-09-0-0"
-    RUN_NAME = "VS-04-06-1-1"
+    RUN_NAME = "VS-04-07-1-1"
     app = get_routes_vis_app(
         runs_folder=RUNS_FOLDER,
         run_name=RUN_NAME
