@@ -136,6 +136,9 @@ class Action(BaseModel):
     #  violate them during their executions.
     #  This could also be realized in `presumptions`, e.g. if the beaker is being dried
     #  any other action should check if it will change `beaker.location`
+    #
+    # Cullen: at the high-level wait for smth is always better than causing problems. disable general and enable specific.
+
 
     def get_action_effects(self) -> list[UnitaryEdit]:
         pass
