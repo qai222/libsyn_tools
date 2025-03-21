@@ -66,6 +66,7 @@ class Is_present(DatatypeProperty):
 
 
 class Is_directly_contained_by(ObjectProperty):
+    """ not transitive """
     rdfs_isDefinedBy = SimOntology
 
 

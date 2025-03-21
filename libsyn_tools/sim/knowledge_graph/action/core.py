@@ -9,7 +9,7 @@ from loguru import logger
 from pydantic import BaseModel
 from twa.data_model.base_ontology import KnowledgeGraph
 
-from .base import SimOntology, Field, str_uuid
+from ..base import SimOntology, Field, str_uuid
 
 
 # TODO it doesn't seem necessary to use ontology classes for instructions
@@ -165,15 +165,10 @@ class Action(BaseModel):
     def get_resources(self) -> list[str]:
         pass
 
-    @abstractmethod
-    def get_temporal_cost(self) -> float:
-        pass
-
     def model_post_init(self, __context: Any) -> None:
         """ populate action effects and resources """
         self.action_effects = self.get_action_effects()
         self.resources = self.get_resources()
-        self.temporal_cost = self.get_temporal_cost()
         for iri in self.resources:
             resource = KnowledgeGraph.get_object_from_lookup(iri=iri)
             assert resource.is_present == {True, }
