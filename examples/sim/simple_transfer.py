@@ -28,13 +28,8 @@ class TransferMaterialByPortionSize(Action):
     portion_size: float
     """ the portion size of the transferred materials from source container """
 
-    def model_post_init(self, __context: Any) -> None:
-        """ populate action effects and resources """
-        self.action_effects = self.get_action_effects()
-        self.resources = self.get_resources()
-        for iri in self.resources:
-            resource = KnowledgeGraph.get_object_from_lookup(iri=iri)
-            assert resource.is_present == {True, }
+    def get_temporal_cost(self) -> float:
+        return 2.5
 
     def get_resources(self) -> list[str]:
         """ a list of iris of the resources, they are assumed to be `LabObject` instances """

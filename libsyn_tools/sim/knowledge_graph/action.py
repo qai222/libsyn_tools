@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from enum import Enum
 from typing import Any
 from typing import Optional
@@ -102,13 +103,24 @@ class Action(BaseModel):
     # TODO this may depend on the actual knowledge graph right before its execution
     """ an estimate of how long this action would take """
 
-    presumptions: Optional[Any] = None
-    # TODO formalize and implement
-    """  
-    a set of assumptions of the world that serve as the prerequisites for this action to be executed
-    example: the robot arm is not occupied by any other actions
-    example: the container should contain at least 10 mL liquid
+    scheduled_start_time: Optional[float] = None
+    """ 
+    the scheduled start time, the actual start time in a simulation of this action cannot be earlier than the 
+    scheduled start time 
     """
+
+    required_precedents: list[str] = []
+    """ the uuids of the required precedent actions that must precede this action """
+
+    # presumptions: Optional[Any] = None
+    # # TODO formalize and implement
+    # # TODO we could define functions to validate presumptions in subclasses,
+    # #  or we can use SHACL like in https://github.com/RDFLib/pySHACL
+    # """
+    # a set of assumptions of the world that serve as the prerequisites for this action to be executed
+    # example: the robot arm is not occupied by any other actions
+    # example: the container should contain at least 10 mL liquid
+    # """
 
     action_effects: list[UnitaryEdit] = []
     """ 
@@ -139,15 +151,29 @@ class Action(BaseModel):
     #
     # Cullen: at the high-level wait for smth is always better than causing problems. disable general and enable specific.
 
-
-    def get_action_effects(self) -> list[UnitaryEdit]:
-        pass
-
-    def get_resources(self) -> list[str]:
-        pass
-
     def execute(self):
         """ applying action effects """
         logger.info(f"execute action: {self.identifier}")
         for edit in self.action_effects:
             edit.apply()
+
+    @abstractmethod
+    def get_action_effects(self) -> list[UnitaryEdit]:
+        pass
+
+    @abstractmethod
+    def get_resources(self) -> list[str]:
+        pass
+
+    @abstractmethod
+    def get_temporal_cost(self) -> float:
+        pass
+
+    def model_post_init(self, __context: Any) -> None:
+        """ populate action effects and resources """
+        self.action_effects = self.get_action_effects()
+        self.resources = self.get_resources()
+        self.temporal_cost = self.get_temporal_cost()
+        for iri in self.resources:
+            resource = KnowledgeGraph.get_object_from_lookup(iri=iri)
+            assert resource.is_present == {True, }
