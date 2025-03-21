@@ -16,3 +16,4 @@ gurobipy==11.0.2
 # sim
 simpy==4.1.1
 casymda==0.2.29
+twa==0.0.7
