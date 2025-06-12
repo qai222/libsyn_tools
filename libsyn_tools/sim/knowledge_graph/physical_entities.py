@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Type
+from typing import Type
 
 from twa.data_model.base_ontology import DatatypeProperty
 from twa.data_model.base_ontology import ObjectProperty
 
+from libsyn_tools.chem_schema import Chemical
 from .base import Individual, SimOntology, BaseClass
-from ...chem_schema import Chemical
 
 
 class Has_ingredient(DatatypeProperty):
@@ -89,38 +89,47 @@ class Is_immediate_part_of(ObjectProperty):
 
 
 class LabObject(Individual):
-
-    def model_post_init(self, __context: Any) -> None:
-        # TODO: do we want to put this in `Individual`?
-        # NOTE adding this as it seems to be necessary for other actually overwritten methods to
-        # work when multi-inheritance is used
-        # i.e. JuniorLabObject and JuniorInstruction
-        return super().model_post_init(__context)
-
     is_made_of: Is_made_of[str] = set()
 
     is_present: Is_present[bool] = {False, }
 
     is_directly_contained_by: Is_directly_contained_by[LabObject] = set()
 
-    is_part_of: Is_part_of[LabObject] = set()
+    # is_part_of: Is_part_of[LabObject] = set()
+    is_immediate_part_of: Is_immediate_part_of[LabObject] = set()
 
     # TODO location?
+    # TODO capacity?
 
     @staticmethod
-    def get_directly_contained_individuals(container: LabObject, instance_class: Type[BaseClass]):
+    def get_directly_contained_individuals(container: LabObject, instance_class: Type[BaseClass], only_present=True):
         # TODO pls tell me there is a faster way...
         # TODO can we have a function returns SPARQL results as BaseClass instances?
         directly_contains = []
         for instance in instance_class.object_lookup.values():
+            if only_present and instance.is_present != {True}:
+                continue
             if container in instance.is_directly_contained_by:
                 directly_contains.append(instance)
         return directly_contains
 
     @staticmethod
-    def get_parts(lab_object: LabObject):
+    def get_immediate_parts(lab_object: LabObject):
         parts = []
         for instance in LabObject.object_lookup.values():
-            if lab_object in instance.is_part_of:
+            if lab_object in instance.is_immediate_part_of:
                 parts.append(instance)
         return parts
+
+    @staticmethod
+    def get_all_parts(lab_object: LabObject, visited=None):
+        if visited is None:
+            visited = set()
+        # Get the direct parts of the current lab_object
+        direct_parts = LabObject.get_immediate_parts(lab_object)
+        for part in direct_parts:
+            if part not in visited:
+                visited.add(part)
+                # Recursively collect parts of the current part
+                LabObject.get_all_parts(part, visited)
+        return visited

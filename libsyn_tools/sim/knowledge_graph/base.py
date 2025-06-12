@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import Field
 from twa.data_model.base_ontology import BaseClass, BaseOntology
 
@@ -15,6 +17,13 @@ class SimOntology(BaseOntology):
 
 class Individual(BaseClass):
     """ a thing in the knowledge graph """
+
+    def model_post_init(self, __context: Any) -> None:
+        # TODO: do we want to put this in `Individual`?
+        # NOTE adding this as it seems to be necessary for other actually overwritten methods to
+        # work when multi-inheritance is used
+        # i.e. JuniorLabObject and JuniorInstruction
+        return super().model_post_init(__context)
 
     rdfs_isDefinedBy = SimOntology
     """ set default ontology """

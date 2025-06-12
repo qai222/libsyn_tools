@@ -9,7 +9,7 @@ from loguru import logger
 from pydantic import BaseModel
 from twa.data_model.base_ontology import KnowledgeGraph
 
-from ..base import SimOntology, Field, str_uuid
+from libsyn_tools.sim.knowledge_graph.base import SimOntology, Field, str_uuid
 
 
 # TODO it doesn't seem necessary to use ontology classes for instructions
@@ -90,6 +90,24 @@ class UnitaryEdit(BaseModel):
             raise ValueError(f"unknown unitary edit type: {self.type}")
 
 
+class Presumption(BaseModel):
+    """
+    A generic presumption (precondition) that must be satisfied
+    before an Action can safely be executed.
+    """
+
+    @abstractmethod
+    def validate(self, knowledge_graph: Any) -> bool:
+        """
+        Checks whether this presumption is satisfied by the current state
+        of the knowledge graph. Returns True if satisfied, or False otherwise.
+
+        In your use-case, you might raise a ValidationError instead of
+        returning False.
+        """
+        pass
+
+
 class Action(BaseModel):
     """
     An `Action` is a process that changes the knowledge graph
@@ -112,7 +130,7 @@ class Action(BaseModel):
     required_precedents: list[str] = []
     """ the uuids of the required precedent actions that must precede this action """
 
-    # presumptions: Optional[Any] = None
+    # presumptions: list[Presumption] = []
     # # TODO formalize and implement
     # # TODO we could define functions to validate presumptions in subclasses,
     # #  or we can use SHACL like in https://github.com/RDFLib/pySHACL
@@ -133,7 +151,7 @@ class Action(BaseModel):
     action_effects_description: Optional[str] = None
     """ free text description for the effects of this action """
 
-    resources: Optional[list[str]] = []
+    resources: list[str] = []
     """
     a list of uuids of the lab objects that will be occupied during the execution of this action,
     used in DES as `resources`
@@ -165,10 +183,12 @@ class Action(BaseModel):
     def get_resources(self) -> list[str]:
         pass
 
-    def model_post_init(self, __context: Any) -> None:
-        """ populate action effects and resources """
+    def pre_act(self) -> None:
+        """ populate action effects """
         self.action_effects = self.get_action_effects()
-        self.resources = self.get_resources()
         for iri in self.resources:
             resource = KnowledgeGraph.get_object_from_lookup(iri=iri)
             assert resource.is_present == {True, }
+
+    def post_act(self):
+        pass
