@@ -37,6 +37,7 @@ if __name__ == '__main__':
         transfer_device_iri=pipette_1.instance_iri,
         portion_size=0.3
     )
+    transfer.pre_act()
     transfer.execute()
     g = KnowledgeGraph.graph()
     g.serialize(destination=f"{os.path.basename(__file__)[:-3]}.ttl", format="turtle")
