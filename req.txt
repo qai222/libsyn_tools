@@ -14,6 +14,7 @@ dash==2.17.1
 # opt
 gurobipy==11.0.2
 # sim
+pandas==2.2.3
 simpy==4.1.1
 casymda==0.2.29
 twa==0.0.7
