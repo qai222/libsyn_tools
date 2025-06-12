@@ -93,7 +93,7 @@ class UnitaryEdit(BaseModel):
 class Presumption(BaseModel):
     """
     A generic presumption (precondition) that must be satisfied
-    before an Action can safely be executed.
+    before an Action can be executed safely .
     """
 
     @abstractmethod
@@ -130,15 +130,15 @@ class Action(BaseModel):
     required_precedents: list[str] = []
     """ the uuids of the required precedent actions that must precede this action """
 
-    # presumptions: list[Presumption] = []
-    # # TODO formalize and implement
-    # # TODO we could define functions to validate presumptions in subclasses,
-    # #  or we can use SHACL like in https://github.com/RDFLib/pySHACL
-    # """
-    # a set of assumptions of the world that serve as the prerequisites for this action to be executed
-    # example: the robot arm is not occupied by any other actions
-    # example: the container should contain at least 10 mL liquid
-    # """
+    presumptions: list[Presumption] = []
+    # TODO formalize and implement
+    # TODO we could define functions to validate presumptions in subclasses,
+    #  or we can use SHACL like in https://github.com/RDFLib/pySHACL
+    """
+    a set of assumptions of the world that serve as the prerequisites for this action to be executed
+    example: the robot arm is not occupied by any other actions
+    example: the container should contain at least 10 mL liquid
+    """
 
     action_effects: list[UnitaryEdit] = []
     """ 
