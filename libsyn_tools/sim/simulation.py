@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from typing import Dict, List
 
 import pandas as pd
@@ -53,87 +54,92 @@ class ActionProcess:
         # Signaling event to indicate this process has finished.
         self.done_event = env.event()
 
+    def add_event_log(self, event_type: str, data: dict | None = None) -> None:
+        self.history_log.append(
+            ActionEventRecord(
+                action_id=self.action.identifier,
+                timestamp=self.env.now,
+                event_type=event_type,
+                action_data=data or self.action.model_dump(),
+            )
+        )
+
     def run(self):
         """
         The main generator function describing the logic for running an Action in the simulation.
         """
-        # 1) Wait until scheduled_start_time if specified
+        # if scheduled, minimum delay to the scheduled time
         if self.action.scheduled_start_time is not None:
             delay = self.action.scheduled_start_time - self.env.now
             if delay > 0:
                 yield self.env.timeout(delay)
 
-        # 2) Wait for all required precedents to finish
-        for precedent_id in self.action.required_precedents:
-            precedent_proc = self.action_registry.get(precedent_id)
-            if not precedent_proc:
+        precedent_events = [self.action_registry[pid].done_event for pid in self.action.required_precedents]
+
+        # wait for all precedents at once
+        if precedent_events:
+            try:
+                yield self.env.all_of(precedent_events)
+            except Exception:  # keep original traceback
+                logger.error(f"{self.action.identifier}: precedent failure", exc_info=True)
+                raise  # bubbles to outer handler
+
+        # check presumptions
+        for pres in self.action.presumptions:
+            if not pres.validate(...):  # supply KG or context
                 raise ValueError(
-                    f"Action {self.action.identifier} declares a required precedent {precedent_id}, "
-                    "but no such action exists in the simulation registry."
+                    f"Presumption failed for {self.action.identifier}: {pres}"
                 )
-            yield precedent_proc.done_event
 
-        # 3) Request needed resources
-        # dynamically get resources
-        self.action.resources = self.action.get_resources()
-        requests = []
-        for resource_iri in self.action.resources:
-            if resource_iri not in self.resource_map:
-                self.resource_map[resource_iri] = simpy.Resource(self.env, capacity=1)
-            req = self.resource_map[resource_iri].request()
-            requests.append(req)
-        yield self.env.all_of(requests)
+        # acquire resource
+        resource_reqs: dict[simpy.Resource, simpy.events.Request] = dict()
+        for iri in sorted(set(self.action.get_resources())):
+            res = self.resource_map.setdefault(iri, simpy.Resource(self.env, 1))
+            if res not in resource_reqs:
+                resource_reqs[res] = res.request()
+        try:
+            yield self.env.all_of(resource_reqs.values())
+        except Exception as err:
+            # acquire failure: mark action failed for dependents
+            self.done_event.fail(err)
+            raise
 
-        # 4) The action is about to start:
-        self.history_log.append(
-            ActionEventRecord(
-                action_id=self.action.identifier,
-                timestamp=self.env.now,
-                event_type="ACTION_START",
-                action_data=self.action.model_dump(),
-            )
-        )
-        logger.debug(f"[t={self.env.now:.2f}] Starting action {self.action.identifier}.")
-        self.action.pre_act()
-        # TODO double check if we should run preact here
-        # TODO a better way may be run preact twice (before and after env.timeout and compare if they are identical)
-        #  since we are assuming the (inferred) effects stay unchanged before and after timeout
+        try:
+            # Log ACTION_START
+            self.add_event_log(event_type="ACTION_START")
+            logger.debug(f"[t={self.env.now:.2f}] Start {self.action.identifier}")
 
-        # 5) "Execute" the action, which might have a temporal_cost
-        duration = self.action.temporal_cost or 0.0
-        if duration > 0:
-            yield self.env.timeout(duration)
+            # simulated execution delay
+            if self.action.temporal_cost:
+                yield self.env.timeout(self.action.temporal_cost)
 
-        # 6) Actually apply the UnitaryEdits, logging each one:
-        for edit in self.action.action_effects:
-            # Log the application of each edit
-            edit.apply()
-            self.history_log.append(
-                ActionEventRecord(
-                    action_id=self.action.identifier,
-                    timestamp=self.env.now,
-                    event_type="EFFECT_APPLIED",
-                    action_data=self.action.model_dump(),
-                    # details={"unitary_edit_type": edit.type, "unitary_edit_data": edit.model_dump()},
-                )
-            )
+            # populate action effects just-in-time
+            self.action.pre_act()
+            # TODO pyshacl.validate(current_graph, shapes_graph)
 
-        # 7) Action is finished; release the resources
-        for i, rsrc in enumerate(self.action.resources):
-            self.resource_map[rsrc].release(requests[i])
+            # apply edits atomically
+            for edit in self.action.action_effects:
+                edit.apply()
+                self.add_event_log(event_type="EFFECT_APPLIED")
 
-        # 8) Mark action as complete
-        self.done_event.succeed()
-        self.history_log.append(
-            ActionEventRecord(
-                action_id=self.action.identifier,
-                timestamp=self.env.now,
-                event_type="ACTION_END",
-                action_data=self.action.model_dump(),
-            )
-        )
-        logger.debug(f"[t={self.env.now:.2f}] Finished action {self.action.identifier}.")
-        self.action.post_act()
+            self.action.post_act()
+
+            # mark normal completion
+            self.done_event.succeed()
+            self.add_event_log(event_type="ACTION_END", )
+            logger.debug(f"[t={self.env.now:.2f}] Finished {self.action.identifier}")
+
+        except Exception as err:
+            # Propagate failure to dependents and re-raise for fail-fast
+            self.done_event.fail(err)
+            self.add_event_log(event_type="ACTION_ERROR", )
+            logger.error(f"[t={self.env.now:.2f}] {self.action.identifier} aborted: {err!r}")
+            raise
+
+        finally:
+            for req in resource_reqs.values():
+                if req.triggered:
+                    req.resource.release(req)
 
 
 class ActionSimulation:

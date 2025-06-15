@@ -127,10 +127,10 @@ class Action(BaseModel):
     scheduled start time 
     """
 
-    required_precedents: list[str] = []
+    required_precedents: list[str] = Field(default_factory=list)
     """ the uuids of the required precedent actions that must precede this action """
 
-    presumptions: list[Presumption] = []
+    presumptions: list[Presumption] = Field(default_factory=list)
     # TODO formalize and implement
     # TODO we could define functions to validate presumptions in subclasses,
     #  or we can use SHACL like in https://github.com/RDFLib/pySHACL
@@ -140,7 +140,7 @@ class Action(BaseModel):
     example: the container should contain at least 10 mL liquid
     """
 
-    action_effects: list[UnitaryEdit] = []
+    action_effects: list[UnitaryEdit] = Field(default_factory=list)
     """ 
     a list of unitary graph edits to the knowledge graph 
     """
@@ -151,7 +151,7 @@ class Action(BaseModel):
     action_effects_description: Optional[str] = None
     """ free text description for the effects of this action """
 
-    resources: list[str] = []
+    resources: list[str] = Field(default_factory=list)
     """
     a list of uuids of the lab objects that will be occupied during the execution of this action,
     used in DES as `resources`
