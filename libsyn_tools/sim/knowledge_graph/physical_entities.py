@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import copy
 import json
 from typing import Type
 
+import pint
+from pydantic import Field
 from twa.data_model.base_ontology import DatatypeProperty
 from twa.data_model.base_ontology import ObjectProperty
 
 from libsyn_tools.chem_schema import Chemical
 from .base import Individual, SimOntology, BaseClass
+
+Unit_Registry = pint.UnitRegistry()
+Quantity = pint.Quantity
 
 
 class Has_ingredient(DatatypeProperty):
@@ -23,6 +29,8 @@ class PortionOfMaterial(Individual):
 
     is_directly_contained_by: Is_directly_contained_by[LabObject] = set()
 
+    amount: Quantity = Field(default_factory=lambda: 0 * Unit_Registry.millilitre)
+
     def add_chemical(self, chemical: Chemical):
         self.has_ingredient.add(json.dumps(chemical.model_dump()))
 
@@ -34,10 +42,12 @@ class PortionOfMaterial(Individual):
         :param portion_size:
         :return:
         """
-        assert portion_size <= 1, "cannot expand a portion of material"
+        assert 0 < portion_size <= 1, "cannot expand/zero a portion of material"
         assert len(self.has_ingredient), "the portion of material has no ingredient"
-
-        new_pom = PortionOfMaterial()
+        new_pom = PortionOfMaterial(
+            amount=self.amount * portion_size,
+            is_present=copy.deepcopy(self.is_present),
+        )
         chemicals = self.get_ingredients()
         for chemical in chemicals:
             new_chemical = chemical.split([portion_size, 1 - portion_size])[0]
@@ -98,8 +108,20 @@ class LabObject(Individual):
     # is_part_of: Is_part_of[LabObject] = set()
     is_immediate_part_of: Is_immediate_part_of[LabObject] = set()
 
+    capacity: Quantity | None = None  # e.g. 250 mL beaker
+
     # TODO location?
     # TODO capacity?
+
+    def would_overfill(self, delta: Quantity) -> bool:
+        return self.capacity is not None and (self.current_volume() + delta > self.capacity)
+
+    def current_volume(self) -> Quantity:
+        vol = 0 * Unit_Registry.millilitre
+        for pom in PortionOfMaterial.object_lookup.values():
+            if self in pom.is_directly_contained_by and pom.is_present == {True}:
+                vol += pom.amount
+        return vol
 
     @staticmethod
     def get_directly_contained_individuals(container: LabObject, instance_class: Type[BaseClass], only_present=True):
