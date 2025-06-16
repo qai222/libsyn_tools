@@ -9,11 +9,11 @@ import simpy
 from loguru import logger
 from pandas._typing import FilePath
 from pydantic import BaseModel
+from twa.data_model.base_ontology import KnowledgeGraph
 
 from .action import Action
 from .effect_engine import EffectEngine
 from .invariants import Invariant, InvariantEngine
-from twa.data_model.base_ontology import BaseClass, KnowledgeGraph
 
 
 class ActionEventRecord(BaseModel):
@@ -124,7 +124,6 @@ class ActionProcess:
 
             # acquire resource
             for iri in sorted(set(self.action.get_resources())):
-                res = self.resource_map.setdefault(iri, simpy.Resource(self.env, 1))
                 try:
                     res = self.resource_map[iri]
                 except KeyError as exc:
@@ -132,10 +131,7 @@ class ActionProcess:
 
                 if res not in resource_reqs:
                     # choose request type based on resource class
-                    if isinstance(res, simpy.PreemptiveResource) and hasattr(self.action, "priority"):
-                        resource_reqs[res] = res.request(priority=getattr(self.action, "priority", 0))
-                    else:
-                        resource_reqs[res] = res.request()
+                    resource_reqs[res] = res.request()
             yield self.env.all_of(resource_reqs.values())
 
             # action start
@@ -222,19 +218,11 @@ class ActionSimulation:
             for pred in act.required_precedents:
                 self.dependents[pred].append(act.identifier)
 
-    def build_resources(self):  # P0‑4 + P0‑3
-        # Collect every unique resource IRI and whether any action needs priority
-        needs_priority = set()
-        for act in self.actions:
-            if hasattr(act, "priority"):
-                needs_priority.update(act.get_resources())
+    def build_resources(self):
         for act in self.actions:
             for iri in act.get_resources():
                 if iri not in self.resource_map:
-                    if iri in needs_priority:
-                        self.resource_map[iri] = simpy.PreemptiveResource(self.env, capacity=1)
-                    else:
-                        self.resource_map[iri] = simpy.Resource(self.env, capacity=1)
+                    self.resource_map[iri] = simpy.Resource(self.env, capacity=1)
 
     def build_processes(self):
         for act in self.actions:
@@ -266,3 +254,16 @@ class ActionSimulation:
         df_log = pd.DataFrame.from_records([r.model_dump() for r in self.history_log])
         df_log.to_csv(filename, index=False)
         logger.info(f"Event log exported to: {filename}")
+
+    @classmethod
+    def compile_actions(cls, *actions: "Action", **kwargs) -> "ActionSimulation":
+        """
+        Factory wrapper that instantiates :class:`ActionSimulation` directly.
+        """
+        return cls(list(actions), **kwargs)
+
+    def get_resource_pool(self, iris: list[str]) -> list[simpy.Resource]:
+        """
+        Return the *Resource* objects corresponding to *iris* (ordered).
+        """
+        return [self.resource_map[i] for i in iris]

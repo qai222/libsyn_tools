@@ -8,19 +8,7 @@ from loguru import logger
 from .action.core import Action, UnitaryEdit
 
 """
-Effect Engine for libsyn_tools.sim
-====================================
-
-All side‑effects are centralised in one place so the DES layer remains domain‑agnostic and easier to test.
-
-Key design goals
-----------------
-1.  **Single‑responsibility** – `ActionProcess` now orchestrates timing only;
-    `EffectEngine` applies or rolls back edits.
-2.  **Atomicity** – an action’s edits are staged, then committed; a failure
-    triggers `rollback()` on the subset that succeeded.
-3.  **Extensibility** – later we can plug in alternate back‑ends (mock KG,
-    audit‑only mode, etc.) by subclassing this engine.
+All effects are centralised in one place so the DES layer remains domain‑agnostic and easier to test.
 """
 
 
@@ -45,12 +33,9 @@ class EffectEngine:
         """Hook called after *all* edits commit successfully."""
         action.post_act()
 
-    # ------------------------------------------------------------------
-    # Rollback support – simplistic 180° reversal.  A richer implementation
-    # could store inverse edits explicitly.
-    # ------------------------------------------------------------------
-    def rollback(self, applied_edits: List[UnitaryEdit]) -> None:  # noqa: D401
-        """Undo *applied_edits* in **reverse order** (best‑effort).
+    def rollback(self, applied_edits: List[UnitaryEdit]) -> None:
+        """
+        Undo *applied_edits* in **reverse order** (best‑effort).
 
         This naïve rollback assumes every edit has a deterministic inverse; for
         production use consider capturing before/after snapshots instead.

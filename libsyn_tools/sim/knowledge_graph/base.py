@@ -31,6 +31,8 @@ class Individual(BaseClass):
     instance_iri: str = Field(default_factory=str_uuid, alias='identifier')
     """ instance iri, by default this generated using uuid4 """
 
+    model_config = {"arbitrary_types_allowed": True, }
+
     @property
     def identifier(self) -> str:
         return self.instance_iri
