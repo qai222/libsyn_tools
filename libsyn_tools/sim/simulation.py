@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, List
+import random
+from collections import defaultdict
+from typing import Dict, List, Optional
 
 import pandas as pd
 import simpy
@@ -8,7 +10,7 @@ from loguru import logger
 from pandas._typing import FilePath
 from pydantic import BaseModel
 
-from .action import Action, UnitaryEdit
+from .action import Action
 from .effect_engine import EffectEngine
 
 
@@ -29,14 +31,19 @@ class ActionProcess:
     Wraps an Action so that it can be executed as a SimPy process.
     """
 
+    simpy_process: Optional[simpy.events.Process] = None
+
     def __init__(
             self,
+            *,
             env: simpy.Environment,
             action: Action,
             action_registry: Dict[str, ActionProcess],
+            dependents: Dict[str, List[str]],  # pre‑computed dependency map
             resource_map: Dict[str, simpy.Resource],
             history_log: List[ActionEventRecord],
             effect_engine: EffectEngine,
+            speed_factor: float,
     ):
         """
         :param env: A SimPy Environment.
@@ -45,6 +52,7 @@ class ActionProcess:
         :param resource_map: Maps resource IRI -> simpy.Resource for concurrency control.
         :param history_log: A list that will store ActionEventRecord objects.
         """
+        self.dependents = dependents
         self.env = env
         self.action = action
         self.action_registry = action_registry
@@ -57,6 +65,12 @@ class ActionProcess:
         self.done_event = env.event()
 
         self.effect_engine = effect_engine
+
+        self.speed_factor = speed_factor
+
+    def sim_time(self, dt: float) -> float:
+        """Scale `dt` by the global *simulation_speed_factor* (P0‑5)."""
+        return dt * self.speed_factor
 
     def add_event_log(self, event_type: str, data: dict | None = None) -> None:
         self.history_log.append(
@@ -72,55 +86,52 @@ class ActionProcess:
         """
         The main generator function describing the logic for running an Action in the simulation.
         """
-        # if scheduled, minimum delay to the scheduled time
-        if self.action.scheduled_start_time is not None:
-            delay = self.action.scheduled_start_time - self.env.now
-            if delay > 0:
-                yield self.env.timeout(delay)
 
-        # wait for all precedents at once
-        precedent_events = [self.action_registry[pid].done_event for pid in self.action.required_precedents]
-        if precedent_events:
-            try:
-                yield self.env.all_of(precedent_events)
-            except Exception:  # keep original traceback
-                logger.error(f"{self.action.identifier}: precedent failure", exc_info=True)
-                raise  # bubbles to outer handler
-
-        # check presumptions
-        for pres in self.action.presumptions:
-            if not pres.validate(...):  # supply KG or context
-                raise ValueError(
-                    f"Presumption failed for {self.action.identifier}: {pres}"
-                )
-
-        # acquire resource
         resource_reqs: dict[simpy.Resource, simpy.events.Request] = dict()
-        for iri in sorted(set(self.action.get_resources())):
-            res = self.resource_map.setdefault(iri, simpy.Resource(self.env, 1))
-            if res not in resource_reqs:
-                resource_reqs[res] = res.request()
         try:
-            yield self.env.all_of(resource_reqs.values())
-        except Exception as err:
-            # acquire failure: mark action failed for dependents
-            self.done_event.fail(err)
-            raise
+            # if scheduled, minimum delay to the scheduled time
+            if self.action.scheduled_start_time is not None:
+                delay = self.action.scheduled_start_time - self.env.now
+                if delay > 0:
+                    yield self.env.timeout(self.sim_time(delay))
 
-        applied_edits: List[UnitaryEdit] = []
-        try:
-            # Log ACTION_START
+            # wait for all precedents at once
+            precedent_events = [self.action_registry[pid].done_event for pid in self.action.required_precedents]
+            if precedent_events:
+                yield self.env.all_of(precedent_events)
+
+            # check presumptions
+            for pres in self.action.presumptions:
+                if not pres.validate(...):  # supply KG or context
+                    raise ValueError(f"Presumption failed for {self.action.identifier}: {pres}")
+
+            # acquire resource
+            for iri in sorted(set(self.action.get_resources())):
+                res = self.resource_map.setdefault(iri, simpy.Resource(self.env, 1))
+                try:
+                    res = self.resource_map[iri]
+                except KeyError as exc:
+                    raise RuntimeError(f"Resource {iri} is invalid; build_resources incomplete") from exc
+
+                if res not in resource_reqs:
+                    # choose request type based on resource class
+                    if isinstance(res, simpy.PreemptiveResource) and hasattr(self.action, "priority"):
+                        resource_reqs[res] = res.request(priority=getattr(self.action, "priority", 0))
+                    else:
+                        resource_reqs[res] = res.request()
+            yield self.env.all_of(resource_reqs.values())
+
+            # action start
             self.add_event_log(event_type="ACTION_START")
             logger.debug(f"[t={self.env.now:.2f}] Start {self.action.identifier}")
 
             # simulated execution delay
             if self.action.temporal_cost:
-                yield self.env.timeout(self.action.temporal_cost)
+                yield self.env.timeout(self.sim_time(self.action.temporal_cost))
 
             # Stage → apply → finalize
             staged = self.effect_engine.prepare(self.action)
             self.effect_engine.apply(staged)
-            applied_edits.extend(staged)
             self.effect_engine.finalize(self.action)
 
             # Normal completion
@@ -128,31 +139,77 @@ class ActionProcess:
             self.add_event_log("ACTION_END")
             logger.debug(f"[t={self.env.now:.2f}] Finished {self.action.identifier}")
 
+        except simpy.Interrupt as intr:  # downstream abort (P0‑2)
+            logger.warning(f"{self.action.identifier} interrupted: {intr.cause!r}")
+            self.done_event.fail(intr)
+            self.add_event_log("ACTION_ABORTED")
+
         except Exception as err:
-            # Failure path: rollback & propagate
-            self.effect_engine.rollback(applied_edits)
             self.done_event.fail(err)
             self.add_event_log("ACTION_ERROR")
-            logger.error(f"[t={self.env.now:.2f}] {self.action.identifier} aborted: {err!r}")
+            logger.error(f"[t={self.env.now:.2f}] {self.action.identifier} failed: {err!r}")
+            self._cascade_interrupt(err)
             raise
-
         finally:
             for req in resource_reqs.values():
                 if req.triggered:
                     req.resource.release(req)
 
+    def _cascade_interrupt(self, cause: Exception):
+        """Interrupt all dependent SimPy processes (P0‑2)."""
+        for dep_id in self.dependents[self.action.identifier]:
+            dep_proc = self.action_registry[dep_id]
+            if dep_proc.simpy_process and dep_proc.simpy_process.is_alive:
+                try:
+                    dep_proc.simpy_process.interrupt(cause)
+                except RuntimeError:  # process already terminated
+                    pass
+
 
 class ActionSimulation:
-    def __init__(self, actions: List[Action]):
+    def __init__(
+            self,
+            actions: List[Action],
+            *,
+            simulation_speed_factor: float = 1.0,
+            random_seed: int | None = None,
+    ):
         self.env = simpy.Environment()
         self.actions = actions
+
+        self.rng = random.Random(random_seed)
+        self.speed_factor = simulation_speed_factor
+
         self.action_registry: Dict[str, ActionProcess] = {}
         self.resource_map: Dict[str, simpy.Resource] = {}
-
         # A single list to store all event records from the entire simulation
         self.history_log: List[ActionEventRecord] = []
 
         self.effect_engine = EffectEngine()
+        self.dependents: Dict[str, List[str]] = defaultdict(list)
+
+        self.build_dependency_map()
+        self.build_resources()
+        self.build_processes()
+
+    def build_dependency_map(self):
+        for act in self.actions:
+            for pred in act.required_precedents:
+                self.dependents[pred].append(act.identifier)
+
+    def build_resources(self):  # P0‑4 + P0‑3
+        # Collect every unique resource IRI and whether any action needs priority
+        needs_priority = set()
+        for act in self.actions:
+            if hasattr(act, "priority"):
+                needs_priority.update(act.get_resources())
+        for act in self.actions:
+            for iri in act.get_resources():
+                if iri not in self.resource_map:
+                    if iri in needs_priority:
+                        self.resource_map[iri] = simpy.PreemptiveResource(self.env, capacity=1)
+                    else:
+                        self.resource_map[iri] = simpy.Resource(self.env, capacity=1)
 
     def build_processes(self):
         for act in self.actions:
@@ -162,27 +219,25 @@ class ActionSimulation:
                 env=self.env,
                 action=act,
                 action_registry=self.action_registry,
+                dependents=self.dependents,
                 resource_map=self.resource_map,
                 history_log=self.history_log,  # pass the shared log
-                effect_engine=self.effect_engine
+                effect_engine=self.effect_engine,
+                speed_factor=self.speed_factor,
             )
 
-    def schedule_all(self):
-        for proc in self.action_registry.values():
-            self.env.process(proc.run())
-
     def run(self, until: float = None):
+        for proc in self.action_registry.values():
+            proc.simpy_process = self.env.process(proc.run())
+
         logger.info("Starting the simulation environment.")
-        self.build_processes()
-        self.schedule_all()
         self.env.run(until=until)
-        logger.info(f"Simulation ended at time {self.env.now}")
+        logger.info(f"Simulation ended at time: {self.env.now}")
 
     def export_event_log(self, filename: FilePath):
         """
         Example function to export the event log to a CSV or JSON file.
         """
-
         df_log = pd.DataFrame.from_records([r.model_dump() for r in self.history_log])
         df_log.to_csv(filename, index=False)
-        logger.info(f"Event log exported to {filename}")
+        logger.info(f"Event log exported to: {filename}")
