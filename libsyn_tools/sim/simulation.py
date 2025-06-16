@@ -8,7 +8,8 @@ from loguru import logger
 from pandas._typing import FilePath
 from pydantic import BaseModel
 
-from .action import Action
+from .action import Action, UnitaryEdit
+from .effect_engine import EffectEngine
 
 
 class ActionEventRecord(BaseModel):
@@ -35,6 +36,7 @@ class ActionProcess:
             action_registry: Dict[str, ActionProcess],
             resource_map: Dict[str, simpy.Resource],
             history_log: List[ActionEventRecord],
+            effect_engine: EffectEngine,
     ):
         """
         :param env: A SimPy Environment.
@@ -53,6 +55,8 @@ class ActionProcess:
 
         # Signaling event to indicate this process has finished.
         self.done_event = env.event()
+
+        self.effect_engine = effect_engine
 
     def add_event_log(self, event_type: str, data: dict | None = None) -> None:
         self.history_log.append(
@@ -74,9 +78,8 @@ class ActionProcess:
             if delay > 0:
                 yield self.env.timeout(delay)
 
-        precedent_events = [self.action_registry[pid].done_event for pid in self.action.required_precedents]
-
         # wait for all precedents at once
+        precedent_events = [self.action_registry[pid].done_event for pid in self.action.required_precedents]
         if precedent_events:
             try:
                 yield self.env.all_of(precedent_events)
@@ -104,6 +107,7 @@ class ActionProcess:
             self.done_event.fail(err)
             raise
 
+        applied_edits: List[UnitaryEdit] = []
         try:
             # Log ACTION_START
             self.add_event_log(event_type="ACTION_START")
@@ -113,26 +117,22 @@ class ActionProcess:
             if self.action.temporal_cost:
                 yield self.env.timeout(self.action.temporal_cost)
 
-            # populate action effects just-in-time
-            self.action.pre_act()
-            # TODO pyshacl.validate(current_graph, shapes_graph)
+            # Stage → apply → finalize
+            staged = self.effect_engine.prepare(self.action)
+            self.effect_engine.apply(staged)
+            applied_edits.extend(staged)
+            self.effect_engine.finalize(self.action)
 
-            # apply edits atomically
-            for edit in self.action.action_effects:
-                edit.apply()
-                self.add_event_log(event_type="EFFECT_APPLIED")
-
-            self.action.post_act()
-
-            # mark normal completion
+            # Normal completion
             self.done_event.succeed()
-            self.add_event_log(event_type="ACTION_END", )
+            self.add_event_log("ACTION_END")
             logger.debug(f"[t={self.env.now:.2f}] Finished {self.action.identifier}")
 
         except Exception as err:
-            # Propagate failure to dependents and re-raise for fail-fast
+            # Failure path: rollback & propagate
+            self.effect_engine.rollback(applied_edits)
             self.done_event.fail(err)
-            self.add_event_log(event_type="ACTION_ERROR", )
+            self.add_event_log("ACTION_ERROR")
             logger.error(f"[t={self.env.now:.2f}] {self.action.identifier} aborted: {err!r}")
             raise
 
@@ -152,6 +152,8 @@ class ActionSimulation:
         # A single list to store all event records from the entire simulation
         self.history_log: List[ActionEventRecord] = []
 
+        self.effect_engine = EffectEngine()
+
     def build_processes(self):
         for act in self.actions:
             if act.identifier in self.action_registry:
@@ -162,6 +164,7 @@ class ActionSimulation:
                 action_registry=self.action_registry,
                 resource_map=self.resource_map,
                 history_log=self.history_log,  # pass the shared log
+                effect_engine=self.effect_engine
             )
 
     def schedule_all(self):
