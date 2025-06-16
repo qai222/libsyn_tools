@@ -1,6 +1,6 @@
 from typing import Callable, Any
 
-from .knowledge_graph.physical_entities import LabObject, Unit_Registry
+from .knowledge_graph.physical_entities import LabObject
 
 Predicate = Callable[[Any], bool]
 
@@ -35,6 +35,6 @@ def default_invariants():
         lb: LabObject | None = ctx.get("lab_object")
         if not lb or lb.capacity is None:
             return True
-        return lb.current_volume() <= lb.capacity + 1e-9 * Unit_Registry.millilitre
+        return lb.current_volume() <= lb.capacity + 1e-9
 
     return [Invariant("no_overfill", no_overfill, Invariant.PHASE_POST)]
