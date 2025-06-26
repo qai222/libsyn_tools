@@ -11,7 +11,7 @@ from libsyn_tools.utils import str_uuid
 class SimOntology(BaseOntology):
     base_url = "https://libsyn-sim/kg/"
     namespace = "libsyn-sim"
-    owl_versionInfo = "0.0.1"
+    owl_versionInfo = "2"
     rdfs_comment = 'This is an ontology for the chemistry simulator in library synthesis tools.'
 
 
@@ -19,10 +19,8 @@ class Individual(BaseClass):
     """ a thing in the knowledge graph """
 
     def model_post_init(self, __context: Any) -> None:
-        # TODO: do we want to put this in `Individual`?
         # NOTE adding this as it seems to be necessary for other actually overwritten methods to
         # work when multi-inheritance is used
-        # i.e. JuniorLabObject and JuniorInstruction
         return super().model_post_init(__context)
 
     rdfs_isDefinedBy = SimOntology
