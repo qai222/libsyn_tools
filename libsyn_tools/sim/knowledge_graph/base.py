@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import Field
-from twa.data_model.base_ontology import BaseClass, BaseOntology
+from twa.data_model.base_ontology import BaseClass, BaseOntology, DatatypeProperty
 
 from libsyn_tools.utils import str_uuid
 
@@ -29,8 +29,19 @@ class Individual(BaseClass):
     instance_iri: str = Field(default_factory=str_uuid, alias='identifier')
     """ instance iri, by default this generated using uuid4 """
 
+    is_present: Is_present[bool] = {False, }
+
     model_config = {"arbitrary_types_allowed": True, }
 
     @property
     def identifier(self) -> str:
         return self.instance_iri
+
+
+class Is_present(DatatypeProperty):
+    """ if a lab object is present or has been annihilated """
+    rdfs_isDefinedBy = SimOntology
+    owl_maxQualifiedCardinality = 1
+
+
+Individual.model_rebuild()
