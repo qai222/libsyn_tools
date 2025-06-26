@@ -54,7 +54,7 @@ class UnitaryEdit(BaseModel):
     """ data property value if this edit is to change a data property """
 
     def apply(self):
-        logger.info(f"applying edit: {self.type}")
+        logger.debug(f"applying edit: {self.type}")
         # TODO It is probably better to just use RDFlib
         # TODO type check lab objects
         instance_1 = KnowledgeGraph.get_object_from_lookup(iri=self.instance_1_iri)

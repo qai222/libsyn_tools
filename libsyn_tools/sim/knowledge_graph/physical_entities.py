@@ -56,7 +56,7 @@ class PortionOfMaterial(Individual):
         :param portion_size:
         :return:
         """
-        assert 0 < portion_size <= 1, "cannot expand/zero a portion of material"
+        assert 0 <= portion_size <= 1, f"cannot expand a portion of material: {portion_size}"
         assert len(self.has_ingredient), "the portion of material has no ingredient"
         new_pom = PortionOfMaterial()
         chemicals = self.get_ingredients()
