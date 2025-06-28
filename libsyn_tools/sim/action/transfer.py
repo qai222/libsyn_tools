@@ -106,13 +106,13 @@ class TransferMaterialByVolume(TransferBase):
         transfer_device: LabObject
 
         poms_source = LabObject.get_directly_contained_individuals(source_container, PortionOfMaterial)
-        assert len(poms_source), f"transferring from an empty container: '{self.identifier}' from '{source_container}'"
+        # assert len(poms_source), f"transferring from an empty container: '{self.identifier}' from '{source_container}'"
 
-        if self.transfer_volume > source_container.current_volume:
-            raise RuntimeError(f"action to transfer: {self.transfer_volume} > {source_container.current_volume} from {source_container}")
+        # if self.transfer_volume > source_container.directly_contained_pom_volume:
+        #     raise RuntimeError(f"action to transfer: {self.transfer_volume} > {source_container.directly_contained_pom_volume} from {source_container}")
 
-        portion_size = self.transfer_volume / source_container.current_volume
-        logger.info(f"transfer by volume: {self.transfer_volume} / {source_container.current_volume} from {source_container}")
+        portion_size = self.transfer_volume / source_container.directly_contained_pom_volume
+        logger.info(f"transfer by volume: {self.transfer_volume} / {source_container.directly_contained_pom_volume} from {source_container}")
 
         for pom_source in poms_source:
             # annihilate pom source

@@ -48,7 +48,6 @@ class EffectEngine:
             except Exception as exc:  # pragma: no cover – best‑effort
                 logger.error(f"Rollback failed for {edit}: {exc!r}")
 
-    # ---------------------- helper utilities -------------------------
     @staticmethod
     def _inverse_edit(edit: UnitaryEdit) -> UnitaryEdit:
         """Return a *best‑effort* inverse of *edit* (utility)."""

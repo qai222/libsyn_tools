@@ -12,10 +12,6 @@ from twa.data_model.base_ontology import KnowledgeGraph
 from libsyn_tools.sim.knowledge_graph.base import SimOntology, Field, str_uuid
 
 
-# TODO it doesn't seem necessary to use ontology classes for instructions
-# TODO classes related to instructions are close to `information entity` that may deserve an abs class
-
-
 class UnitaryEditType(str, Enum):
     """ possible types of a unitary edit """
 
@@ -53,6 +49,8 @@ class UnitaryEdit(BaseModel):
     data_value: Optional[Any] = None
     """ data property value if this edit is to change a data property """
 
+    model_config = {"frozen": True}
+
     def apply(self):
         logger.debug(f"applying edit: {self.type}")
         # TODO It is probably better to just use RDFlib
@@ -66,8 +64,10 @@ class UnitaryEdit(BaseModel):
             instance_1.is_present = {False, }
 
         elif self.type == UnitaryEditType.CHANGE_DATA_PROPERTY:
-            assert instance_1.is_present == {True, }, "changing data property for a lab object that is absent"
+            assert instance_1.is_present == {True, }, (f"changing data property='{self.property_iri}' for a lab "
+                                                       f"object='{self.instance_1_iri}' that is absent")
             data_property = SimOntology.data_property_lookup[self.property_iri]
+            # TODO this only applies to functional data property
             data_property_name = data_property.__class__.__name__
             field_name = data_property_name[0].lower() + data_property_name[1:]
             setattr(instance_1, field_name, {self.data_value, })
@@ -192,3 +192,7 @@ class Action(BaseModel):
 
     def post_act(self):
         pass
+
+Action.model_rebuild()
+UnitaryEdit.model_rebuild()
+Presumption.model_rebuild()
