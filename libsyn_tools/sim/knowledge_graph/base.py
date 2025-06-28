@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import Field
-from twa.data_model.base_ontology import BaseClass, BaseOntology, DatatypeProperty
+from twa.data_model.base_ontology import BaseClass, BaseOntology, DatatypeProperty, ObjectProperty
 
 from libsyn_tools.utils import str_uuid
 
@@ -13,6 +13,27 @@ class SimOntology(BaseOntology):
     namespace = "libsyn-sim"
     owl_versionInfo = "2"
     rdfs_comment = 'This is an ontology for the chemistry simulator in library synthesis tools.'
+
+
+class SimDataProperty(DatatypeProperty):
+    rdfs_isDefinedBy = SimOntology
+
+
+class SimObjectProperty(ObjectProperty):
+    rdfs_isDefinedBy = SimOntology
+
+
+class SimFunctionalDataProperty(SimDataProperty):
+    owl_maxQualifiedCardinality = 1
+
+
+class SimFunctionalObjectProperty(SimObjectProperty):
+    owl_maxQualifiedCardinality = 1
+
+
+class Is_present(SimFunctionalDataProperty):
+    """ if a lab object is present or has been annihilated """
+    pass
 
 
 class Individual(BaseClass):
@@ -29,19 +50,13 @@ class Individual(BaseClass):
     instance_iri: str = Field(default_factory=str_uuid, alias='identifier')
     """ instance iri, by default this generated using uuid4 """
 
-    is_present: Is_present[bool] = {False, }
+    is_present: Is_present[bool] = Field(default={False, })
 
     model_config = {"arbitrary_types_allowed": True, }
 
     @property
     def identifier(self) -> str:
         return self.instance_iri
-
-
-class Is_present(DatatypeProperty):
-    """ if a lab object is present or has been annihilated """
-    rdfs_isDefinedBy = SimOntology
-    owl_maxQualifiedCardinality = 1
 
 
 Individual.model_rebuild()

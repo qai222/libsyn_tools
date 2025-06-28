@@ -4,24 +4,29 @@ import json
 from typing import Type, TypeVar
 
 from pydantic import Field
-from twa.data_model.base_ontology import DatatypeProperty, ObjectProperty
 
 from libsyn_tools.chem_schema import Chemical
-from .base import Individual, SimOntology, BaseClass
+from .base import Individual, BaseClass, SimFunctionalDataProperty, SimDataProperty, \
+    SimObjectProperty
 
 T = TypeVar("T", bound=BaseClass)
 
 
-class Has_ingredient(DatatypeProperty):
+class Has_ingredient(SimDataProperty):
     """ data property to JSON string of libsyn_tools.chem_schema.chemical.Chemical """
-    rdfs_isDefinedBy = SimOntology
-    owl_minQualifiedCardinality = 1
+    pass
 
 
-class Is_contained_by(ObjectProperty):
+class Is_contained_by(SimObjectProperty):
     """ transitive """
     # TODO transitive
-    rdfs_isDefinedBy = SimOntology
+    pass
+
+
+class Is_directly_contained_by(SimObjectProperty):
+    """ not transitive """
+    # TODO subproperty of Is_contained_by
+    pass
 
 
 class PortionOfMaterial(Individual):
@@ -84,42 +89,39 @@ class PortionOfMaterial(Individual):
         return new_pom
 
 
-class Is_made_of(DatatypeProperty):
-    rdfs_isDefinedBy = SimOntology
+class Is_made_of(SimDataProperty):
+    pass
 
 
-class Is_directly_contained_by(ObjectProperty):
-    """ not transitive """
-    rdfs_isDefinedBy = SimOntology
-
-
-class Is_part_of(ObjectProperty):
+class Is_part_of(SimObjectProperty):
     """ can be proper or improper, transitive """
     # TODO transitive
-    rdfs_isDefinedBy = SimOntology
+    pass
 
 
-class Is_immediate_part_of(ObjectProperty):
+class Is_immediate_part_of(SimObjectProperty):
     """ not transitive """
     # TODO this should be a sub property of `Is_part_of` and it is not transitive
-    rdfs_isDefinedBy = SimOntology
+    pass
 
 
-class Has_capacity(DatatypeProperty):
-    rdfs_isDefinedBy = SimOntology
-    owl_maxQualifiedCardinality = 1
+class Has_capacity(SimFunctionalDataProperty):
+    pass
 
 
 class LabObject(Individual):
+    """
+    Pure-data representation of anything that can appear in the lab KG.
+    """
+
     is_made_of: Is_made_of[str] = Field(default_factory=set)
 
     is_directly_contained_by: Is_directly_contained_by[LabObject] = Field(default_factory=set)
 
     is_immediate_part_of: Is_immediate_part_of[LabObject] = Field(default_factory=set)
-
-    has_capacity: Has_capacity[float] = Field(default_factory=set)
-
     # TODO location?
+
+    has_capacity: Has_capacity[int] = Field(default={1, })
 
     @property
     def capacity(self):
@@ -189,5 +191,10 @@ class LabObject(Individual):
         return visited
 
 
+class MaterialContainer(LabObject):
+    has_capacity: Has_capacity[float] = Field(default_factory=set)
+
+
 LabObject.model_rebuild()
 PortionOfMaterial.model_rebuild()
+MaterialContainer.model_rebuild()
