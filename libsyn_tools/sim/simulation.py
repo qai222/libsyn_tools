@@ -9,11 +9,9 @@ import simpy
 from loguru import logger
 from pandas._typing import FilePath
 from pydantic import BaseModel
-from twa.data_model.base_ontology import KnowledgeGraph
 
 from .action import Action
 from .effect_engine import EffectEngine
-from .invariants import Invariant, InvariantEngine
 
 
 class ActionEventRecord(BaseModel):
@@ -34,8 +32,6 @@ class ActionProcess:
     """
 
     simpy_process: Optional[simpy.events.Process] = None
-
-    invariant_engine: Optional[InvariantEngine] = None
 
     def __init__(
             self,
@@ -91,20 +87,8 @@ class ActionProcess:
         The main generator function describing the logic for running an Action in the simulation.
         """
 
-        KG_lookup = KnowledgeGraph.construct_object_lookup  # local alias
-
-        ctx = {
-            "env": self.env,
-            "action": self.action,
-            "kg": KG_lookup(),  # <- uses construct_object_lookup(), not .object_lookup
-            "lab_object": None,  # placeholder
-        }
-
         resource_reqs: dict[simpy.Resource, simpy.events.Request] = dict()
         try:
-            # phase: pre
-            if self.invariant_engine:
-                self.invariant_engine.validate(Invariant.PHASE_PRE, ctx)
 
             # if scheduled, minimum delay to the scheduled time
             if self.action.scheduled_start_time is not None:
@@ -138,10 +122,6 @@ class ActionProcess:
             self.add_event_log(event_type="ACTION_START")
             logger.debug(f"[t={self.env.now:.2f}] Start {self.action.identifier}")
 
-            # PHASE: IN  (optional invariants)
-            if self.invariant_engine:
-                self.invariant_engine.validate(Invariant.PHASE_IN, ctx)
-
             # simulated execution delay
             if self.action.temporal_cost:
                 yield self.env.timeout(self.sim_time(self.action.temporal_cost))
@@ -150,10 +130,6 @@ class ActionProcess:
             staged = self.effect_engine.prepare(self.action)
             self.effect_engine.apply(staged)
             self.effect_engine.finalize(self.action)
-
-            # PHASE: POST -----------------------------------------------------------------
-            if self.invariant_engine:
-                self.invariant_engine.validate(Invariant.PHASE_POST, ctx)
 
             # Normal completion
             self.done_event.succeed()
