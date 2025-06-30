@@ -4,7 +4,7 @@ from collections import deque
 from typing import Dict, TYPE_CHECKING
 
 import simpy
-
+from twa.data_model.base_ontology import KnowledgeGraph
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit
 from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject, BaseClass
 
@@ -75,3 +75,15 @@ def _needs_runtime_tracking(obj: BaseClass) -> bool:
     from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject
 
     return isinstance(obj, LabObject)
+
+def get_object_for_resource(res: simpy.Resource) -> LabObject:
+    """
+    Reverse lookup: simpy.Resource → LabObject.
+
+    Used when releasing locks so we can put the object back into the
+    correct FilterStore (FIX 3.3).
+    """
+    for iri, r in _RESOURCE_MAP.items():
+        if r is res:
+            return KnowledgeGraph.get_object_from_lookup(iri)
+    raise KeyError("Resource not registered in _RESOURCE_MAP")
