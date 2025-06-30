@@ -32,7 +32,7 @@ from libsyn_tools.sim.operation.runtime import get_runtime_state
 
 
 class FilterStoreRegistry:
-    _stores: Dict[str, simpy.FilterStore] = defaultdict(lambda : None)
+    _stores: Dict[str, simpy.FilterStore] = defaultdict(lambda: None)
 
     @classmethod
     def get_filter_store(cls, pool_type: str, env: simpy.Environment | None = None) -> simpy.FilterStore:
@@ -49,6 +49,12 @@ class FilterStoreRegistry:
             store = cls.get_filter_store(pool_type, env)
             if obj not in store.items:
                 store.put(obj)
+
+    @classmethod
+    def remove_obj_from_filter_store(cls, obj: LabObject):
+        for store in cls._stores.values():
+            if store and obj in store.items:
+                store.items.remove(obj)
 
 
 class Selector(ABC):

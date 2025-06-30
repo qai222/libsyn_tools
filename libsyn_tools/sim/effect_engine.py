@@ -58,14 +58,18 @@ class EffectEngine:
                 inverse = edit.compute_inverse()
 
                 # auto register simpy resource
+                obj = BaseClass.object_lookup[edit.instance_1_iri]
                 if edit.type == UnitaryEditType.CREATE:
-                    obj = BaseClass.object_lookup[edit.instance_1_iri]
                     self._register_if_new(obj, env)
+                elif edit.type == UnitaryEditType.ANNIHILATE:
+                    self._unregister_object(obj)
 
                 logger.debug(f"Applying edit: {edit.type} – {edit.instance_1_iri}")
                 edit.apply()
                 applied.append(edit)
                 inverses.append(inverse)
+
+                self._sync_filter_stores(obj, env)
 
                 rs = get_runtime_state(BaseClass.object_lookup[edit.instance_1_iri], env)
                 rs.recent_edits.append(edit)
@@ -93,3 +97,16 @@ class EffectEngine:
         if obj.instance_iri not in _RESOURCE_MAP:
             _RESOURCE_MAP[obj.instance_iri] = simpy.Resource(env, capacity=1)
             FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+
+    def _unregister_object(self, obj: LabObject):
+        """Remove *all* runtime artefacts for a vanished object."""
+        _RESOURCE_MAP.pop(obj.instance_iri, None)
+        FilterStoreRegistry.remove_obj_from_filter_store(obj)
+
+    def _sync_filter_stores(self, obj: LabObject, env: simpy.Environment):
+        """
+        After *any* edit we normalise FilterStore membership so rollbacks
+        never leave an object in the wrong pool.
+        """
+        FilterStoreRegistry.remove_obj_from_filter_store(obj)
+        FilterStoreRegistry.put_obj_into_filter_store(obj, env)

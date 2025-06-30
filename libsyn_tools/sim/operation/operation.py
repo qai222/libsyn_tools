@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
 import simpy
-from loguru import logger
 from pydantic import BaseModel
 from simpy.resources.resource import Request
 
@@ -122,9 +121,12 @@ class Operation(ABC, BaseModel):
 
     def execute(self):
         """ applying operation effects """
-        logger.info(f"execute action: {self.identifier}")
-        for edit in self.operation_effects:
-            edit.apply()
+        raise RuntimeError(
+            "Direct execute() is removed. Run the operation inside `Simulation` or call EffectEngine.apply(...) explicitly."
+        )
+        # logger.info(f"execute action: {self.identifier}")
+        # for edit in self.operation_effects:
+        #     edit.apply()
 
     @abstractmethod
     def get_operation_effects(self) -> list[UnitaryEdit]:

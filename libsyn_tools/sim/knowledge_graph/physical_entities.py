@@ -206,7 +206,12 @@ class MaterialContainer(LabObject):
 
     @property
     def capacity(self):
-        return next(self.has_capacity)
+        cap = next(iter(self.has_capacity), None)
+        if cap is None:
+            raise AttributeError(
+                f"{self.identifier} has no `has_capacity` set"
+            )
+        return cap
 
 
 LabObject.model_rebuild()

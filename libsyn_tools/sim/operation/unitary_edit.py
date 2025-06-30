@@ -109,17 +109,21 @@ class ChangeDataProperty(UnitaryEdit):
         subj = BaseClass.object_lookup[self.instance_1_iri]
         data_prop = SimOntology.data_property_lookup[self.property_iri]
         field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
+        # TODO so far we don't allow changing pool_type
+        assert field_name != "has_pool_type"
         setattr(subj, field_name, {self.data_value})
 
     def compute_inverse(self):
         subj = BaseClass.object_lookup[self.instance_1_iri]
         data_prop = SimOntology.data_property_lookup[self.property_iri]
         field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
-        current_val = next(getattr(subj, field_name), None)
+
+        prev_vals = getattr(subj, field_name).copy()
+        previous_value = next(iter(prev_vals), None)
         return ChangeDataProperty(
             instance_1_iri=self.instance_1_iri,
             property_iri=self.property_iri,
-            data_value=current_val,
+            data_value=previous_value,
         )
 
 

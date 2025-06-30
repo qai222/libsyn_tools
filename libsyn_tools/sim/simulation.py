@@ -112,7 +112,7 @@ class OperationProcess:
 
             # 4) apply edits atomically
             staged = self.effect_engine.prepare(self.operation)
-            self.effect_engine.apply(staged)
+            self.effect_engine.apply(staged, self.env)
 
             # Normal completion – mark process done
             self.done_event.succeed()
