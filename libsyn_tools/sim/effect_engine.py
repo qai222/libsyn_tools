@@ -90,8 +90,8 @@ class EffectEngine:
                     self._register_if_new(obj, env)
                 elif inv.type is UnitaryEditType.ANNIHILATE:
                     self._unregister_object(obj)
-                self._sync_filter_stores(obj, env)
                 inv.apply()
+                self._sync_filter_stores(obj, env)
             except Exception as exc:  # pragma: no cover
                 logger.error(f"Rollback failed for {inv}: {exc!r}")
 
