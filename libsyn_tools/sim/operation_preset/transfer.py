@@ -19,7 +19,7 @@ from libsyn_tools.sim.operation.unitary_edit import (
 )
 
 
-class TransferByPortionSize(Operation):
+class TransferMaterialByPortionSize(Operation):
     # Participant roles ------------------------------------------------
     participant_source: StrOrSelector
     participant_destination: StrOrSelector
