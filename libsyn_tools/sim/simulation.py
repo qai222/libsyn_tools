@@ -13,7 +13,9 @@ from pydantic import BaseModel
 from .effect_engine import EffectEngine, KnowledgeGraph
 from .knowledge_graph import LabObject
 from .operation.operation import Operation
-from .operation.runtime import _needs_runtime_tracking, get_runtime_state
+from .operation.runtime import _needs_runtime_tracking, get_runtime_state, _RUNTIME_CACHE
+
+
 
 class OperationEventRecord(BaseModel):
     operation_id: str
@@ -141,7 +143,7 @@ class OperationProcess:
 
         finally:
             # Always release locks obtained in *pre_act*
-            self.operation.post_act()
+            self.operation.post_act(self.env)
 
     def _cascade_interrupt(self, cause: Exception):
         """Interrupt all dependent SimPy processes."""
@@ -252,10 +254,11 @@ class Simulation:
         Columns:
             instance_iri, instance_type, action_id, action_type, sim_timestamp
         """
-        from libsyn_tools.sim.operation.runtime import (
-            _RUNTIME_CACHE,
-            _needs_runtime_tracking,
-        )
+        end_time_index = {
+            r.operation_id: r.timestamp
+            for r in self.history_log
+            if r.event_type == "OPERATION_END"
+        }
 
         rows: list[dict] = []
         for rs in _RUNTIME_CACHE.values():
@@ -269,9 +272,10 @@ class Simulation:
                         "instance_type": rs.obj.__class__.__name__,
                         "action_id": action.identifier,
                         "action_type": action.__class__.__name__,
-                        "sim_timestamp": action.scheduled_start_time
-                        if action.scheduled_start_time is not None
-                        else self.env.now,
+                        # "sim_timestamp": action.scheduled_start_time
+                        # if action.scheduled_start_time is not None
+                        # else self.env.now,
+                        "sim_timestamp": end_time_index.get(action.identifier, None),
                     }
                 )
 
