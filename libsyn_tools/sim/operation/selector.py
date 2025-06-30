@@ -32,7 +32,7 @@ from libsyn_tools.sim.operation.runtime import get_runtime_state
 
 
 class FilterStoreRegistry:
-    _stores: Dict[str, simpy.FilterStore] = defaultdict(lambda: None)
+    _stores: Dict[str, simpy.FilterStore] = dict()
 
     @classmethod
     def get_filter_store(cls, pool_type: str, env: simpy.Environment | None = None) -> simpy.FilterStore:

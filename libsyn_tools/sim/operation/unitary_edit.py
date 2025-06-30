@@ -76,6 +76,21 @@ class UnitaryEdit(BaseModel):
                                     instance_2_iri=iri2,
                                     property_iri=prop)
 
+    def __init_subclass__(cls, **kwargs):
+        """
+        The five edit primitives declared below (Create, Annihilate, ChangeDataProperty, AddObjectProperty,
+        RemoveObjectProperty) form a complete set of atomic mutations for the simulator’s RDF-like knowledge graph.
+        Higher-level changes should be expressed as *sequences* of these primitives.
+        For that reason further subclassing of `UnitaryEdit` is explicitly blocked.
+        """
+        if cls.__module__ != __name__:
+            raise TypeError(
+                "Sub-classing UnitaryEdit outside operation.unitary_edit "
+                "is not allowed.  Use a sequence of the existing "
+                "edit primitives instead."
+            )
+        super().__init_subclass__(**kwargs)
+
 
 # ------------------------------------------------------------------
 # Concrete dataclass-style edits
@@ -109,8 +124,6 @@ class ChangeDataProperty(UnitaryEdit):
         subj = BaseClass.object_lookup[self.instance_1_iri]
         data_prop = SimOntology.data_property_lookup[self.property_iri]
         field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
-        # TODO so far we don't allow changing pool_type
-        assert field_name != "has_pool_type"
         setattr(subj, field_name, {self.data_value})
 
     def compute_inverse(self):

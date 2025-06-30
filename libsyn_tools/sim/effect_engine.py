@@ -8,7 +8,7 @@ from loguru import logger
 
 from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject, BaseClass
 from libsyn_tools.sim.operation import Operation, UnitaryEdit, UnitaryEditType, FilterStoreRegistry, get_runtime_state
-from libsyn_tools.sim.operation.runtime import _RESOURCE_MAP
+from libsyn_tools.sim.operation.runtime import _RESOURCE_MAP, _RUNTIME_CACHE
 
 
 class EditApplicationError(RuntimeError):
@@ -85,9 +85,12 @@ class EffectEngine:
             try:
                 logger.debug(f"Rollback: {inv}")
                 # NEW: `CREATE` during rollback may need registering too
+                obj = BaseClass.object_lookup[inv.instance_1_iri]
                 if inv.type is UnitaryEditType.CREATE:
-                    obj = BaseClass.object_lookup[inv.instance_1_iri]
                     self._register_if_new(obj, env)
+                elif inv.type is UnitaryEditType.ANNIHILATE:
+                    self._unregister_object(obj)
+                self._sync_filter_stores(obj, env)
                 inv.apply()
             except Exception as exc:  # pragma: no cover
                 logger.error(f"Rollback failed for {inv}: {exc!r}")
@@ -102,6 +105,7 @@ class EffectEngine:
         """Remove *all* runtime artefacts for a vanished object."""
         _RESOURCE_MAP.pop(obj.instance_iri, None)
         FilterStoreRegistry.remove_obj_from_filter_store(obj)
+        _RUNTIME_CACHE.pop(obj.instance_iri, None)
 
     def _sync_filter_stores(self, obj: LabObject, env: simpy.Environment):
         """
@@ -109,4 +113,5 @@ class EffectEngine:
         never leave an object in the wrong pool.
         """
         FilterStoreRegistry.remove_obj_from_filter_store(obj)
-        FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+        if obj.is_present == {True}:  # ← guard
+            FilterStoreRegistry.put_obj_into_filter_store(obj, env)
