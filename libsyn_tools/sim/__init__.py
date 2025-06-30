@@ -1,3 +1,3 @@
 from .knowledge_graph import *
-from .action import *
+from .operation import *
 from .simulation import *

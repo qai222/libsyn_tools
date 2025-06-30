@@ -5,7 +5,7 @@ from typing import List
 
 from loguru import logger
 
-from .action.core import Action, UnitaryEdit
+from libsyn_tools.sim.operation.operation import Operation, UnitaryEdit
 
 """
 All effects are centralised in one place so the DES layer remains domain‑agnostic and easier to test.
@@ -14,14 +14,14 @@ All effects are centralised in one place so the DES layer remains domain‑agnos
 
 class EffectEngine:
 
-    def prepare(self, action: Action) -> List[UnitaryEdit]:
+    def prepare(self, action: Operation) -> List[UnitaryEdit]:
         """Populate and return the *staged* edits for *action*.
 
         `Action.pre_act()` is intentionally called here – not inside the SimPy
         process – so that **all graph reads happen outside timing logic**.
         """
         action.pre_act()
-        return action.action_effects.copy()
+        return action.operation_effects.copy()
 
     def apply(self, edits: Iterable[UnitaryEdit]) -> None:
         """Apply each `UnitaryEdit` in order and log progress."""
@@ -29,7 +29,7 @@ class EffectEngine:
             logger.debug(f"Applying edit: {edit.type} – {edit.instance_1_iri}")
             edit.apply()
 
-    def finalize(self, action: Action) -> None:
+    def finalize(self, action: Operation) -> None:
         """Hook called after *all* edits commit successfully."""
         action.post_act()
 
@@ -51,7 +51,7 @@ class EffectEngine:
     @staticmethod
     def _inverse_edit(edit: UnitaryEdit) -> UnitaryEdit:
         """Return a *best‑effort* inverse of *edit* (utility)."""
-        from .action.core import UnitaryEditType as T  # local import avoids cycle
+        from libsyn_tools.sim.operation.operation import UnitaryEditType as T  # local import avoids cycle
 
         match edit.type:
             case T.CREATE:

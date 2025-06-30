@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any
-from typing import Optional
+from typing import Any, Optional, Union
 
+import simpy
 from loguru import logger
 from pydantic import BaseModel
-from twa.data_model.base_ontology import KnowledgeGraph
+from simpy.resources.resource import Request
+from twa.data_model.base_ontology import BaseClass
 
-from libsyn_tools.sim.knowledge_graph.base import SimOntology, Field, str_uuid
+from libsyn_tools.sim.knowledge_graph import SimOntology, Field, str_uuid
+from libsyn_tools.sim.operation.selector import Selector, LiteralSelector
 
 
 class UnitaryEditType(str, Enum):
@@ -51,11 +53,34 @@ class UnitaryEdit(BaseModel):
 
     model_config = {"frozen": True}
 
+    @classmethod
+    def create(cls, iri: str):
+        return cls(type=UnitaryEditType.CREATE, instance_1_iri=iri)
+
+    @classmethod
+    def annihilate(cls, iri: str):
+        return cls(type=UnitaryEditType.ANNIHILATE, instance_1_iri=iri)
+
+    @classmethod
+    def change_data_prop(cls, iri: str, data_prop: str, data_value: str):
+        return cls(type=UnitaryEditType.CHANGE_DATA_PROPERTY, instance_1_iri=iri, property_iri=data_prop,
+                   data_value=data_value)
+
+    @classmethod
+    def add_obj_prop(cls, iri1: str, property_iri: str, iri2: str):
+        return cls(type=UnitaryEditType.ADD_OBJECT_PROPERTY, instance_1_iri=iri1, instance_2_iri=iri2,
+                   property_iri=property_iri)
+
+    @classmethod
+    def remove_obj_prop(cls, iri1: str, property_iri: str, iri2: str):
+        return cls(type=UnitaryEditType.REMOVE_OBJECT_PROPERTY, instance_1_iri=iri1, instance_2_iri=iri2,
+                   property_iri=property_iri)
+
     def apply(self):
         logger.debug(f"applying edit: {self.type}")
         # TODO It is probably better to just use RDFlib
         # TODO type check lab objects
-        instance_1 = KnowledgeGraph.get_object_from_lookup(iri=self.instance_1_iri)
+        instance_1 = BaseClass.object_lookup[self.instance_1_iri]
 
         if self.type == UnitaryEditType.CREATE:
             instance_1.is_present = {True, }
@@ -75,7 +100,7 @@ class UnitaryEdit(BaseModel):
         elif self.type in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY):
             assert instance_1.is_present == {
                 True, }, "changing object property of a lab object but the subject is absent"
-            instance_2 = KnowledgeGraph.get_object_from_lookup(iri=self.instance_2_iri)
+            instance_2 = BaseClass.object_lookup[self.instance_2_iri]
             assert instance_2.is_present == {
                 True, }, "changing object property of a lab object but the object is absent"
             object_property = SimOntology.object_property_lookup[self.property_iri]
@@ -108,39 +133,62 @@ class Presumption(BaseModel):
         pass
 
 
-class Action(BaseModel):
+def _collect_participant_specs(operation: "Operation") -> dict[str, StrOrSelector]:
     """
-    An `Action` is a process that changes the knowledge graph
+    Scan all fields that start with 'participant_' and build a mapping
+    role → spec (str | Selector).
     """
-    # TODO make this an abstract class
+    return {
+        fname[len("participant_"):]: getattr(operation, fname)
+        for fname in operation.model_fields
+        if fname.startswith("participant_")
+    }
+
+
+def _write_participant_iris(operation: "Operation", resolved: dict[str, str]):
+    """Overwrite participant_* fields with literal IRIs (in-place)."""
+    for role, iri in resolved.items():
+        setattr(operation, f"participant_{role}", iri)
+
+
+StrOrSelector = Union[str, Selector]
+
+
+class Operation(ABC, BaseModel):
+    """
+    A `Operation` is a process that changes the knowledge graph.
+
+    Concrete operation define `participant_<role>` attrs and implement `get_action_effects()` to return a list of
+    UnitaryEdits built *after* all roles are resolved.
+    """
 
     identifier: str = Field(default_factory=str_uuid)
-    """ identifier of this action """
+    """ identifier of this operation """
 
     temporal_cost: Optional[float] = None
     # TODO this may depend on the actual knowledge graph right before its execution
-    """ an estimate of how long this action would take """
+    """ an estimate of how long this operation would take """
 
     scheduled_start_time: Optional[float] = None
     """ 
-    the scheduled start time, the actual start time in a simulation of this action cannot be earlier than the 
+    the scheduled start time, the actual start time in a simulation of this operation cannot be earlier than the 
     scheduled start time 
     """
 
     required_precedents: list[str] = Field(default_factory=list)
-    """ the uuids of the required precedent actions that must precede this action """
+    """ the uuids of the required precedent operations that must precede this operation """
 
     presumptions: list[Presumption] = Field(default_factory=list)
     # TODO formalize and implement
     # TODO we could define functions to validate presumptions in subclasses,
     #  or we can use SHACL like in https://github.com/RDFLib/pySHACL
     """
-    a set of assumptions of the world that serve as the prerequisites for this action to be executed
-    example: the robot arm is not occupied by any other actions
+    a set of assumptions of the world that serve as the prerequisites for this operation to be executed
+    example: the robot arm is not occupied by any other operations
     example: the container should contain at least 10 mL liquid
     """
 
-    action_effects: list[UnitaryEdit] = Field(default_factory=list)
+    operation_effects: list[UnitaryEdit] = Field(default_factory=list)
     """ 
     a list of unitary graph edits to the knowledge graph 
     """
@@ -148,13 +196,13 @@ class Action(BaseModel):
     #  "transfer half of what is inside A to B": the latter depends on the state of A right before execution and it is
     #  almost implied that during this transfer the content of A does not change.
 
-    action_effects_description: Optional[str] = None
+    operation_effects_description: Optional[str] = None
     """ free text description for the effects of this action """
 
     resources: list[str] = Field(default_factory=list)
     """
-    a list of uuids of the lab objects that will be occupied during the execution of this action,
-    used in DES as `resources`
+    a list of uuids of the lab objects that will be occupied during the execution of this operation, used in DES as 
+    `resources`.
     """
 
     # TODO It may make sense to also include specific properties, for example
@@ -169,30 +217,74 @@ class Action(BaseModel):
     #
     # Cullen: at the high-level wait for smth is always better than causing problems. disable general and enable specific.
 
+    _locks: list[Request] = Field(default_factory=list, exclude=True)
+    """
+    runtime-only attributes (excluded from serialisation)
+    """
+
     def execute(self):
-        """ applying action effects """
+        """ applying operation effects """
         logger.info(f"execute action: {self.identifier}")
-        for edit in self.action_effects:
+        for edit in self.operation_effects:
             edit.apply()
 
     @abstractmethod
-    def get_action_effects(self) -> list[UnitaryEdit]:
+    def get_operation_effects(self) -> list[UnitaryEdit]:
         pass
 
-    @abstractmethod
-    def get_resources(self) -> list[str]:
-        pass
+    def pre_act(self, env: simpy.Environment):
+        """
+        * resolve selectors  → IRIs
+        * acquire locks      (capacity-1 per LabObject)
+        * populate resources (resolved IRIs)
+        * compute action_effects
+        Returns a SimPy Event so the scheduler can `yield` on it.
+        """
+        return env.process(self._pre_act_implementation(env))
 
-    def pre_act(self) -> None:
-        """ populate action effects """
-        self.action_effects = self.get_action_effects()
-        for iri in self.resources:
-            resource = KnowledgeGraph.get_object_from_lookup(iri=iri)
-            assert resource.is_present == {True, }
+    def _pre_act_implementation(self, env: simpy.Environment) -> None:
+        participant_specs = _collect_participant_specs(self)
+
+        # deterministic ordering prevents dead-locks -------------------
+        ordered_specs = sorted(participant_specs.items(), key=lambda kv: str(kv[1]))
+
+        resolved: dict[str, str] = {}
+
+        for role, spec in ordered_specs:
+            if isinstance(spec, Selector):
+                iri, req = yield env.process(spec.resolve(env))
+            elif isinstance(spec, str):
+                # lock via LiteralSelector to keep path uniform
+                iri, req = yield env.process(
+                    LiteralSelector(spec).resolve(env)
+                )
+            else:
+                raise TypeError(
+                    f"Participant '{role}' has unsupported type {type(spec)}"
+                )
+            resolved[role] = iri
+            self._locks.append(req)
+
+        # overwrite participant_* fields with pure strings -------------
+        _write_participant_iris(self, resolved)
+
+        # also expose them via resources[] for backward compatibility
+        self.resources = list(resolved.values())
+
+        # build list of graph edits now that everything is bound -------
+        self.operation_effects = self.get_operation_effects()
 
     def post_act(self):
-        pass
+        for req in self._locks:
+            req.resource.release(req)
+        self._locks.clear()
 
-Action.model_rebuild()
+    class Config:
+        arbitrary_types_allowed = True
+        validate_assignment = False
+        extra = "forbid"
+
+
+Operation.model_rebuild()
 UnitaryEdit.model_rebuild()
 Presumption.model_rebuild()

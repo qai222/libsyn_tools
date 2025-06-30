@@ -105,7 +105,8 @@ class Is_immediate_part_of(SimObjectProperty):
     pass
 
 
-class Has_capacity(SimFunctionalDataProperty):
+class Has_pool_type(SimFunctionalDataProperty):
+    # TODO we only allow one pool type for now
     pass
 
 
@@ -121,11 +122,11 @@ class LabObject(Individual):
     is_immediate_part_of: Is_immediate_part_of[LabObject] = Field(default_factory=set)
     # TODO location?
 
-    has_capacity: Has_capacity[int] = Field(default={1, })
-
-    @property
-    def capacity(self):
-        return next(self.has_capacity)
+    has_pool_type: Has_pool_type[str] = Field(default_factory=set)
+    """ 
+    Objects with the same pool type will be grouped in a simpy filter store so it can be picked up by a selector 
+    see `libsyn_tools.sim.selector.FilterStoreRegistry` for more info
+    """
 
     @staticmethod
     def get_directly_contained_individuals(
@@ -191,8 +192,20 @@ class LabObject(Individual):
         return visited
 
 
+class Has_capacity(SimFunctionalDataProperty):
+    pass
+
+
 class MaterialContainer(LabObject):
     has_capacity: Has_capacity[float] = Field(default_factory=set)
+    """
+    Note this **does not** map to simpy resource capacity: simpy resource capacity is always 1.
+    We don't use simpy container even it supports continuous material quantity: it only deals with constant composition.
+    """
+
+    @property
+    def capacity(self):
+        return next(self.has_capacity)
 
 
 LabObject.model_rebuild()

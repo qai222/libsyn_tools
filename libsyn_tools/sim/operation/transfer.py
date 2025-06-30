@@ -4,12 +4,10 @@ from loguru import logger
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject, PortionOfMaterial
-from .core import Action, UnitaryEdit, UnitaryEditType
+from libsyn_tools.sim.operation.operation import Operation, UnitaryEdit, UnitaryEditType
 
 
-# TODO presumptions
-
-class TransferBase(Action, ABC):
+class TransferBase(Operation, ABC):
     """ transfer materials quantitatively """
 
     source_iri: str
@@ -42,7 +40,7 @@ class TransferMaterialByPortionSize(TransferBase):
     portion_size: float
     """ the portion size of the transferred materials from source container """
 
-    def get_action_effects(self) -> list[UnitaryEdit]:
+    def get_operation_effects(self) -> list[UnitaryEdit]:
         unitary_edits = []
 
         source_container = KnowledgeGraph.get_object_from_lookup(self.source_iri)
@@ -95,7 +93,7 @@ class TransferMaterialByVolume(TransferBase):
     transfer_volume: float
     """ the volume of the transferred materials from source container """
 
-    def get_action_effects(self) -> list[UnitaryEdit]:
+    def get_operation_effects(self) -> list[UnitaryEdit]:
         unitary_edits = []
 
         source_container = KnowledgeGraph.get_object_from_lookup(self.source_iri)
