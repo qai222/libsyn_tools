@@ -6,7 +6,7 @@ from typing import Dict, TYPE_CHECKING
 import simpy
 
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit
-from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject
+from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject, BaseClass
 
 if TYPE_CHECKING:
     from libsyn_tools.sim.operation.operation import Operation
@@ -52,6 +52,12 @@ def get_runtime_state(obj: LabObject, env: simpy.Environment) -> _RuntimeState:
     Ensure a LabObject has an attached runtime state for *this* env and
     return it.  Idempotent & fast (dict lookup).
     """
+    if not _needs_runtime_tracking(obj):
+        raise RuntimeError(
+            f"{obj.__class__.__name__} objects do not participate in "
+            "locking / runtime state."
+        )
+
     rs = _RUNTIME_CACHE.get(obj.identifier)
     if rs is None:
         rs = _RuntimeState(env, obj)
@@ -59,3 +65,13 @@ def get_runtime_state(obj: LabObject, env: simpy.Environment) -> _RuntimeState:
         # allow convenient access: obj._runtime  (purely in-memory)
         setattr(obj, "_runtime", rs)
     return rs
+
+def _needs_runtime_tracking(obj: BaseClass) -> bool:
+    """
+    Return True for objects that should be locked, pooled and keep
+    a _RuntimeState entry (i.e. real LabObjects – glassware, pumps,
+    robots …).  PortionOfMaterial and other data-only nodes return False.
+    """
+    from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject
+
+    return isinstance(obj, LabObject)
