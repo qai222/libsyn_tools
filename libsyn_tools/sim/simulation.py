@@ -10,10 +10,11 @@ from loguru import logger
 from pandas._typing import FilePath
 from pydantic import BaseModel
 
-from .operation import Operation
 from .effect_engine import EffectEngine
 from .knowledge_graph import LabObject
-from libsyn_tools.sim.operation.runtime import register_object_as_resource
+from .operation.operation import Operation
+from .operation.runtime import _RESOURCE_MAP, get_runtime_state
+from .operation.selector import FilterStoreRegistry
 
 
 class OperationEventRecord(BaseModel):
@@ -22,9 +23,12 @@ class OperationEventRecord(BaseModel):
     event_type: str
     operation_data: dict
 
-    def __repr__(self):
+    def __repr__(self) -> str:  # pragma: no cover – for interactive debug only
         return (
-            f"OperationEventRecord(operation_id={self.operation_id}, timestamp={self.timestamp}, event_type={self.event_type})"
+            f"OperationEventRecord("
+            f"operation_id={self.operation_id}, "
+            f"timestamp={self.timestamp:.3f}, "
+            f"event_type={self.event_type})"
         )
 
 
@@ -40,38 +44,26 @@ class OperationProcess:
             *,
             env: simpy.Environment,
             operation: Operation,
-            operation_registry: Dict[str, OperationProcess],
-            dependents: Dict[str, List[str]],  # pre‑computed dependency map
-            resource_map: Dict[str, simpy.Resource],
+            operation_registry: Dict[str, "OperationProcess"],
+            dependents: Dict[str, List[str]],
             history_log: List[OperationEventRecord],
             effect_engine: EffectEngine,
             speed_factor: float,
     ):
-        """
-        :param env: A SimPy Environment.
-        :param operation: The Operation we want to simulate.
-        :param operation_registry: Maps operation.identifier -> OperationProcess.
-        :param resource_map: Maps resource IRI -> simpy.Resource for concurrency control.
-        :param history_log: A list that will store ActionEventRecord objects.
-        """
-        self.dependents = dependents
         self.env = env
         self.operation = operation
         self.operation_registry = operation_registry
-        self.resource_map = resource_map
+        self.dependents = dependents
 
-        # We store the reference to a shared or global event log
         self.history_log = history_log
-
-        # Signaling event to indicate this process has finished.
-        self.done_event = env.event()
-
         self.effect_engine = effect_engine
-
         self.speed_factor = speed_factor
 
+        # Public event that predecessors / dependents can `yield`
+        self.done_event = env.event()
+
     def sim_time(self, dt: float) -> float:
-        """Scale `dt` by the global *simulation_speed_factor* (P0‑5)."""
+        """Scale a wall-clock delta by the *simulation* speed factor."""
         return dt * self.speed_factor
 
     def add_event_log(self, event_type: str, data: dict | None = None) -> None:
@@ -86,13 +78,16 @@ class OperationProcess:
 
     def run(self):
         """
-        The main generator function describing the logic for running an Operation in the simulation.
+        High-level lifecycle
+        --------------------
+        1.  Wait for schedule window + precedent operations
+        2.  `operation.pre_act()` → participant resolution & locking
+        3.  Simulated execution delay (`temporal_cost`)
+        4.  Apply edits atomically (rollback on failure)
+        5.  Release locks / cascade interrupts as needed
         """
-
-        resource_reqs: dict[simpy.Resource, simpy.events.Request] = dict()
         try:
-
-            # if scheduled, minimum delay to the scheduled time
+            # 1) if scheduled, minimum delay to the scheduled time
             if self.operation.scheduled_start_time is not None:
                 delay = self.operation.scheduled_start_time - self.env.now
                 if delay > 0:
@@ -103,69 +98,65 @@ class OperationProcess:
             if precedent_events:
                 yield self.env.all_of(precedent_events)
 
+            # 2) Resolve dynamic participants + acquire locks
+            yield self.operation.pre_act(self.env)
             # check presumptions
             for pres in self.operation.presumptions:
                 if not pres.validate(...):  # supply KG or context
                     raise ValueError(f"Presumption failed for {self.operation.identifier}: {pres}")
 
-            # acquire resource
-            for iri in sorted(set(self.operation.get_resources())):
-                try:
-                    res = self.resource_map[iri]
-                except KeyError as exc:
-                    raise RuntimeError(f"Resource {iri} is invalid; build_resources incomplete") from exc
-
-                if res not in resource_reqs:
-                    # choose request type based on resource class
-                    resource_reqs[res] = res.request()
-            yield self.env.all_of(resource_reqs.values())
-
-            # operation start
-            self.add_event_log(event_type="OPERATION_START")
+            # 3) Log start and simulate intrinsic duration
+            self.add_event_log("OPERATION_START")
             logger.debug(f"[t={self.env.now:.2f}] Start {self.operation.identifier}")
 
-            # simulated execution delay
             if self.operation.temporal_cost:
                 yield self.env.timeout(self.sim_time(self.operation.temporal_cost))
 
-            # Stage → apply → finalize
+            # 4) apply edits atomically
             staged = self.effect_engine.prepare(self.operation)
             self.effect_engine.apply(staged)
-            self.effect_engine.finalize(self.operation)
 
-            # Normal completion
+            # Normal completion – mark process done
             self.done_event.succeed()
-            self.add_event_log("ACTION_END")
+            self.add_event_log("OPERATION_END")
             logger.debug(f"[t={self.env.now:.2f}] Finished {self.operation.identifier}")
 
-        except simpy.Interrupt as intr:  # downstream abort (P0‑2)
+        # -------------------------------------------------------------- #
+        # Error / interrupt handling
+        # -------------------------------------------------------------- #
+        except simpy.Interrupt as intr:  # downstream abort
             logger.warning(f"{self.operation.identifier} interrupted: {intr.cause!r}")
             self.done_event.fail(intr)
-            self.add_event_log("ACTION_ABORTED")
+            self.add_event_log("OPERATION_ABORTED")
 
         except Exception as err:
             self.done_event.fail(err)
-            self.add_event_log("ACTION_ERROR")
+            self.add_event_log("OPERATION_ERROR")
             logger.error(f"[t={self.env.now:.2f}] {self.operation.identifier} failed: {err!r}")
             self._cascade_interrupt(err)
             raise
+
         finally:
-            for req in resource_reqs.values():
-                if req.triggered:
-                    req.resource.release(req)
+            # Always release locks obtained in *pre_act*
+            self.operation.post_act()
 
     def _cascade_interrupt(self, cause: Exception):
-        """Interrupt all dependent SimPy processes (P0‑2)."""
+        """Interrupt all dependent SimPy processes."""
         for dep_id in self.dependents[self.operation.identifier]:
             dep_proc = self.operation_registry[dep_id]
             if dep_proc.simpy_process and dep_proc.simpy_process.is_alive:
                 try:
                     dep_proc.simpy_process.interrupt(cause)
-                except RuntimeError:  # process already terminated
+                except RuntimeError:  # already terminated
                     pass
 
 
 class Simulation:
+    """
+    Orchestrates a collection of `Operation` instances inside a SimPy
+    `Environment`.  One `Simulation` ≈ one *experimental run*.
+    """
+
     def __init__(
             self,
             operations: List[Operation],
@@ -173,73 +164,85 @@ class Simulation:
             simulation_speed_factor: float = 1.0,
             random_seed: int | None = None,
     ):
+        # 0) SimPy env + RNG
         self.env = simpy.Environment()
-        self.operations = operations
-
         self.rng = random.Random(random_seed)
-        self.speed_factor = simulation_speed_factor
 
+        # 1) Core data
+        self.operations = operations
+        self.speed_factor = simulation_speed_factor
+        self.effect_engine = EffectEngine()
+
+        # 2) Runtime bookkeeping
         self.operation_registry: Dict[str, OperationProcess] = {}
-        self.resource_map: Dict[str, simpy.Resource] = {}
-        # A single list to store all event records from the entire simulation
+        self.dependents: Dict[str, List[str]] = defaultdict(list)
         self.history_log: List[OperationEventRecord] = []
 
-        self.effect_engine = EffectEngine()
-        self.dependents: Dict[str, List[str]] = defaultdict(list)
+        # 3) Build runtime artefacts
+        self._build_dependency_map()
+        self._build_resources()
+        self._build_processes()
 
-        self.build_dependency_map()
-        self.build_resources()
-        self.build_processes()
+    # .................................................................. #
+    # Construction helpers
+    # .................................................................. #
+    def _build_dependency_map(self) -> None:
+        for op in self.operations:
+            for pred in op.required_precedents:
+                self.dependents[pred].append(op.identifier)
 
-    def build_dependency_map(self):
-        for operation in self.operations:
-            for pred in operation.required_precedents:
-                self.dependents[pred].append(operation.identifier)
+    def _build_resources(self) -> None:
+        """
+        For **every** `LabObject` currently known in memory:
 
-    def build_resources(self):
-        for lab_obj in LabObject.object_lookup.values():
-            register_object_as_resource(lab_obj, self.env)
+        • Create a capacity-1 `simpy.Resource`
+        • Store it in *both* the per-simulation map *and*
+          the global runtime map used by selectors
+        • If the object carries a `pool_type`, drop it into the
+          corresponding `FilterStore` so Attribute/History selectors work
+          without manual intervention.
+        """
+        for obj in LabObject.object_lookup.values():
+            res = simpy.Resource(self.env, capacity=1)
+            _RESOURCE_MAP[obj.instance_iri] = res  # global for selectors
+            # Each LabObject exposes its runtime through convenience attr
+            rs = get_runtime_state(obj, self.env)
+            rs.lock = res
 
-    def build_processes(self):
-        for act in self.operations:
-            if act.identifier in self.operation_registry:
-                raise ValueError(f"Duplicate Action identifier {act.identifier}.")
-            self.operation_registry[act.identifier] = OperationProcess(
+            # Auto-register for dynamic selection pools
+            FilterStoreRegistry.put_obj_into_filter_store(obj, self.env)
+
+    def _build_processes(self) -> None:
+        for op in self.operations:
+            if op.identifier in self.operation_registry:
+                raise ValueError(f"Duplicate Operation identifier {op.identifier}")
+            self.operation_registry[op.identifier] = OperationProcess(
                 env=self.env,
-                operation=act,
+                operation=op,
                 operation_registry=self.operation_registry,
                 dependents=self.dependents,
-                resource_map=self.resource_map,
-                history_log=self.history_log,  # pass the shared log
+                history_log=self.history_log,
                 effect_engine=self.effect_engine,
                 speed_factor=self.speed_factor,
             )
 
-    def run(self, until: float = None):
+    def run(self, until: float | None = None) -> None:
+        """Kick off all `OperationProcess` coroutines and block until done."""
         for proc in self.operation_registry.values():
             proc.simpy_process = self.env.process(proc.run())
 
-        logger.info("Starting the simulation environment.")
+        logger.info("Simulation start")
         self.env.run(until=until)
-        logger.info(f"Simulation ended at time: {self.env.now}")
+        logger.info(f"Simulation end @ t = {self.env.now}")
 
-    def export_event_log(self, filename: FilePath):
-        """
-        Example function to export the event log to a CSV or JSON file.
-        """
+    def export_event_log(self, filename: FilePath) -> None:
+        """Persist the in-memory history to CSV/JSON downstream."""
         df_log = pd.DataFrame.from_records([r.model_dump() for r in self.history_log])
         df_log.to_csv(filename, index=False)
-        logger.info(f"Event log exported to: {filename}")
+        logger.info(f"Event log exported → {filename}")
 
+    # Convenience factory ------------------------------------------------ #
     @classmethod
-    def compile_actions(cls, *actions: "Operation", **kwargs) -> "Simulation":
-        """
-        Factory wrapper that instantiates :class:`ActionSimulation` directly.
-        """
+    def compile_actions(cls, *actions: Operation, **kwargs) -> "Simulation":
+        """Sugar for `Simulation(list(actions), **kwargs)`."""
         return cls(list(actions), **kwargs)
-
-    def get_resource_pool(self, iris: list[str]) -> list[simpy.Resource]:
-        """
-        Return the *Resource* objects corresponding to *iris* (ordered).
-        """
-        return [self.resource_map[i] for i in iris]
