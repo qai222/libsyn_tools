@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel
-from twa.data_model.base_ontology import BaseClass
+from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim.knowledge_graph import SimOntology
 
@@ -99,7 +99,7 @@ class Create(UnitaryEdit):
     type: Literal[UnitaryEditType.CREATE] = UnitaryEditType.CREATE
 
     def apply(self):
-        BaseClass.object_lookup[self.instance_1_iri].is_present = {True}
+        KnowledgeGraph.get_object_from_lookup(self.instance_1_iri).is_present = {True}
 
     def compute_inverse(self):
         return Annihilate(instance_1_iri=self.instance_1_iri)
@@ -109,7 +109,7 @@ class Annihilate(UnitaryEdit):
     type: Literal[UnitaryEditType.ANNIHILATE] = UnitaryEditType.ANNIHILATE
 
     def apply(self):
-        BaseClass.object_lookup[self.instance_1_iri].is_present = {False}
+        KnowledgeGraph.get_object_from_lookup(self.instance_1_iri).is_present = {False}
 
     def compute_inverse(self):
         return Create(instance_1_iri=self.instance_1_iri)
@@ -121,13 +121,13 @@ class ChangeDataProperty(UnitaryEdit):
     )
 
     def apply(self):
-        subj = BaseClass.object_lookup[self.instance_1_iri]
+        subj = KnowledgeGraph.get_object_from_lookup(self.instance_1_iri)
         data_prop = SimOntology.data_property_lookup[self.property_iri]
         field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
         setattr(subj, field_name, {self.data_value})
 
     def compute_inverse(self):
-        subj = BaseClass.object_lookup[self.instance_1_iri]
+        subj = KnowledgeGraph.get_object_from_lookup(self.instance_1_iri)
         data_prop = SimOntology.data_property_lookup[self.property_iri]
         field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
 
@@ -146,8 +146,8 @@ class AddObjectProperty(UnitaryEdit):
     )
 
     def apply(self):
-        subj = BaseClass.object_lookup[self.instance_1_iri]
-        obj = BaseClass.object_lookup[self.instance_2_iri]
+        subj = KnowledgeGraph.get_object_from_lookup(self.instance_1_iri)
+        obj = KnowledgeGraph.get_object_from_lookup(self.instance_2_iri)
         obj_prop = SimOntology.object_property_lookup[self.property_iri]
         field_name = obj_prop.__name__[0].lower() + obj_prop.__name__[1:]
         getattr(subj, field_name).add(obj)
@@ -166,8 +166,8 @@ class RemoveObjectProperty(UnitaryEdit):
     )
 
     def apply(self):
-        subj = BaseClass.object_lookup[self.instance_1_iri]
-        obj = BaseClass.object_lookup[self.instance_2_iri]
+        subj = KnowledgeGraph.get_object_from_lookup(self.instance_1_iri)
+        obj = KnowledgeGraph.get_object_from_lookup(self.instance_2_iri)
         obj_prop = SimOntology.object_property_lookup[self.property_iri]
         field_name = obj_prop.__name__[0].lower() + obj_prop.__name__[1:]
         getattr(subj, field_name).remove(obj)

@@ -105,7 +105,7 @@ class OperationProcess:
 
             # 3) Log start and simulate intrinsic duration
             self.add_event_log("OPERATION_START")
-            logger.debug(f"[t={self.env.now:.2f}] Start {self.operation.identifier}")
+            logger.debug(f"[t={self.env.now:.2f}] Start {self.operation.__class__.__name__}={self.operation.identifier}")
 
             if self.operation.temporal_cost:
                 yield self.env.timeout(self.sim_time(self.operation.temporal_cost))

@@ -5,7 +5,7 @@ from typing import List
 
 import simpy
 from loguru import logger
-
+from twa.data_model.base_ontology import KnowledgeGraph
 from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject, BaseClass
 from libsyn_tools.sim.operation import Operation, UnitaryEdit, UnitaryEditType, FilterStoreRegistry, get_runtime_state
 from libsyn_tools.sim.operation.runtime import _RESOURCE_MAP, _RUNTIME_CACHE
@@ -58,20 +58,21 @@ class EffectEngine:
                 inverse = edit.compute_inverse()
 
                 # auto register simpy resource
-                obj = BaseClass.object_lookup[edit.instance_1_iri]
+                obj = KnowledgeGraph.get_object_from_lookup(edit.instance_1_iri)
                 if edit.type == UnitaryEditType.CREATE:
+                    # logger.debug(f"trigger register for {obj.__class__.__name__}={obj.instance_iri}")
                     self._register_if_new(obj, env)
                 elif edit.type == UnitaryEditType.ANNIHILATE:
                     self._unregister_object(obj)
 
-                logger.debug(f"Applying edit: {edit.type} – {edit.instance_1_iri}")
+                logger.debug(f"Applying edit: {edit.type} – {obj.__class__.__name__}={edit.instance_1_iri}")
                 edit.apply()
                 applied.append(edit)
                 inverses.append(inverse)
 
                 self._sync_filter_stores(obj, env)
 
-                rs = get_runtime_state(BaseClass.object_lookup[edit.instance_1_iri], env)
+                rs = get_runtime_state(KnowledgeGraph.get_object_from_lookup(edit.instance_1_iri), env)
                 rs.recent_edits.append(edit)
 
         except Exception as exc:  # pragma: no cover – transaction abort
@@ -85,7 +86,7 @@ class EffectEngine:
             try:
                 logger.debug(f"Rollback: {inv}")
                 # NEW: `CREATE` during rollback may need registering too
-                obj = BaseClass.object_lookup[inv.instance_1_iri]
+                obj = KnowledgeGraph.get_object_from_lookup(inv.instance_1_iri)
                 if inv.type is UnitaryEditType.CREATE:
                     self._register_if_new(obj, env)
                 elif inv.type is UnitaryEditType.ANNIHILATE:
@@ -100,6 +101,7 @@ class EffectEngine:
         if obj.instance_iri not in _RESOURCE_MAP:
             _RESOURCE_MAP[obj.instance_iri] = simpy.Resource(env, capacity=1)
             FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+            logger.debug(f"auto register new object: {obj.__class__.__name__}={obj.instance_iri}")
 
     def _unregister_object(self, obj: LabObject):
         """Remove *all* runtime artefacts for a vanished object."""
