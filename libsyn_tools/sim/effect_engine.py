@@ -57,7 +57,6 @@ class EffectEngine:
 
         try:
             for edit in edits:
-                inverses.append(edit.compute_inverse())
 
                 subj = KnowledgeGraph.get_object_from_lookup(edit.instance_1_iri)
                 obj2 = (
@@ -76,6 +75,7 @@ class EffectEngine:
 
                 logger.debug(f"Applying edit: {edit.type} – {subj.__class__.__name__}={edit.instance_1_iri}")
                 edit.apply()
+                inverses.append(edit.compute_inverse())  # edit.apply() may raise, so only inverse compute after that
                 applied.append(edit)
 
                 if edit.type is UnitaryEditType.CREATE:
@@ -114,16 +114,11 @@ class EffectEngine:
                        and inv.instance_2_iri else None
                 )
 
-                # symmetrically prepare resources
-                if inv.type is UnitaryEditType.CREATE:
-                    self._register_if_new(subj, env)
-                elif inv.type is UnitaryEditType.ANNIHILATE:
-                    # postpone unregister until after inv.apply()
-                    pass
-
                 inv.apply()
 
-                if inv.type is UnitaryEditType.ANNIHILATE:
+                if subj.is_present == {True}:                 # object exists ⇒ ensure resource & pool
+                    self._register_if_new(subj, env)
+                else:                                         # vanished ⇒ clean runtime artefacts
                     self._unregister_object(subj)
 
                 self._sync_filter_stores(subj, env)

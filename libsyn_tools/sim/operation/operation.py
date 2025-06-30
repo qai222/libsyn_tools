@@ -8,8 +8,9 @@ from pydantic import BaseModel
 from simpy.resources.resource import Request
 
 from libsyn_tools.sim.knowledge_graph import Field, str_uuid
-from libsyn_tools.sim.operation.selector import Selector, LiteralSelector
-from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit
+from libsyn_tools.sim.operation.selector import Selector, LiteralSelector, FilterStoreRegistry
+from libsyn_tools.sim.operation.runtime import get_object_for_resource
+from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit, UnitaryEditType
 
 
 class Presumption(BaseModel):
@@ -149,6 +150,7 @@ class Operation(ABC, BaseModel):
         ordered_specs = sorted(participant_specs.items(), key=lambda kv: str(kv[1]))
 
         resolved: dict[str, str] = {}
+        acquired: dict[str, simpy.events.Event] = {}  # iri → lock (for dedup)
 
         for role, spec in ordered_specs:
             if isinstance(spec, Selector):
@@ -162,6 +164,13 @@ class Operation(ABC, BaseModel):
                 raise TypeError(
                     f"Participant '{role}' has unsupported type {type(spec)}"
                 )
+
+            if iri in acquired:
+                req.resource.release(req)              # we already hold the lock
+                req = acquired[iri]
+            else:
+                acquired[iri] = req
+
             resolved[role] = iri
             self.locks.append(req)
 
@@ -174,9 +183,19 @@ class Operation(ABC, BaseModel):
         # build list of graph edits now that everything is bound -------
         self.operation_effects = self.get_operation_effects()
 
-    def post_act(self):
+        created_iris = [e.instance_1_iri for e in self.operation_effects
+                        if e.type is UnitaryEditType.CREATE]
+        if len(created_iris) != len(set(created_iris)):
+            raise RuntimeError(
+                f"Duplicate CREATE IRIs detected in {self.identifier}: {created_iris}"
+            )
+
+    def post_act(self, env: simpy.Environment):
         for req in self.locks:
+            obj = get_object_for_resource(req.resource)
             req.resource.release(req)
+            if obj.is_present == {True}:
+                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
         self.locks.clear()
 
     class Config:
