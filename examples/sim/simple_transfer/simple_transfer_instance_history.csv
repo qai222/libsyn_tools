@@ -1,0 +1,4 @@
+instance_iri,instance_type,action_id,action_type,sim_timestamp
+beaker_1,LabObject,aa9b0316-1e1c-4713-a85f-f41b2cf5c0af,TransferMaterialByPortionSize,0
+beaker_2,LabObject,aa9b0316-1e1c-4713-a85f-f41b2cf5c0af,TransferMaterialByPortionSize,0
+pipette_3,LabObject,aa9b0316-1e1c-4713-a85f-f41b2cf5c0af,TransferMaterialByPortionSize,0

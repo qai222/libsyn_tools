@@ -10,10 +10,10 @@ from loguru import logger
 from pandas._typing import FilePath
 from pydantic import BaseModel
 
-from .effect_engine import EffectEngine
+from .effect_engine import EffectEngine, KnowledgeGraph
 from .knowledge_graph import LabObject
 from .operation.operation import Operation
-
+from .operation.runtime import _needs_runtime_tracking, get_runtime_state
 
 class OperationEventRecord(BaseModel):
     operation_id: str
@@ -113,6 +113,11 @@ class OperationProcess:
             # 4) apply edits atomically
             staged = self.effect_engine.prepare(self.operation)
             self.effect_engine.apply(staged, self.env)
+
+            for iri in self.operation.resources:  # source, destination, device …
+                obj = KnowledgeGraph.get_object_from_lookup(iri)
+                if _needs_runtime_tracking(obj):
+                    get_runtime_state(obj, self.env).recent_operations.append(self.operation)
 
             # Normal completion – mark process done
             self.done_event.succeed()
@@ -237,3 +242,39 @@ class Simulation:
     def compile_actions(cls, *actions: Operation, **kwargs) -> "Simulation":
         """Sugar for `Simulation(list(actions), **kwargs)`."""
         return cls(list(actions), **kwargs)
+
+    def export_instance_history(self, filename: FilePath) -> None:
+        """
+        Write a CSV that lists every LabObject that participated in an
+        `Operation` during this simulation run, together with the action
+        identifier and class name.
+
+        Columns:
+            instance_iri, instance_type, action_id, action_type, sim_timestamp
+        """
+        from libsyn_tools.sim.operation.runtime import (
+            _RUNTIME_CACHE,
+            _needs_runtime_tracking,
+        )
+
+        rows: list[dict] = []
+        for rs in _RUNTIME_CACHE.values():
+            if not _needs_runtime_tracking(rs.obj):
+                continue                         # skip PortionOfMaterial etc.
+
+            for action in rs.recent_operations:
+                rows.append(
+                    {
+                        "instance_iri": rs.obj.identifier,
+                        "instance_type": rs.obj.__class__.__name__,
+                        "action_id": action.identifier,
+                        "action_type": action.__class__.__name__,
+                        "sim_timestamp": action.scheduled_start_time
+                        if action.scheduled_start_time is not None
+                        else self.env.now,
+                    }
+                )
+
+        df = pd.DataFrame(rows)
+        df.to_csv(filename, index=False)
+        logger.info(f"Instance history exported → {filename}")

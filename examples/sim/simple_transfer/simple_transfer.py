@@ -1,6 +1,7 @@
-import os.path
-
-from libsyn_tools.sim import *
+import os
+from twa.data_model.base_ontology import KnowledgeGraph
+from libsyn_tools.sim import LabObject, Chemical, PortionOfMaterial, logger, Create, Simulation, SimOntology
+from libsyn_tools.sim.operation_preset import TransferMaterialByPortionSize
 
 """
 a simple transfer action between two containers
@@ -22,22 +23,21 @@ def init_world():
 
     # creation
     logger.info("create world")
-    UnitaryEdit(type=UnitaryEditType.CREATE, instance_1_iri=beaker_1.instance_iri, ).apply()
-    UnitaryEdit(type=UnitaryEditType.CREATE, instance_1_iri=beaker_2.instance_iri, ).apply()
-    UnitaryEdit(type=UnitaryEditType.CREATE, instance_1_iri=water_pom.instance_iri, ).apply()
-    UnitaryEdit(type=UnitaryEditType.CREATE, instance_1_iri=pipette_1.instance_iri, ).apply()
+    for thing in [beaker_1, beaker_2, pipette_1, water_pom]:
+        Create(instance_1_iri=thing.instance_iri).apply()
     return beaker_1, beaker_2, pipette_1
 
 
 if __name__ == '__main__':
     beaker_1, beaker_2, pipette_1 = init_world()
     transfer = TransferMaterialByPortionSize(
-        source_iri=beaker_1.instance_iri,
-        destination_iri=beaker_2.instance_iri,
-        transfer_device_iri=pipette_1.instance_iri,
+        participant_source=beaker_1.instance_iri,
+        participant_destination=beaker_2.instance_iri,
+        participant_device=pipette_1.instance_iri,
         portion_size=0.3
     )
-    transfer.pre_act()
-    transfer.execute()
+    sim = Simulation(operations=[transfer])
+    sim.run()
+    sim.export_instance_history(f"{os.path.basename(__file__)[:-3]}_instance_history.csv")
     g = KnowledgeGraph.graph()
     g.serialize(destination=f"{os.path.basename(__file__)[:-3]}.ttl", format="turtle")
