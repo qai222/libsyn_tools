@@ -13,8 +13,6 @@ from pydantic import BaseModel
 from .effect_engine import EffectEngine
 from .knowledge_graph import LabObject
 from .operation.operation import Operation
-from .operation.runtime import _RESOURCE_MAP, get_runtime_state
-from .operation.selector import FilterStoreRegistry
 
 
 class OperationEventRecord(BaseModel):
@@ -96,7 +94,7 @@ class OperationProcess:
             # wait for all precedents at once
             precedent_events = [self.operation_registry[pid].done_event for pid in self.operation.required_precedents]
             if precedent_events:
-                yield self.env.all_of(precedent_events)
+                yield simpy.events.AllOf(self.env, precedent_events)
 
             # 2) Resolve dynamic participants + acquire locks
             yield self.operation.pre_act(self.env)
@@ -203,14 +201,7 @@ class Simulation:
           without manual intervention.
         """
         for obj in LabObject.object_lookup.values():
-            res = simpy.Resource(self.env, capacity=1)
-            _RESOURCE_MAP[obj.instance_iri] = res  # global for selectors
-            # Each LabObject exposes its runtime through convenience attr
-            rs = get_runtime_state(obj, self.env)
-            rs.lock = res
-
-            # Auto-register for dynamic selection pools
-            FilterStoreRegistry.put_obj_into_filter_store(obj, self.env)
+            self.effect_engine._register_if_new(obj, self.env)
 
     def _build_processes(self) -> None:
         for op in self.operations:

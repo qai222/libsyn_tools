@@ -3,9 +3,21 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import List
 
+import simpy
 from loguru import logger
 
-from libsyn_tools.sim.operation.operation import Operation, UnitaryEdit, UnitaryEditType
+from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject, BaseClass
+from libsyn_tools.sim.operation import Operation, UnitaryEdit, UnitaryEditType, FilterStoreRegistry, get_runtime_state
+from libsyn_tools.sim.operation.runtime import _RESOURCE_MAP
+
+
+class EditApplicationError(RuntimeError):
+    """Wraps the original exception + the offending edit for richer traceback."""
+
+    def __init__(self, edit: UnitaryEdit, original: Exception):
+        self.edit = edit
+        self.original = original
+        super().__init__(f"Failed applying {edit}: {original!r}")
 
 
 class EffectEngine:
@@ -32,7 +44,7 @@ class EffectEngine:
         """
         return action.operation_effects.copy()
 
-    def apply(self, edits: Iterable[UnitaryEdit]) -> None:
+    def apply(self, edits: Iterable[UnitaryEdit], env: simpy.Environment) -> None:
         """
         Apply each `UnitaryEdit` **in order**.
 
@@ -40,45 +52,44 @@ class EffectEngine:
         the original exception bubbles up.
         """
         applied: list[UnitaryEdit] = []
+        inverses: list[UnitaryEdit] = []
         try:
             for edit in edits:
+                inverse = edit.compute_inverse()
+
+                # auto register simpy resource
+                if edit.type == UnitaryEditType.CREATE:
+                    obj = BaseClass.object_lookup[edit.instance_1_iri]
+                    self._register_if_new(obj, env)
+
                 logger.debug(f"Applying edit: {edit.type} – {edit.instance_1_iri}")
                 edit.apply()
                 applied.append(edit)
+                inverses.append(inverse)
+
+                rs = get_runtime_state(BaseClass.object_lookup[edit.instance_1_iri], env)
+                rs.recent_edits.append(edit)
+
         except Exception as exc:  # pragma: no cover – transaction abort
             logger.error(f"Edit failed, rolling back {len(applied)} edits")
-            self.rollback(applied)
-            raise
+            self.rollback(inverses, env)
+            raise EditApplicationError(edit, exc) from exc
 
-    def rollback(self, applied_edits: List[UnitaryEdit]) -> None:
+    def rollback(self, inverses: List[UnitaryEdit], env: simpy.Environment) -> None:
         """Undo *applied_edits* in **reverse order** (best-effort)."""
-        for edit in reversed(applied_edits):
+        for inv in reversed(inverses):
             try:
-                inverse = self._inverse_edit(edit)
-                logger.debug(f"Rollback: {inverse.type} – {inverse.instance_1_iri}")
-                inverse.apply()
+                logger.debug(f"Rollback: {inv}")
+                # NEW: `CREATE` during rollback may need registering too
+                if inv.type is UnitaryEditType.CREATE:
+                    obj = BaseClass.object_lookup[inv.instance_1_iri]
+                    self._register_if_new(obj, env)
+                inv.apply()
             except Exception as exc:  # pragma: no cover
-                # We *never* raise from here – a rollback must not cascade.
-                logger.error(f"Rollback failed for {edit}: {exc!r}")
+                logger.error(f"Rollback failed for {inv}: {exc!r}")
 
     @staticmethod
-    def _inverse_edit(edit: UnitaryEdit) -> UnitaryEdit:
-        """Return a **best-effort** inverse of *edit*."""
-        t = UnitaryEditType
-        match edit.type:
-            case t.CREATE:
-                return edit.model_copy(update={"type": t.ANNIHILATE})
-            case t.ANNIHILATE:
-                return edit.model_copy(update={"type": t.CREATE})
-            case t.CHANGE_DATA_PROPERTY:
-                # Without state diff we cannot deterministically invert –
-                # in production you would record the *before* value.
-                raise NotImplementedError(
-                    "Inverse for data-property change requires original value"
-                )
-            case t.ADD_OBJECT_PROPERTY:
-                return edit.model_copy(update={"type": t.REMOVE_OBJECT_PROPERTY})
-            case t.REMOVE_OBJECT_PROPERTY:
-                return edit.model_copy(update={"type": t.ADD_OBJECT_PROPERTY})
-            case _:
-                raise ValueError(f"Unknown edit type: {edit.type}")
+    def _register_if_new(obj: LabObject, env: simpy.Environment):
+        if obj.instance_iri not in _RESOURCE_MAP:
+            _RESOURCE_MAP[obj.instance_iri] = simpy.Resource(env, capacity=1)
+            FilterStoreRegistry.put_obj_into_filter_store(obj, env)

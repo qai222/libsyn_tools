@@ -1,118 +1,16 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from enum import Enum
 from typing import Any, Optional, Union
 
 import simpy
 from loguru import logger
 from pydantic import BaseModel
 from simpy.resources.resource import Request
-from twa.data_model.base_ontology import BaseClass
 
-from libsyn_tools.sim.knowledge_graph import SimOntology, Field, str_uuid
+from libsyn_tools.sim.knowledge_graph import Field, str_uuid
 from libsyn_tools.sim.operation.selector import Selector, LiteralSelector
-
-
-class UnitaryEditType(str, Enum):
-    """ possible types of a unitary edit """
-
-    CREATE = "CREATE"
-    """ create a lab object """
-
-    ANNIHILATE = "ANNIHILATE"
-    """ annihilate a lab object """
-
-    CHANGE_DATA_PROPERTY = "CHANGE_DATA_PROPERTY"
-    """ change a data property of a lab object """
-
-    ADD_OBJECT_PROPERTY = "ADD_OBJECT_PROPERTY"
-    """ add an object property between two lab objects """
-
-    REMOVE_OBJECT_PROPERTY = "REMOVE_OBJECT_PROPERTY"
-    """ remove an object property between two lab objects """
-
-
-class UnitaryEdit(BaseModel):
-    """ a unitary edit is a change to the knowledge graph that cannot be further divided """
-
-    type: UnitaryEditType
-    """ type of this unitary edit """
-
-    instance_1_iri: Optional[str] = None
-    """ the iri of the first instance, usually the subject """
-
-    instance_2_iri: Optional[str] = None
-    """ the iri of the second instance, usually the object """
-
-    property_iri: Optional[str] = None
-    """ the iri of the predicate """
-
-    data_value: Optional[Any] = None
-    """ data property value if this edit is to change a data property """
-
-    model_config = {"frozen": True}
-
-    @classmethod
-    def create(cls, iri: str):
-        return cls(type=UnitaryEditType.CREATE, instance_1_iri=iri)
-
-    @classmethod
-    def annihilate(cls, iri: str):
-        return cls(type=UnitaryEditType.ANNIHILATE, instance_1_iri=iri)
-
-    @classmethod
-    def change_data_prop(cls, iri: str, data_prop: str, data_value: str):
-        return cls(type=UnitaryEditType.CHANGE_DATA_PROPERTY, instance_1_iri=iri, property_iri=data_prop,
-                   data_value=data_value)
-
-    @classmethod
-    def add_obj_prop(cls, iri1: str, property_iri: str, iri2: str):
-        return cls(type=UnitaryEditType.ADD_OBJECT_PROPERTY, instance_1_iri=iri1, instance_2_iri=iri2,
-                   property_iri=property_iri)
-
-    @classmethod
-    def remove_obj_prop(cls, iri1: str, property_iri: str, iri2: str):
-        return cls(type=UnitaryEditType.REMOVE_OBJECT_PROPERTY, instance_1_iri=iri1, instance_2_iri=iri2,
-                   property_iri=property_iri)
-
-    def apply(self):
-        logger.debug(f"applying edit: {self.type}")
-        # TODO It is probably better to just use RDFlib
-        # TODO type check lab objects
-        instance_1 = BaseClass.object_lookup[self.instance_1_iri]
-
-        if self.type == UnitaryEditType.CREATE:
-            instance_1.is_present = {True, }
-
-        elif self.type == UnitaryEditType.ANNIHILATE:
-            instance_1.is_present = {False, }
-
-        elif self.type == UnitaryEditType.CHANGE_DATA_PROPERTY:
-            assert instance_1.is_present == {True, }, (f"changing data property='{self.property_iri}' for a lab "
-                                                       f"object='{self.instance_1_iri}' that is absent")
-            data_property = SimOntology.data_property_lookup[self.property_iri]
-            # TODO this only applies to functional data property
-            data_property_name = data_property.__class__.__name__
-            field_name = data_property_name[0].lower() + data_property_name[1:]
-            setattr(instance_1, field_name, {self.data_value, })
-
-        elif self.type in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY):
-            assert instance_1.is_present == {
-                True, }, "changing object property of a lab object but the subject is absent"
-            instance_2 = BaseClass.object_lookup[self.instance_2_iri]
-            assert instance_2.is_present == {
-                True, }, "changing object property of a lab object but the object is absent"
-            object_property = SimOntology.object_property_lookup[self.property_iri]
-            object_property_name = object_property.__class__.__name__
-            field_name = object_property_name[0].lower() + object_property_name[1:]
-            if self.type == UnitaryEditType.ADD_OBJECT_PROPERTY:
-                getattr(instance_1, field_name).add(instance_2)
-            else:
-                getattr(instance_1, field_name).remove(instance_2)
-
-        else:
-            raise ValueError(f"unknown unitary edit type: {self.type}")
+from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit
 
 
 class Presumption(BaseModel):

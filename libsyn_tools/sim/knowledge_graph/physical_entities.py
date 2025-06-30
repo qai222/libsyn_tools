@@ -6,8 +6,7 @@ from typing import Type, TypeVar
 from pydantic import Field
 
 from libsyn_tools.chem_schema import Chemical
-from .base import Individual, BaseClass, SimFunctionalDataProperty, SimDataProperty, \
-    SimObjectProperty
+from .base import Individual, BaseClass, SimFunctionalDataProperty, SimDataProperty, SimObjectProperty
 
 T = TypeVar("T", bound=BaseClass)
 
@@ -43,6 +42,8 @@ class PortionOfMaterial(Individual):
     def volume(self):
         v = 0
         for c in self.get_ingredients():
+            if c.volume is None:
+                raise ValueError(f"Chemical {c!r} lacks a `volume` value")
             v += c.volume
         return v
 
