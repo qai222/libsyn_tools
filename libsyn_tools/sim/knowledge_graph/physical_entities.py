@@ -9,6 +9,7 @@ from libsyn_tools.chem_schema import Chemical
 from .base import Individual, BaseClass, SimFunctionalDataProperty, SimDataProperty, SimObjectProperty
 
 T = TypeVar("T", bound=BaseClass)
+T_co = TypeVar("T_co", bound=BaseClass, covariant=True)
 
 
 class Has_ingredient(SimDataProperty):
@@ -132,9 +133,9 @@ class LabObject(Individual):
     @staticmethod
     def get_directly_contained_individuals(
             container: LabObject,
-            instance_class: Type[T] = None,
+            instance_class: Type[T_co] = None,
             only_present: bool = True
-    ) -> list[T]:
+    ) -> list[T_co]:
         # TODO pls tell me there is a faster way...
         # TODO can we have a function returns SPARQL results as BaseClass instances?
         directly_contains = []
