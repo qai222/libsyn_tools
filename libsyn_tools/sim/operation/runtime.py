@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Dict
+from typing import Dict, TYPE_CHECKING
 
 import simpy
 
-from libsyn_tools.sim.operation import UnitaryEdit, Operation
+from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit
 from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject
+
+if TYPE_CHECKING:
+    from libsyn_tools.sim.operation.operation import Operation
 
 # each lab object is mapped to a capacity=1 resource
 _RESOURCE_MAP: Dict[str, simpy.Resource] = {}
@@ -34,7 +37,7 @@ class _RuntimeState:
         self.obj = obj
         self.lock = get_resource_for_object(obj)
         self.recent_edits: deque[UnitaryEdit] = deque(maxlen=128)
-        self.recent_actions: deque[Operation] = deque(maxlen=128)
+        self.recent_operations: deque["Operation"] = deque(maxlen=128)
         # TODO we could use weakref but is it necessary? or maybe just use (timestamp, action id)?
         # from weakref import ref
         # self.recent_actions: deque[ref[Action]] = deque(maxlen=128)

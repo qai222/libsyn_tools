@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import inspect
 from abc import ABC, abstractmethod
-from collections import defaultdict
 from collections.abc import Callable
 from typing import Generator, Tuple, Dict
 

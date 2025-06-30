@@ -114,7 +114,7 @@ class Operation(ABC, BaseModel):
     #
     # Cullen: at the high-level wait for smth is always better than causing problems. disable general and enable specific.
 
-    _locks: list[Request] = Field(default_factory=list, exclude=True)
+    locks: list[Request] = Field(default_factory=list, exclude=True)
     """
     runtime-only attributes (excluded from serialisation)
     """
@@ -163,7 +163,7 @@ class Operation(ABC, BaseModel):
                     f"Participant '{role}' has unsupported type {type(spec)}"
                 )
             resolved[role] = iri
-            self._locks.append(req)
+            self.locks.append(req)
 
         # overwrite participant_* fields with pure strings -------------
         _write_participant_iris(self, resolved)
@@ -175,9 +175,9 @@ class Operation(ABC, BaseModel):
         self.operation_effects = self.get_operation_effects()
 
     def post_act(self):
-        for req in self._locks:
+        for req in self.locks:
             req.resource.release(req)
-        self._locks.clear()
+        self.locks.clear()
 
     class Config:
         arbitrary_types_allowed = True
