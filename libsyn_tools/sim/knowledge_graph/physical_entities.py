@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Type, TypeVar
+from typing import Type, TypeVar, Iterable
 
 from pydantic import Field
 
@@ -172,13 +172,31 @@ class LabObject(Individual):
                 vol += pom.volume
         return vol
 
+    @classmethod
+    def all_instances(cls) -> Iterable["LabObject"]:
+        """
+        Yield every `LabObject` (of *any* subclass) that currently exists
+        in memory — once per instance, no duplicates.
+
+        Uses depth-first traversal of the subclass tree so the cost is
+        proportional to the number of instantiated objects.
+        """
+        stack = [cls]
+        seen_ids: set[str] = set()
+
+        while stack:
+            cls = stack.pop()
+            # 1) instances of this concrete class
+            for obj in cls.object_lookup.values():
+                if obj.instance_iri not in seen_ids:
+                    seen_ids.add(obj.instance_iri)
+                    yield obj
+            # 2) recurse into child classes
+            stack.extend(cls.__subclasses__())
+
     @staticmethod
     def get_immediate_parts(lab_object: LabObject):
-        parts = []
-        for instance in LabObject.object_lookup.values():
-            if lab_object in instance.is_immediate_part_of:
-                parts.append(instance)
-        return parts
+        return [inst for inst in LabObject.all_instances() if lab_object in inst.is_immediate_part_of]
 
     @staticmethod
     def get_all_parts(lab_object: LabObject, visited=None):
