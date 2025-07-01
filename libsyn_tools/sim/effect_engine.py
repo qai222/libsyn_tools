@@ -74,8 +74,9 @@ class EffectEngine:
                     self._register_if_new(obj2, env)
 
                 logger.debug(f"Applying edit: {edit.type} – {subj.__class__.__name__}={edit.instance_1_iri}")
+                inverse = edit.compute_inverse()
                 edit.apply()
-                inverses.append(edit.compute_inverse())  # edit.apply() may raise, so only inverse compute after that
+                inverses.append(inverse)
                 applied.append(edit)
 
                 if edit.type is UnitaryEditType.CREATE:

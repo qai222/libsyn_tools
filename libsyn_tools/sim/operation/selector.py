@@ -86,6 +86,10 @@ class Selector(ABC):
         Wait in the *FilterStore* until an object fulfils `pred`, then
         request its lock.  If the object changes state between `get`
         and `request`, put it back and retry.
+
+        FIX – starvation: when a candidate fails under the lock we
+        re-insert it at the **front** of the queue so its original
+        ordering is preserved.
         """
         while True:
             # 1) wait until a suitable candidate appears in the pool
@@ -102,7 +106,9 @@ class Selector(ABC):
                 return obj.identifier, req
 
             rs.lock.release(req)
-            store.put(obj)  # put back so others may pick it, note the item loses FIFO position (goes to tail).
+            # SimPy >= 4 lets us manipulate .items directly.
+            # insert(0, obj) keeps FIFO order; put(obj) would append().
+            store.items.insert(0, obj)
 
 
 class LiteralSelector(Selector):
