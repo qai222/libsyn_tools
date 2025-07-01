@@ -25,6 +25,7 @@ from collections.abc import Callable
 from typing import Generator, Tuple, Dict
 
 import simpy
+from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject
 from libsyn_tools.sim.operation.runtime import get_runtime_state
@@ -120,7 +121,7 @@ class LiteralSelector(Selector):
     def resolve(
             self, env: simpy.Environment
     ) -> Generator[simpy.events.Event, None, Tuple[str, simpy.events.Event]]:
-        obj = LabObject.object_lookup[self._iri]
+        obj = KnowledgeGraph.get_object_from_lookup(iri=self._iri)
         obj: LabObject
         rs = get_runtime_state(obj, env)
         req = rs.lock.request()
