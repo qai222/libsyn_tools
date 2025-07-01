@@ -5,20 +5,25 @@ from typing import List
 
 import simpy
 from loguru import logger
+from pyshacl import validate
+from rdflib import ConjunctiveGraph
+from rdflib import Graph, Literal, URIRef, Namespace
+from rdflib.namespace import XSD
 from twa.data_model.base_ontology import KnowledgeGraph
 
-from libsyn_tools.sim.knowledge_graph.physical_entities import BaseClass
+from libsyn_tools.sim.knowledge_graph.physical_entities import BaseClass, MaterialContainer
 from libsyn_tools.sim.operation import Operation, UnitaryEdit, UnitaryEditType, FilterStoreRegistry, get_runtime_state
 from libsyn_tools.sim.operation.runtime import _RESOURCE_MAP, _RUNTIME_CACHE, _needs_runtime_tracking
 
+LIB_SYN = Namespace("https://libsyn-sim/kg/")
 
-class EditApplicationError(RuntimeError):
-    """Wraps the original exception + the offending edit for richer traceback."""
 
-    def __init__(self, edit: UnitaryEdit, original: Exception):
-        self.edit = edit
-        self.original = original
-        super().__init__(f"Failed applying {edit}: {original!r}")
+class SHACLValidationError(RuntimeError):
+    """
+    Raised when the knowledge graph violates one or more user-supplied
+    SHACL shapes *after* an Operation has been applied.
+    """
+    pass
 
 
 class EffectEngine:
@@ -31,11 +36,74 @@ class EffectEngine:
     2.  *apply()*  – iterate through the edits **atomically**.
         If any single edit raises, all previously-applied edits are rolled
         back in *reverse* order and the original exception is re-raised.
-    3.  *rollback()* – best-effort inverse for each edit (utility).
-
-    The class is intentionally *stateless* so one instance can be shared by
-    a whole `Simulation`.
     """
+
+    def __init__(
+            self,
+            *,
+            shapes_graph: ConjunctiveGraph | None = None,
+    ):
+        """
+        Parameters
+        ----------
+        shapes_graph
+            RDF graph containing user-defined SHACL shapes.
+        """
+        self.shapes_graph = shapes_graph
+        self.inference = "rdfs"
+
+    def _build_overlay_graph(self) -> Graph:
+        """
+        Construct an *ephemeral* rdflib.Graph that contains **derived**
+        triples needed for SHACL validation.
+
+        This graph is **not** written back to the KnowledgeGraph.
+        """
+        g = Graph()
+
+        # add current volume
+        for c in MaterialContainer.object_lookup.values():
+            if c.is_present != {True}:  # skip annihilated objects
+                continue
+            vol = c.directly_contained_pom_volume  # existing helper
+            g.add(
+                (
+                    URIRef(c.instance_iri),
+                    LIB_SYN.currentVolume,
+                    Literal(vol, datatype=XSD.double),
+                )
+            )
+        return g
+
+    def _run_shacl_validation(self) -> None:
+        if not (self.enable_validation and self.shapes_graph):
+            return
+
+        # 1) base data graph (asserted triples)
+        data_graph: Graph = KnowledgeGraph.graph()
+
+        # 2) overlay graph with derived facts
+        overlay_graph: Graph = self._build_overlay_graph()
+
+        # 3) merged view for validation  (ConjunctiveGraph |= overlay)
+        union_graph = ConjunctiveGraph()
+        for triple in data_graph.triples((None, None, None)):
+            union_graph.add(triple)
+        for triple in overlay_graph.triples((None, None, None)):
+            union_graph.add(triple)
+
+        conforms, report_graph, _ = validate(
+            union_graph,
+            shacl_graph=self.shapes_graph,
+            ont_graph=None,
+            inference=self.inference,
+            advanced=True,
+            debug=False,
+        )
+        logger.debug(f"shapes conform: {conforms}")
+        if not conforms:
+            logger.error(report_graph.serialize(format="turtle"))
+            raise SHACLValidationError(report_graph)
 
     def prepare(self, action: Operation) -> List[UnitaryEdit]:
         """Return a **defensive copy** of the staged edits for *action*.
@@ -53,46 +121,39 @@ class EffectEngine:
         the original exception bubbles up.
         """
         applied: list[UnitaryEdit] = []
-        inverses: list[UnitaryEdit] = []
 
-        try:
-            for edit in edits:
+        for edit in edits:
+            subj = KnowledgeGraph.get_object_from_lookup(edit.instance_1_iri)
+            obj2 = (
+                KnowledgeGraph.get_object_from_lookup(edit.instance_2_iri)
+                if edit.type in (UnitaryEditType.ADD_OBJECT_PROPERTY,
+                                 UnitaryEditType.REMOVE_OBJECT_PROPERTY)
+                   and edit.instance_2_iri
+                else None
+            )
 
-                subj = KnowledgeGraph.get_object_from_lookup(edit.instance_1_iri)
-                obj2 = (
-                    KnowledgeGraph.get_object_from_lookup(edit.instance_2_iri)
-                    if edit.type in (UnitaryEditType.ADD_OBJECT_PROPERTY,
-                                     UnitaryEditType.REMOVE_OBJECT_PROPERTY)
-                       and edit.instance_2_iri
-                    else None
-                )
+            self._register_if_new(subj, env)
+            # ensure every referenced LabObject owns a Resource
+            if edit.type is UnitaryEditType.CREATE:
+                pass  # postpone until after .apply()
+            elif obj2:  # only for ADD, not REMOVE
+                self._register_if_new(obj2, env)
 
-                # ensure every referenced LabObject owns a Resource
-                if edit.type is UnitaryEditType.CREATE:
-                    pass  # postpone until after .apply()
-                elif obj2:  # only for ADD, not REMOVE
-                    self._register_if_new(obj2, env)
+            logger.debug(f"Applying edit: {edit.type} – {subj.__class__.__name__}={edit.instance_1_iri}")
+            edit.apply()
+            applied.append(edit)
 
-                logger.debug(f"Applying edit: {edit.type} – {subj.__class__.__name__}={edit.instance_1_iri}")
-                inverse = edit.compute_inverse()
-                edit.apply()
-                inverses.append(inverse)
-                applied.append(edit)
+            if edit.type is UnitaryEditType.CREATE:
+                self._register_if_new(subj, env)
 
-                if edit.type is UnitaryEditType.CREATE:
-                    self._register_if_new(subj, env)
+            self._log_and_sync(subj, edit, env)
+            self._log_and_sync(obj2, edit, env)
 
-                self._log_and_sync(subj, edit, env)
-                self._log_and_sync(obj2, edit, env)
+            if edit.type is UnitaryEditType.ANNIHILATE:
+                # remove resource + filter entry only after logging
+                self._unregister_object(subj)
 
-                if edit.type is UnitaryEditType.ANNIHILATE:
-                    # remove resource + filter entry only after logging
-                    self._unregister_object(subj)
-
-        except Exception as exc:  # pragma: no cover – transaction abort
-            logger.error(f"Edit failed, rolling back {len(applied)} edits")
-            self.rollback(inverses, env)
-            raise EditApplicationError(edit, exc) from exc
+        self._run_shacl_validation()
 
     def _log_and_sync(self, obj: BaseClass, edit: UnitaryEdit,
                       env: simpy.Environment) -> None:
@@ -101,33 +162,6 @@ class EffectEngine:
             return
         get_runtime_state(obj, env).recent_edits.append(edit)
         self._sync_filter_stores(obj, env)
-
-    def rollback(self, inverses: List[UnitaryEdit], env: simpy.Environment) -> None:
-        """Undo *applied_edits* in **reverse order** (best-effort)."""
-        for inv in reversed(inverses):
-            try:
-                logger.debug(f"Rollback: {inv}")
-                subj = KnowledgeGraph.get_object_from_lookup(inv.instance_1_iri)
-                obj2 = (
-                    KnowledgeGraph.get_object_from_lookup(inv.instance_2_iri)
-                    if inv.type in {UnitaryEditType.ADD_OBJECT_PROPERTY,
-                                    UnitaryEditType.REMOVE_OBJECT_PROPERTY}
-                       and inv.instance_2_iri else None
-                )
-
-                inv.apply()
-
-                if subj.is_present == {True}:                 # object exists ⇒ ensure resource & pool
-                    self._register_if_new(subj, env)
-                else:                                         # vanished ⇒ clean runtime artefacts
-                    self._unregister_object(subj)
-
-                self._sync_filter_stores(subj, env)
-                if obj2:
-                    self._sync_filter_stores(obj2, env)
-
-            except Exception as exc:  # pragma: no cover
-                logger.error(f"Rollback failed for {inv}: {exc!r}")
 
     @staticmethod
     def _register_if_new(obj: BaseClass, env: simpy.Environment):

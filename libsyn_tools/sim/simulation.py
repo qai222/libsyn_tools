@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -9,12 +10,12 @@ import simpy
 from loguru import logger
 from pandas._typing import FilePath
 from pydantic import BaseModel
+from rdflib import Graph, ConjunctiveGraph
 
 from .effect_engine import EffectEngine, KnowledgeGraph
 from .knowledge_graph import LabObject
 from .operation.operation import Operation
 from .operation.runtime import _needs_runtime_tracking, get_runtime_state, _RUNTIME_CACHE
-
 
 
 class OperationEventRecord(BaseModel):
@@ -86,74 +87,45 @@ class OperationProcess:
         4.  Apply edits atomically (rollback on failure)
         5.  Release locks / cascade interrupts as needed
         """
-        try:
-            # 1) if scheduled, minimum delay to the scheduled time
-            if self.operation.scheduled_start_time is not None:
-                delay = self.operation.scheduled_start_time - self.env.now
-                if delay > 0:
-                    yield self.env.timeout(self.sim_time(delay))
+        # 1) if scheduled, minimum delay to the scheduled time
+        if self.operation.scheduled_start_time is not None:
+            delay = self.operation.scheduled_start_time - self.env.now
+            if delay > 0:
+                yield self.env.timeout(self.sim_time(delay))
 
-            # wait for all precedents at once
-            precedent_events = [self.operation_registry[pid].done_event for pid in self.operation.required_precedents]
-            if precedent_events:
-                yield simpy.events.AllOf(self.env, precedent_events)
+        # wait for all precedents at once
+        precedent_events = [self.operation_registry[pid].done_event for pid in self.operation.required_precedents]
+        if precedent_events:
+            yield simpy.events.AllOf(self.env, precedent_events)
 
-            # 2) Resolve dynamic participants + acquire locks
-            yield self.operation.pre_act(self.env)
-            # check presumptions
-            for pres in self.operation.presumptions:
-                if not pres.validate(...):  # supply KG or context
-                    raise ValueError(f"Presumption failed for {self.operation.identifier}: {pres}")
+        # 2) Resolve dynamic participants + acquire locks
+        yield self.operation.pre_act(self.env)
+        # check presumptions
+        for pres in self.operation.presumptions:
+            if not pres.validate(...):  # supply KG or context
+                raise ValueError(f"Presumption failed for {self.operation.identifier}: {pres}")
 
-            # 3) Log start and simulate intrinsic duration
-            self.add_event_log("OPERATION_START")
-            logger.debug(f"[t={self.env.now:.2f}] Start {self.operation.__class__.__name__}={self.operation.identifier}")
+        # 3) Log start and simulate intrinsic duration
+        self.add_event_log("OPERATION_START")
+        logger.debug(
+            f"[t={self.env.now:.2f}] Start {self.operation.__class__.__name__}={self.operation.identifier}")
 
-            if self.operation.temporal_cost:
-                yield self.env.timeout(self.sim_time(self.operation.temporal_cost))
+        if self.operation.temporal_cost:
+            yield self.env.timeout(self.sim_time(self.operation.temporal_cost))
 
-            # 4) apply edits atomically
-            staged = self.effect_engine.prepare(self.operation)
-            self.effect_engine.apply(staged, self.env)
+        # 4) apply edits atomically
+        staged = self.effect_engine.prepare(self.operation)
+        self.effect_engine.apply(staged, self.env)
 
-            for iri in self.operation.resources:  # source, destination, device …
-                obj = KnowledgeGraph.get_object_from_lookup(iri)
-                if _needs_runtime_tracking(obj):
-                    get_runtime_state(obj, self.env).recent_operations.append(self.operation)
+        for iri in self.operation.resources:  # source, destination, device …
+            obj = KnowledgeGraph.get_object_from_lookup(iri)
+            if _needs_runtime_tracking(obj):
+                get_runtime_state(obj, self.env).recent_operations.append(self.operation)
 
-            # Normal completion – mark process done
-            self.done_event.succeed()
-            self.add_event_log("OPERATION_END")
-            logger.debug(f"[t={self.env.now:.2f}] Finished {self.operation.identifier}")
-
-        # -------------------------------------------------------------- #
-        # Error / interrupt handling
-        # -------------------------------------------------------------- #
-        except simpy.Interrupt as intr:  # downstream abort
-            logger.warning(f"{self.operation.identifier} interrupted: {intr.cause!r}")
-            self.done_event.fail(intr)
-            self.add_event_log("OPERATION_ABORTED")
-
-        except Exception as err:
-            self.done_event.fail(err)
-            self.add_event_log("OPERATION_ERROR")
-            logger.error(f"[t={self.env.now:.2f}] {self.operation.identifier} failed: {err!r}")
-            self._cascade_interrupt(err)
-            raise
-
-        finally:
-            # Always release locks obtained in *pre_act*
-            self.operation.post_act(self.env)
-
-    def _cascade_interrupt(self, cause: Exception):
-        """Interrupt all dependent SimPy processes."""
-        for dep_id in self.dependents[self.operation.identifier]:
-            dep_proc = self.operation_registry[dep_id]
-            if dep_proc.simpy_process and dep_proc.simpy_process.is_alive:
-                try:
-                    dep_proc.simpy_process.interrupt(cause)
-                except RuntimeError:  # already terminated
-                    pass
+        # Normal completion – mark process done
+        self.done_event.succeed()
+        self.add_event_log("OPERATION_END")
+        logger.debug(f"[t={self.env.now:.2f}] Finished {self.operation.identifier}")
 
 
 class Simulation:
@@ -168,6 +140,7 @@ class Simulation:
             *,
             simulation_speed_factor: float = 1.0,
             random_seed: int | None = None,
+            shacl_shapes: str | Path | Graph | None = None,
     ):
         # 0) SimPy env + RNG
         self.env = simpy.Environment()
@@ -176,7 +149,17 @@ class Simulation:
         # 1) Core data
         self.operations = operations
         self.speed_factor = simulation_speed_factor
-        self.effect_engine = EffectEngine()
+
+        if shacl_shapes is None:
+            shapes_graph = None
+        elif isinstance(shacl_shapes, ConjunctiveGraph):
+            shapes_graph = shacl_shapes
+        else:
+            shapes_graph = Graph().parse(str(shacl_shapes), format="turtle")
+
+        self.effect_engine = EffectEngine(
+            shapes_graph=shapes_graph,
+        )
 
         # 2) Runtime bookkeeping
         self.operation_registry: Dict[str, OperationProcess] = {}
@@ -207,7 +190,7 @@ class Simulation:
           corresponding `FilterStore` so Attribute/History selectors work
           without manual intervention.
         """
-        for obj in LabObject.object_lookup.values():
+        for obj in LabObject.all_instances():
             self.effect_engine._register_if_new(obj, self.env)
 
     def _build_processes(self) -> None:
@@ -263,7 +246,7 @@ class Simulation:
         rows: list[dict] = []
         for rs in _RUNTIME_CACHE.values():
             if not _needs_runtime_tracking(rs.obj):
-                continue                         # skip PortionOfMaterial etc.
+                continue  # skip PortionOfMaterial etc.
 
             for action in rs.recent_operations:
                 rows.append(
