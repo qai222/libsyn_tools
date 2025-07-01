@@ -9,7 +9,7 @@ from twa.data_model.base_ontology import BaseClass, BaseOntology, DatatypeProper
 
 class SimOntology(BaseOntology):
     base_url = "https://libsyn-sim/kg/"
-    namespace = "libsyn-sim"
+    namespace = ""
     owl_versionInfo = "2"
     rdfs_comment = 'This is an ontology for the chemistry simulator in library synthesis tools.'
 
