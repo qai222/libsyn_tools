@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import uuid4
 
 from pydantic import Field
 from twa.data_model.base_ontology import BaseClass, BaseOntology, DatatypeProperty, ObjectProperty
-
-from libsyn_tools.utils import str_uuid
 
 
 class SimOntology(BaseOntology):
@@ -47,7 +46,7 @@ class Individual(BaseClass):
     rdfs_isDefinedBy = SimOntology
     """ set default ontology """
 
-    instance_iri: str = Field(default_factory=str_uuid, alias='identifier')
+    instance_iri: str = Field(default=None, alias='identifier')
     """ instance iri, by default this generated using uuid4 """
 
     is_present: Is_present[bool] = Field(default={False, })
@@ -57,6 +56,20 @@ class Individual(BaseClass):
     @property
     def identifier(self) -> str:
         return self.instance_iri
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        """
+        Every time a concrete subclass is defined, capture *that* class name
+        and install a tailored default_factory for `instance_iri`.
+        """
+        super().__init_subclass__(**kwargs)
+
+        field_info = cls.model_fields['instance_iri']
+        field_info.default_factory = lambda c=cls: f"{c.__name__}_{uuid4()}"
+
+        # mark the field non-nullable
+        field_info.annotation = str  # removes Optional[...] in schema
 
 
 Individual.model_rebuild()
