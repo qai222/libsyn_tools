@@ -52,7 +52,7 @@ class TransferMaterialByPortionSize(Operation):
             src, PortionOfMaterial, only_present=True
         )
 
-        logger.info(f"get directly contained pom: {poms}")
+        logger.debug(f"get directly contained pom: {poms}")
 
         src_iri = src.instance_iri
         dst_iri = dst.instance_iri

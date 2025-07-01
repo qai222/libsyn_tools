@@ -76,7 +76,7 @@ class EffectEngine:
         return g
 
     def _run_shacl_validation(self) -> None:
-        if not (self.enable_validation and self.shapes_graph):
+        if self.shapes_graph is None:
             return
 
         # 1) base data graph (asserted triples)
