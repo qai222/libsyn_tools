@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import List
 
+from loguru import logger
 from pydantic import Field, field_validator
+from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim.knowledge_graph.physical_entities import (
     LabObject,
@@ -39,9 +41,9 @@ class TransferMaterialByPortionSize(Operation):
         return v
 
     def get_operation_effects(self) -> List[UnitaryEdit]:
-        src = LabObject.object_lookup[self.participant_source]
-        dst = LabObject.object_lookup[self.participant_destination]
-        dev = LabObject.object_lookup[self.participant_device]
+        src = KnowledgeGraph.get_object_from_lookup(self.participant_source)
+        dst = KnowledgeGraph.get_object_from_lookup(self.participant_destination)
+        dev = KnowledgeGraph.get_object_from_lookup(self.participant_device)
 
         edits: List[UnitaryEdit] = []
         prop_iri = Is_directly_contained_by.predicate_iri
@@ -49,6 +51,8 @@ class TransferMaterialByPortionSize(Operation):
         poms = LabObject.get_directly_contained_individuals(
             src, PortionOfMaterial, only_present=True
         )
+
+        logger.info(f"get directly contained pom: {poms}")
 
         src_iri = src.instance_iri
         dst_iri = dst.instance_iri
@@ -62,13 +66,17 @@ class TransferMaterialByPortionSize(Operation):
                 Annihilate(instance_1_iri=pom.identifier),
 
                 Create(instance_1_iri=residual_pom.identifier),
-                AddObjectProperty(instance_1_iri=residual_pom.identifier, instance_2_iri=src_iri, property_iri=prop_iri),
+                AddObjectProperty(instance_1_iri=residual_pom.identifier, instance_2_iri=src_iri,
+                                  property_iri=prop_iri),
 
                 Create(instance_1_iri=transfer_pom.identifier),
-                AddObjectProperty(instance_1_iri=transfer_pom.identifier, instance_2_iri=dev_iri, property_iri=prop_iri),
+                AddObjectProperty(instance_1_iri=transfer_pom.identifier, instance_2_iri=dev_iri,
+                                  property_iri=prop_iri),
 
-                RemoveObjectProperty(instance_1_iri=transfer_pom.identifier, instance_2_iri=dev_iri, property_iri=prop_iri),
-                AddObjectProperty(instance_1_iri=transfer_pom.identifier, instance_2_iri=dst_iri, property_iri=prop_iri),
+                RemoveObjectProperty(instance_1_iri=transfer_pom.identifier, instance_2_iri=dev_iri,
+                                     property_iri=prop_iri),
+                AddObjectProperty(instance_1_iri=transfer_pom.identifier, instance_2_iri=dst_iri,
+                                  property_iri=prop_iri),
             ]
         return edits
 
