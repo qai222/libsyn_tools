@@ -4,13 +4,13 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
 import simpy
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from simpy.resources.resource import Request
 
-from libsyn_tools.sim.knowledge_graph import Field, str_uuid
-from libsyn_tools.sim.operation.selector import Selector, LiteralSelector, FilterStoreRegistry
 from libsyn_tools.sim.operation.runtime import get_object_for_resource
+from libsyn_tools.sim.operation.selector import Selector, LiteralSelector, FilterStoreRegistry
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit, UnitaryEditType
+from libsyn_tools.utils import str_uuid
 
 
 class Presumption(BaseModel):
@@ -166,7 +166,7 @@ class Operation(ABC, BaseModel):
                 )
 
             if iri in acquired:
-                req.resource.release(req)              # we already hold the lock
+                req.resource.release(req)  # we already hold the lock
                 req = acquired[iri]
             else:
                 acquired[iri] = req
