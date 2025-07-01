@@ -126,6 +126,7 @@ class OperationProcess:
         self.done_event.succeed()
         self.add_event_log("OPERATION_END")
         logger.debug(f"[t={self.env.now:.2f}] Finished {self.operation.identifier}")
+        self.operation.post_act(self.env)
 
 
 class Simulation:
