@@ -97,6 +97,11 @@ class Operation(ABC, BaseModel):
     operation_effects_description: Optional[str] = None
     """ free text description for the effects of this action """
 
+    resolved_resources: dict[str, str] = Field(default_factory=dict)
+    """
+    resolved participant-iri pairs
+    """
+
     resources: list[str] = Field(default_factory=list)
     """
     a list of uuids of the lab objects that will be occupied during the execution of this operation, used in DES as 
@@ -175,6 +180,7 @@ class Operation(ABC, BaseModel):
             self.locks.append(req)
 
         # overwrite participant_* fields with pure strings -------------
+        self.resolved_resources = resolved  # remember bindings
         _write_participant_iris(self, resolved)
 
         # also expose them via resources[] for backward compatibility
