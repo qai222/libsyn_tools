@@ -14,7 +14,7 @@ from rdflib import Graph, ConjunctiveGraph
 
 from .effect_engine import EffectEngine, KnowledgeGraph
 from .knowledge_graph import LabObject
-from .operation.operation import Operation
+from .operation.operation import Operation, _OpState
 from .operation.runtime import _needs_runtime_tracking, get_runtime_state, _RUNTIME_CACHE
 
 
@@ -100,6 +100,7 @@ class OperationProcess:
 
         # 2) Resolve dynamic participants + acquire locks
         yield self.operation.pre_act(self.env)
+        self.operation._mark_running()
         # check presumptions
         for pres in self.operation.presumptions:
             if not pres.validate(...):  # supply KG or context
@@ -123,10 +124,10 @@ class OperationProcess:
                 get_runtime_state(obj, self.env).recent_operations.append(self.operation)
 
         # Normal completion – mark process done
+        self.operation.post_act(self.env)
         self.done_event.succeed()
         self.add_event_log("OPERATION_END")
         logger.debug(f"[t={self.env.now:.2f}] Finished {self.operation.identifier}")
-        self.operation.post_act(self.env)
 
 
 class Simulation:
@@ -198,6 +199,8 @@ class Simulation:
 
     def _build_processes(self) -> None:
         for op in self.operations:
+            if op.sim_state is not _OpState.NEW:
+                raise ValueError(f"Operation {op.identifier} already used in another Simulation")
             if op.identifier in self.operation_registry:
                 raise ValueError(f"Duplicate Operation identifier {op.identifier}")
             self.operation_registry[op.identifier] = OperationProcess(

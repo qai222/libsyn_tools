@@ -11,7 +11,13 @@ from libsyn_tools.sim.operation.runtime import get_object_for_resource
 from libsyn_tools.sim.operation.selector import Selector, LiteralSelector, FilterStoreRegistry
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit, UnitaryEditType
 from libsyn_tools.utils import str_uuid
+from enum import StrEnum, auto
 
+class _OpState(StrEnum):
+    NEW = auto()        # never prepared
+    PREPARED = auto()   # selectors resolved, locks held
+    RUNNING = auto()    # currently inside OperationProcess.run()
+    FINISHED = auto()
 
 class Presumption(BaseModel):
     """
@@ -59,6 +65,9 @@ class Operation(ABC, BaseModel):
     Concrete operation define `participant_<role>` attrs and implement `get_action_effects()` to return a list of
     UnitaryEdits built *after* all roles are resolved.
     """
+
+    sim_state: _OpState = Field(default=_OpState.NEW, exclude=True)
+    """ life cycle tag """
 
     identifier: str = Field(default_factory=str_uuid)
     """ identifier of this operation """
@@ -146,7 +155,15 @@ class Operation(ABC, BaseModel):
         * compute action_effects
         Returns a SimPy Event so the scheduler can `yield` on it.
         """
+        if self.sim_state is not _OpState.NEW:
+            raise RuntimeError(f"{self.identifier}: pre_act called in state {self.sim_state}")
+        self.sim_state = _OpState.PREPARED
         return env.process(self._pre_act_implementation(env))
+
+    def _mark_running(self):
+        if self.sim_state is not _OpState.PREPARED:
+            raise RuntimeError(f"{self.identifier}: run() without successful pre_act")
+        self.sim_state = _OpState.RUNNING
 
     def _pre_act_implementation(self, env: simpy.Environment) -> None:
         participant_specs = _collect_participant_specs(self)
@@ -197,12 +214,15 @@ class Operation(ABC, BaseModel):
             )
 
     def post_act(self, env: simpy.Environment):
+        if self.sim_state is not _OpState.RUNNING:
+            raise RuntimeError(f"{self.identifier}: post_act called in state {self.sim_state}")
         for req in self.locks:
             obj = get_object_for_resource(req.resource)
             req.resource.release(req)
             if obj.is_present == {True}:
                 FilterStoreRegistry.put_obj_into_filter_store(obj, env)
         self.locks.clear()
+        self.sim_state = _OpState.FINISHED
 
     class Config:
         arbitrary_types_allowed = True
