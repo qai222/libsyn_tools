@@ -1,0 +1,52 @@
+@prefix lib: <https://libsyn-sim/kg/> .
+@prefix sh:  <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# Rule 1 – each container must stay below  0.90 × capacity
+#################################################################
+lib:Container90PctShape
+    a                 sh:NodeShape ;
+    sh:targetClass    lib:MaterialContainer ;
+    sh:message        "Container filled beyond 90 % of its capacity." ;
+    sh:sparql [
+        a           sh:SPARQLConstraint ;
+        sh:select """
+            PREFIX lib: <https://libsyn-sim/kg/>
+            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+            SELECT ?this
+            WHERE {
+                ?this lib:has_capacity     ?cap .
+                ?this lib:currentVolume    ?vol .
+                FILTER( xsd:double(?vol) > 0.9 * xsd:double(?cap) )
+            }
+        """ ;
+    ] .
+
+#################################################################
+# Rule – a rack must not exceed 40 mL total
+#################################################################
+lib:Rack40mLShape
+    a              sh:NodeShape ;
+    sh:targetObjectsOf lib:is_directly_contained_by ;
+    sh:message     "Rack holds more than 40 mL in total." ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:select """
+            PREFIX lib: <https://libsyn-sim/kg/>
+            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+            SELECT $this
+            WHERE {
+                {
+                    SELECT $this (SUM(xsd:double(?vol)) AS ?tot)
+                    WHERE {
+                        ?vial lib:is_directly_contained_by $this .
+                        ?vial lib:currentVolume           ?vol .
+                    }
+                    GROUP BY $this
+                }
+                FILTER ( ?tot > 40 )
+            }
+        """ ;
+    ] .

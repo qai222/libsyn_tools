@@ -1,0 +1,48 @@
+@prefix ns1: <https://libsyn-sim/kg/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<PortionOfMaterial_1024dd0a-3699-4206-8f1d-4a544a63843d> a ns1:PortionOfMaterial ;
+    ns1:has_ingredient "{\"identifier\": \"30d73ec5-c685-4328-8566-98debd45837d\", \"smiles\": \"O\", \"state_of_matter\": \"LIQUID\", \"molecular_weight\": 18.01528, \"density\": 1.0, \"mass\": 60.0, \"is_produced_by\": [], \"is_consumed_by\": [], \"provenance__density\": \"dummy estimator based on mw\", \"provenance__is_consumed_by\": null, \"provenance__is_produced_by\": null, \"provenance__mass\": null, \"provenance__molecular_weight\": \"periodic table\", \"provenance__smiles\": null, \"provenance__state_of_matter\": \"dummy estimator based on mw\"}" ;
+    ns1:is_directly_contained_by <reservoir> ;
+    ns1:is_present false .
+
+<PortionOfMaterial_33484445-cae5-4048-8075-f6711c9596c1> a ns1:PortionOfMaterial ;
+    ns1:has_ingredient "{\"identifier\": \"085917c1-aac9-4ad2-89f5-e0d61c4baa11\", \"smiles\": \"O\", \"state_of_matter\": \"LIQUID\", \"molecular_weight\": 18.01528, \"density\": 1.0, \"mass\": 15.0, \"is_produced_by\": [], \"is_consumed_by\": [], \"provenance__density\": \"dummy estimator based on mw\", \"provenance__is_consumed_by\": null, \"provenance__is_produced_by\": null, \"provenance__mass\": null, \"provenance__molecular_weight\": \"periodic table\", \"provenance__smiles\": null, \"provenance__state_of_matter\": \"dummy estimator based on mw\"}" ;
+    ns1:is_directly_contained_by <reservoir> ;
+    ns1:is_present true .
+
+<PortionOfMaterial_4aa64a10-6449-4ba2-80ae-ab99f1db57e3> a ns1:PortionOfMaterial ;
+    ns1:has_ingredient "{\"identifier\": \"0c2be68d-cdcf-48f3-a953-5d92bedb09ad\", \"smiles\": \"O\", \"state_of_matter\": \"LIQUID\", \"molecular_weight\": 18.01528, \"density\": 1.0, \"mass\": 30.0, \"is_produced_by\": [], \"is_consumed_by\": [], \"provenance__density\": \"dummy estimator based on mw\", \"provenance__is_consumed_by\": null, \"provenance__is_produced_by\": null, \"provenance__mass\": null, \"provenance__molecular_weight\": \"periodic table\", \"provenance__smiles\": null, \"provenance__state_of_matter\": \"dummy estimator based on mw\"}" ;
+    ns1:is_directly_contained_by <reservoir> ;
+    ns1:is_present false .
+
+<PortionOfMaterial_b594569d-51ee-4c4c-a53e-ab57c9326353> a ns1:PortionOfMaterial ;
+    ns1:has_ingredient "{\"identifier\": \"53f48bec-514e-4030-af9e-20e33b1f9be6\", \"smiles\": \"O\", \"state_of_matter\": \"LIQUID\", \"molecular_weight\": 18.01528, \"density\": 1.0, \"mass\": 15.0, \"is_produced_by\": [], \"is_consumed_by\": [], \"provenance__density\": \"dummy estimator based on mw\", \"provenance__is_consumed_by\": null, \"provenance__is_produced_by\": null, \"provenance__mass\": null, \"provenance__molecular_weight\": \"periodic table\", \"provenance__smiles\": null, \"provenance__state_of_matter\": \"dummy estimator based on mw\"}" ;
+    ns1:is_directly_contained_by <material_container_v2> ;
+    ns1:is_present true .
+
+<PortionOfMaterial_cf140fb4-8782-44e2-aa08-c4cd07cc7cfd> a ns1:PortionOfMaterial ;
+    ns1:has_ingredient "{\"identifier\": \"5b826bdb-1302-4564-b7a3-6f38e51b2932\", \"smiles\": \"O\", \"state_of_matter\": \"LIQUID\", \"molecular_weight\": 18.01528, \"density\": 1.0, \"mass\": 30.0, \"is_produced_by\": [], \"is_consumed_by\": [], \"provenance__density\": \"dummy estimator based on mw\", \"provenance__is_consumed_by\": null, \"provenance__is_produced_by\": null, \"provenance__mass\": null, \"provenance__molecular_weight\": \"periodic table\", \"provenance__smiles\": null, \"provenance__state_of_matter\": \"dummy estimator based on mw\"}" ;
+    ns1:is_directly_contained_by <material_container_v1> ;
+    ns1:is_present true .
+
+<pipette_1> a ns1:LabObject ;
+    ns1:is_present true .
+
+<material_container_v1> a ns1:MaterialContainer ;
+    ns1:has_capacity 10 ;
+    ns1:is_directly_contained_by <rack> ;
+    ns1:is_present true .
+
+<material_container_v2> a ns1:MaterialContainer ;
+    ns1:has_capacity 10 ;
+    ns1:is_directly_contained_by <rack> ;
+    ns1:is_present true .
+
+<rack> a ns1:LabObject ;
+    ns1:is_present true .
+
+<reservoir> a ns1:MaterialContainer ;
+    ns1:has_capacity 6e+02 ;
+    ns1:is_present true .
+
