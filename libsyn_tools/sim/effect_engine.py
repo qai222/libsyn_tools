@@ -1,19 +1,21 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import List
+from pathlib import Path
+from typing import List, Union
 
+import pandas as pd
 import simpy
 from loguru import logger
 from pyshacl import validate
-from rdflib import ConjunctiveGraph
-from rdflib import Graph, Literal, URIRef, Namespace
-from rdflib.namespace import XSD
+from rdflib import Graph, Literal, URIRef, Namespace, ConjunctiveGraph
+from rdflib.namespace import XSD, SH
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim.knowledge_graph.physical_entities import BaseClass, MaterialContainer
 from libsyn_tools.sim.operation import Operation, UnitaryEdit, UnitaryEditType, FilterStoreRegistry, get_runtime_state
 from libsyn_tools.sim.operation.runtime import _RESOURCE_MAP, _RUNTIME_CACHE, _needs_runtime_tracking
+from .effect_shacl import SHACLViolationRecord, _iter_validation_results, _first
 
 LIB_SYN = Namespace("https://libsyn-sim/kg/")
 
@@ -54,6 +56,7 @@ class EffectEngine:
         """
         self.shapes_graph = shapes_graph
         self.inference = "rdfs"
+        self._shacl_violations: list[SHACLViolationRecord] = []
         self.raise_shacl = raise_shacl
 
     def _build_overlay_graph(self) -> Graph:
@@ -79,7 +82,32 @@ class EffectEngine:
             )
         return g
 
-    def _run_shacl_validation(self) -> None:
+    def _collect_shacl_violations(
+            self,
+            env_now: float,
+            current_operation_id: str,
+            shacl_report_graph: Graph
+    ) -> list[SHACLViolationRecord]:
+        """
+        Transform the SHACL results graph into a list of ShaclViolationRecord objects.
+        """
+        records: list[SHACLViolationRecord] = []
+
+        for vr in _iter_validation_results(shacl_report_graph):
+            records.append(
+                SHACLViolationRecord(
+                    sim_time=env_now,
+                    operation_id=current_operation_id,
+                    shape_iri=_first(shacl_report_graph, vr, SH.sourceShape),
+                    focus_iri=_first(shacl_report_graph, vr, SH.focusNode),
+                    message=_first(shacl_report_graph, vr, SH.resultMessage),
+                    report_graph_ttl=shacl_report_graph.serialize(format="turtle")
+                )
+            )
+
+        return records
+
+    def _run_shacl_validation(self, env, operation_id) -> None:
         if self.shapes_graph is None:
             return
 
@@ -96,7 +124,7 @@ class EffectEngine:
         for triple in overlay_graph.triples((None, None, None)):
             union_graph.add(triple)
 
-        conforms, report_graph, _ = validate(
+        conforms, shacl_report_graph, _ = validate(
             union_graph,
             shacl_graph=self.shapes_graph,
             ont_graph=None,
@@ -106,9 +134,44 @@ class EffectEngine:
         )
         logger.debug(f"shapes conform: {conforms}")
         if not conforms:
-            logger.error(report_graph.serialize(format="turtle"))
+            logger.error(shacl_report_graph.serialize(format="turtle"))
+            self._shacl_violations.extend(
+                self._collect_shacl_violations(env.now, operation_id, shacl_report_graph)
+            )
             if self.raise_shacl:
-                raise SHACLValidationError(report_graph)
+                raise SHACLValidationError(shacl_report_graph)
+
+    def write_shacl_csv(
+            self,
+            filepath: Union[str, Path],
+            include_ttl: bool = False,
+            **to_csv_kwargs,
+    ) -> None:
+        """
+        Export all captured SHACL violations to a CSV via pandas.
+
+        Parameters
+        ----------
+        filepath : str | pathlib.Path
+            Where the CSV will be written.
+        include_ttl : bool, default False
+            If True, include the full Turtle string in a column `report_graph_ttl`.
+            This can make the file very large; off by default.
+        **to_csv_kwargs : dict
+            Extra keyword arguments forwarded to `DataFrame.to_csv`.
+            (e.g. sep=';', encoding='utf-8', etc.)
+        """
+        # 1. Convert records → list[dict]
+        records_as_dicts = [
+            rec.model_dump() if include_ttl else rec.model_dump(exclude={"report_graph_ttl"})
+            for rec in self._shacl_violations
+        ]
+
+        # 2. Build DataFrame
+        df = pd.DataFrame.from_records(records_as_dicts)
+
+        # 3. Persist
+        df.to_csv(Path(filepath), index=False, **to_csv_kwargs)
 
     def prepare(self, action: Operation) -> List[UnitaryEdit]:
         """Return a **defensive copy** of the staged edits for *action*.
@@ -118,7 +181,7 @@ class EffectEngine:
         """
         return action.operation_effects.copy()
 
-    def apply(self, edits: Iterable[UnitaryEdit], env: simpy.Environment) -> None:
+    def apply(self, edits: Iterable[UnitaryEdit], env: simpy.Environment, operation_id: str) -> None:
         """
         Apply each `UnitaryEdit` **in order**.
 
@@ -158,7 +221,7 @@ class EffectEngine:
                 # remove resource + filter entry only after logging
                 self._unregister_object(subj)
 
-        self._run_shacl_validation()
+        self._run_shacl_validation(env, operation_id)
 
     def _log_and_sync(self, obj: BaseClass, edit: UnitaryEdit,
                       env: simpy.Environment) -> None:

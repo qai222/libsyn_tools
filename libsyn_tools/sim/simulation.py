@@ -115,7 +115,7 @@ class OperationProcess:
 
         # 4) apply edits atomically
         staged = self.effect_engine.prepare(self.operation)
-        self.effect_engine.apply(staged, self.env)
+        self.effect_engine.apply(staged, self.env, operation_id=self.operation.identifier)
 
         for iri in self.operation.resources:  # source, destination, device …
             obj = KnowledgeGraph.get_object_from_lookup(iri)

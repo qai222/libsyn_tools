@@ -75,6 +75,7 @@ def main():
     outfile = HERE / "overlay.ttl"
     overlay.serialize(outfile, format="turtle")
     logger.info(f"Overlay graph exported → {outfile}")
+    sim.effect_engine.write_shacl_csv("shacl_violation.csv")
     g = KnowledgeGraph.graph()
     g.serialize(destination=f"{os.path.basename(__file__)[:-3]}.ttl", format="turtle")
 
