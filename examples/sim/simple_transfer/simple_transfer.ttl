@@ -1,19 +1,19 @@
-@prefix ns1: <https://libsyn-sim/kg/libsyn-sim/> .
+@prefix ns1: <https://libsyn-sim/kg/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-<478b663b-3b62-4592-95c4-5ebe6913f063> a ns1:PortionOfMaterial ;
-    ns1:has_ingredient "{\"identifier\": \"edcad2c9-265f-4086-8e53-32bbe8073cf5\", \"smiles\": \"O\", \"state_of_matter\": \"LIQUID\", \"molecular_weight\": 18.01528, \"density\": 1.0, \"mass\": 1.0809168, \"is_produced_by\": [], \"is_consumed_by\": [], \"provenance__density\": \"dummy estimator based on mw\", \"provenance__is_consumed_by\": null, \"provenance__is_produced_by\": null, \"provenance__mass\": null, \"provenance__molecular_weight\": \"periodic table\", \"provenance__smiles\": null, \"provenance__state_of_matter\": \"dummy estimator based on mw\"}" ;
-    ns1:is_directly_contained_by <beaker_2> ;
+<PortionOfMaterial_2e981424-4280-4624-a5ec-946b6265b7d8> a ns1:PortionOfMaterial ;
+    ns1:has_ingredient "{\"identifier\": \"cc6839e5-0fe8-4178-b29a-c2cbcc566339\", \"smiles\": \"O\", \"state_of_matter\": \"LIQUID\", \"molecular_weight\": 18.01528, \"density\": 1.0, \"mass\": 2.5221392000000002, \"is_produced_by\": [], \"is_consumed_by\": [], \"provenance__density\": \"dummy estimator based on mw\", \"provenance__is_consumed_by\": null, \"provenance__is_produced_by\": null, \"provenance__mass\": null, \"provenance__molecular_weight\": \"periodic table\", \"provenance__smiles\": null, \"provenance__state_of_matter\": \"dummy estimator based on mw\"}" ;
+    ns1:is_directly_contained_by <beaker_1> ;
     ns1:is_present true .
 
-<600f987b-b32c-414b-b0f1-a98a0338c842> a ns1:PortionOfMaterial ;
-    ns1:has_ingredient "{\"identifier\": \"9441a2eb-d532-4701-97ab-43766007e9c0\", \"smiles\": \"O\", \"state_of_matter\": \"LIQUID\", \"molecular_weight\": 18.01528, \"density\": 1.0, \"mass\": 3.6030560000000005, \"is_produced_by\": [], \"is_consumed_by\": [], \"provenance__density\": \"dummy estimator based on mw\", \"provenance__is_consumed_by\": null, \"provenance__is_produced_by\": null, \"provenance__mass\": null, \"provenance__molecular_weight\": \"periodic table\", \"provenance__smiles\": null, \"provenance__state_of_matter\": \"dummy estimator based on mw\"}" ;
+<PortionOfMaterial_bf3fade5-6924-4ec9-8898-66b11497e060> a ns1:PortionOfMaterial ;
+    ns1:has_ingredient "{\"identifier\": \"df6c0af0-8dc6-4425-8695-0a0f1710d46b\", \"smiles\": \"O\", \"state_of_matter\": \"LIQUID\", \"molecular_weight\": 18.01528, \"density\": 1.0, \"mass\": 3.6030560000000005, \"is_produced_by\": [], \"is_consumed_by\": [], \"provenance__density\": \"dummy estimator based on mw\", \"provenance__is_consumed_by\": null, \"provenance__is_produced_by\": null, \"provenance__mass\": null, \"provenance__molecular_weight\": \"periodic table\", \"provenance__smiles\": null, \"provenance__state_of_matter\": \"dummy estimator based on mw\"}" ;
     ns1:is_directly_contained_by <beaker_1> ;
     ns1:is_present false .
 
-<f9933255-6977-4f87-949f-c2ee38a35cf6> a ns1:PortionOfMaterial ;
-    ns1:has_ingredient "{\"identifier\": \"08423747-e2ba-4d77-9d05-851effa4cea4\", \"smiles\": \"O\", \"state_of_matter\": \"LIQUID\", \"molecular_weight\": 18.01528, \"density\": 1.0, \"mass\": 2.5221392000000002, \"is_produced_by\": [], \"is_consumed_by\": [], \"provenance__density\": \"dummy estimator based on mw\", \"provenance__is_consumed_by\": null, \"provenance__is_produced_by\": null, \"provenance__mass\": null, \"provenance__molecular_weight\": \"periodic table\", \"provenance__smiles\": null, \"provenance__state_of_matter\": \"dummy estimator based on mw\"}" ;
-    ns1:is_directly_contained_by <beaker_1> ;
+<PortionOfMaterial_d78e5c30-61d2-4ab7-87ed-0d7fec29d981> a ns1:PortionOfMaterial ;
+    ns1:has_ingredient "{\"identifier\": \"21c9b46b-0d59-44e8-8a7f-3c40354695f9\", \"smiles\": \"O\", \"state_of_matter\": \"LIQUID\", \"molecular_weight\": 18.01528, \"density\": 1.0, \"mass\": 1.0809168, \"is_produced_by\": [], \"is_consumed_by\": [], \"provenance__density\": \"dummy estimator based on mw\", \"provenance__is_consumed_by\": null, \"provenance__is_produced_by\": null, \"provenance__mass\": null, \"provenance__molecular_weight\": \"periodic table\", \"provenance__smiles\": null, \"provenance__state_of_matter\": \"dummy estimator based on mw\"}" ;
+    ns1:is_directly_contained_by <beaker_2> ;
     ns1:is_present true .
 
 <pipette_3> a ns1:LabObject ;
