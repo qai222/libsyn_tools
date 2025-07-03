@@ -254,17 +254,17 @@ class Simulation:
             if not _needs_runtime_tracking(rs.obj):
                 continue  # skip PortionOfMaterial etc.
 
-            for action in rs.recent_operations:
+            for operation in rs.recent_operations:
                 rows.append(
                     {
                         "instance_iri": rs.obj.identifier,
                         "instance_type": rs.obj.__class__.__name__,
-                        "action_id": action.identifier,
-                        "action_type": action.__class__.__name__,
+                        "operation_id": operation.identifier,
+                        "operation_type": operation.__class__.__name__,
                         # "sim_timestamp": action.scheduled_start_time
                         # if action.scheduled_start_time is not None
                         # else self.env.now,
-                        "sim_timestamp": end_time_index.get(action.identifier, None),
+                        "sim_timestamp": end_time_index.get(operation.identifier, None),
                     }
                 )
 
