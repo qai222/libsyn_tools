@@ -142,6 +142,7 @@ class Simulation:
             simulation_speed_factor: float = 1.0,
             random_seed: int | None = None,
             shacl_shapes: str | Path | Graph | None = None,
+            shacl_inference: str = "owlrl"
     ):
         # 0) SimPy env + RNG
         self.env = simpy.Environment()
@@ -160,6 +161,7 @@ class Simulation:
 
         self.effect_engine = EffectEngine(
             shapes_graph=shapes_graph,
+            inference=shacl_inference,
         )
 
         # 2) Runtime bookkeeping

@@ -5,9 +5,5 @@
 
 <material_container_v2> ns1:currentVolume 1.5e+01 .
 
-<pipette_1> ns1:currentVolume 0e+00 .
-
-<rack> ns1:currentVolume 0e+00 .
-
 <reservoir> ns1:currentVolume 1.5e+01 .
 

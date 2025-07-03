@@ -18,7 +18,10 @@ HERE = Path(__file__).parent
 
 
 def init_world():
-    rack = LabObject(identifier="rack")
+    class Rack(LabObject):
+        pass
+
+    rack = Rack(identifier='rack')
 
     v1 = MaterialContainer(identifier="material_container_v1")
     v2 = MaterialContainer(identifier="material_container_v2")
@@ -66,7 +69,7 @@ def main():
     sim = Simulation(
         [op1, op2],
         simulation_speed_factor=1.0,
-        shacl_shapes=HERE / "constraints.ttl"
+        shacl_shapes=HERE / "constraints.ttl",
     )
 
     sim.run()

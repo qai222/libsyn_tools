@@ -1,6 +1,9 @@
 @prefix lib: <https://libsyn-sim/kg/> .
 @prefix sh:  <http://www.w3.org/ns/shacl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
 
 #################################################################
 # Rule 1 – each container must stay below  0.90 × capacity
@@ -26,27 +29,39 @@ lib:Container90PctShape
 #################################################################
 # Rule – a rack must not exceed 40 mL total
 #################################################################
-lib:Rack40mLShape
-    a              sh:NodeShape ;
-    sh:targetObjectsOf lib:is_directly_contained_by ;
-    sh:message     "Rack holds more than 40 mL in total." ;
-    sh:sparql [
-        a sh:SPARQLConstraint ;
-        sh:select """
-            PREFIX lib: <https://libsyn-sim/kg/>
-            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+lib:is_contained_by
+        a                         owl:TransitiveProperty ;
+        rdfs:label                "is contained by (transitive)"@en .
 
-            SELECT $this
-            WHERE {
-                {
-                    SELECT $this (SUM(xsd:double(?vol)) AS ?tot)
-                    WHERE {
-                        ?vial lib:is_directly_contained_by $this .
-                        ?vial lib:currentVolume           ?vol .
+lib:is_directly_contained_by
+        rdfs:subPropertyOf        lib:is_contained_by ;
+        rdfs:label                "is directly contained by"@en .
+
+lib:Rack40mLShape_Inferred
+        a                         sh:NodeShape ;
+        sh:targetClass            lib:Rack ;              # every rack instance
+        sh:message
+            "Rack holds more than 40 mL in total."@en ;
+
+        # use a SPARQL constraint that sums currentVolume of ALL POMs
+        sh:sparql [
+            a                     sh:SPARQLConstraint ;
+            sh:select  """
+                PREFIX lib: <https://libsyn-sim/kg/>
+                PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+                SELECT $this
+                WHERE {
+                    {
+                        SELECT $this
+                               (SUM(xsd:double(?vol)) AS ?tot)
+                        WHERE {
+                            ?pom  lib:is_contained_by  $this ;
+                                  lib:currentVolume    ?vol .
+                        }
+                        GROUP BY $this
                     }
-                    GROUP BY $this
+                    FILTER (?tot > 40)
                 }
-                FILTER ( ?tot > 40 )
-            }
-        """ ;
-    ] .
+            """ ;
+        ] .

@@ -45,6 +45,7 @@ class EffectEngine:
             *,
             shapes_graph: ConjunctiveGraph | None = None,
             raise_shacl: bool = False,
+            inference: str = "owlrl"
     ):
         """
         Parameters
@@ -55,7 +56,7 @@ class EffectEngine:
             if raise when shacl validation fails.
         """
         self.shapes_graph = shapes_graph
-        self.inference = "rdfs"
+        self.inference = inference
         self._shacl_violations: list[SHACLViolationRecord] = []
         self.raise_shacl = raise_shacl
 
@@ -127,7 +128,7 @@ class EffectEngine:
         conforms, shacl_report_graph, _ = validate(
             union_graph,
             shacl_graph=self.shapes_graph,
-            ont_graph=None,
+            ont_graph=self.shapes_graph,
             inference=self.inference,
             advanced=True,
             debug=False,
