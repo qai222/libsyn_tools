@@ -42,15 +42,19 @@ class EffectEngine:
             self,
             *,
             shapes_graph: ConjunctiveGraph | None = None,
+            raise_shacl: bool = False,
     ):
         """
         Parameters
         ----------
         shapes_graph
             RDF graph containing user-defined SHACL shapes.
+        raise_shacl
+            if raise when shacl validation fails.
         """
         self.shapes_graph = shapes_graph
         self.inference = "rdfs"
+        self.raise_shacl = raise_shacl
 
     def _build_overlay_graph(self) -> Graph:
         """
@@ -103,7 +107,8 @@ class EffectEngine:
         logger.debug(f"shapes conform: {conforms}")
         if not conforms:
             logger.error(report_graph.serialize(format="turtle"))
-            raise SHACLValidationError(report_graph)
+            if self.raise_shacl:
+                raise SHACLValidationError(report_graph)
 
     def prepare(self, action: Operation) -> List[UnitaryEdit]:
         """Return a **defensive copy** of the staged edits for *action*.
