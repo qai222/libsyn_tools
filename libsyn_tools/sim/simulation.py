@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 from collections import defaultdict
 from pathlib import Path
+from types import MethodType
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -11,6 +12,7 @@ from loguru import logger
 from pandas._typing import FilePath
 from pydantic import BaseModel
 from rdflib import Graph, ConjunctiveGraph
+from tqdm import tqdm
 
 from .effect_engine import EffectEngine, KnowledgeGraph
 from .knowledge_graph import LabObject
@@ -218,9 +220,24 @@ class Simulation:
         for proc in self.operation_registry.values():
             proc.simpy_process = self.env.process(proc.run())
 
+        bar = tqdm(total=len(self.operation_registry),
+                   desc="Sim", unit="op")
+
+        # ---- patch OperationProcess.add_event_log on-the-fly -------
+        def _wrap_add_event_log(self, event_type, data=None, *, _orig=OperationProcess.add_event_log):
+            _orig(self, event_type, data)  # ← original behaviour
+            if event_type == "OPERATION_END":
+                bar.update()
+
+        # bind the new method to *each* existing instance
+        for proc in self.operation_registry.values():
+            proc.add_event_log = MethodType(_wrap_add_event_log, proc)
+
         logger.info("Simulation start")
         self.env.run(until=until)
         logger.info(f"Simulation end @ t = {self.env.now}")
+
+        bar.close()
 
     def export_event_log(self, filename: FilePath) -> None:
         """Persist the in-memory history to CSV/JSON downstream."""
