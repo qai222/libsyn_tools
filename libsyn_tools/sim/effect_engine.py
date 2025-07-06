@@ -254,6 +254,7 @@ class EffectEngine:
         """
         After *any* edit we normalise FilterStore membership so rollbacks
         never leave an object in the wrong pool.
+        # TODO we no longer have rollback so this may not be necessary
         """
         if not _needs_runtime_tracking(obj):
             return

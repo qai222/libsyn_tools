@@ -80,14 +80,21 @@ class OperationProcess:
         )
 
     def run(self):
+        try:
+            self._run_core()
+        except simpy.Interrupt as interrupt:
+            self.add_event_log("OPERATION_INTERRUPT", {"reason": str(interrupt.cause)})
+            self.operation.post_act(self.env)
+            self.done_event.succeed()
+
+    def _run_core(self):
         """
         High-level lifecycle
         --------------------
         1.  Wait for schedule window + precedent operations
         2.  `operation.pre_act()` → participant resolution & locking
         3.  Simulated execution delay (`temporal_cost`)
-        4.  Apply edits atomically (rollback on failure)
-        5.  Release locks / cascade interrupts as needed
+        4.  Apply edits atomically
         """
         # 1) if scheduled, minimum delay to the scheduled time
         if self.operation.scheduled_start_time is not None:
