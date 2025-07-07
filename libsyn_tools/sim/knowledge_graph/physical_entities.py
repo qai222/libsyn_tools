@@ -112,6 +112,10 @@ class Has_pool_type(SimFunctionalDataProperty):
     pass
 
 
+class Has_interrupt_events(SimDataProperty):
+    pass
+
+
 class LabObject(Individual):
     """
     Pure-data representation of anything that can appear in the lab KG.
@@ -129,6 +133,8 @@ class LabObject(Individual):
     Objects with the same pool type will be grouped in a simpy filter store so it can be picked up by a selector 
     see `libsyn_tools.sim.selector.FilterStoreRegistry` for more info
     """
+
+    has_interrupt_events: Has_interrupt_events[str] = Field(default_factory=set)
 
     @staticmethod
     def get_directly_contained_individuals(

@@ -22,6 +22,9 @@ class UnitaryEditType(str, Enum):
     CHANGE_DATA_PROPERTY = "CHANGE_DATA_PROPERTY"
     """ change a data property of a lab object """
 
+    ADD_DATA_PROPERTY = "ADD_DATA_PROPERTY"
+    """ add data to non-functional data property """
+
     ADD_OBJECT_PROPERTY = "ADD_OBJECT_PROPERTY"
     """ add an object property between two lab objects """
 
@@ -29,9 +32,6 @@ class UnitaryEditType(str, Enum):
     """ remove an object property between two lab objects """
 
 
-# ------------------------------------------------------------------
-# Abstract base – still named UnitaryEdit so external imports survive
-# ------------------------------------------------------------------
 class UnitaryEdit(BaseModel):
     """A single, atomic mutation of the knowledge graph."""
 
@@ -43,7 +43,6 @@ class UnitaryEdit(BaseModel):
 
     model_config = {"frozen": True}
 
-    # ......................... helpers ..............................
     @abstractmethod
     def apply(self) -> None: ...
 
@@ -92,17 +91,11 @@ class UnitaryEdit(BaseModel):
         super().__init_subclass__(**kwargs)
 
 
-# ------------------------------------------------------------------
-# Concrete dataclass-style edits
-# ------------------------------------------------------------------
 class Create(UnitaryEdit):
     type: Literal[UnitaryEditType.CREATE] = UnitaryEditType.CREATE
 
     def apply(self):
         KnowledgeGraph.get_object_from_lookup(self.instance_1_iri).is_present = {True}
-
-    def compute_inverse(self):
-        return Annihilate(instance_1_iri=self.instance_1_iri)
 
 
 class Annihilate(UnitaryEdit):
@@ -111,33 +104,26 @@ class Annihilate(UnitaryEdit):
     def apply(self):
         KnowledgeGraph.get_object_from_lookup(self.instance_1_iri).is_present = {False}
 
-    def compute_inverse(self):
-        return Create(instance_1_iri=self.instance_1_iri)
+
+class AddDataProperty(UnitaryEdit):
+    type: Literal[UnitaryEditType.ADD_DATA_PROPERTY] = UnitaryEditType.ADD_DATA_PROPERTY
+
+    def apply(self):
+        subj = KnowledgeGraph.get_object_from_lookup(self.instance_1_iri)
+        data_prop = SimOntology.data_property_lookup[self.property_iri]
+        field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
+        existing_values = getattr(subj, field_name)
+        existing_values.add(self.data_value)
 
 
 class ChangeDataProperty(UnitaryEdit):
-    type: Literal[UnitaryEditType.CHANGE_DATA_PROPERTY] = (
-        UnitaryEditType.CHANGE_DATA_PROPERTY
-    )
+    type: Literal[UnitaryEditType.CHANGE_DATA_PROPERTY] = UnitaryEditType.CHANGE_DATA_PROPERTY
 
     def apply(self):
         subj = KnowledgeGraph.get_object_from_lookup(self.instance_1_iri)
         data_prop = SimOntology.data_property_lookup[self.property_iri]
         field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
         setattr(subj, field_name, {self.data_value})
-
-    def compute_inverse(self):
-        subj = KnowledgeGraph.get_object_from_lookup(self.instance_1_iri)
-        data_prop = SimOntology.data_property_lookup[self.property_iri]
-        field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
-
-        prev_vals = getattr(subj, field_name).copy()
-        previous_value = next(iter(prev_vals), None)
-        return ChangeDataProperty(
-            instance_1_iri=self.instance_1_iri,
-            property_iri=self.property_iri,
-            data_value=previous_value,
-        )
 
 
 class AddObjectProperty(UnitaryEdit):
@@ -152,13 +138,6 @@ class AddObjectProperty(UnitaryEdit):
         field_name = obj_prop.__name__[0].lower() + obj_prop.__name__[1:]
         getattr(subj, field_name).add(obj)
 
-    def compute_inverse(self):
-        return RemoveObjectProperty(
-            instance_1_iri=self.instance_1_iri,
-            instance_2_iri=self.instance_2_iri,
-            property_iri=self.property_iri,
-        )
-
 
 class RemoveObjectProperty(UnitaryEdit):
     type: Literal[UnitaryEditType.REMOVE_OBJECT_PROPERTY] = (
@@ -172,13 +151,6 @@ class RemoveObjectProperty(UnitaryEdit):
         field_name = obj_prop.__name__[0].lower() + obj_prop.__name__[1:]
         getattr(subj, field_name).remove(obj)
 
-    def compute_inverse(self):
-        return AddObjectProperty(
-            instance_1_iri=self.instance_1_iri,
-            instance_2_iri=self.instance_2_iri,
-            property_iri=self.property_iri,
-        )
-
 
 # update exported symbols so `from ... import *` keeps working
 __all__ = [
@@ -189,4 +161,5 @@ __all__ = [
     "ChangeDataProperty",
     "AddObjectProperty",
     "RemoveObjectProperty",
+    "AddDataProperty",
 ]
