@@ -261,3 +261,26 @@ class EffectEngine:
         FilterStoreRegistry.remove_obj_from_filter_store(obj)
         if obj.is_present == {True}:  # ← guard
             FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+
+    def validate_now(self):
+        """
+        Public helper for spawners: run SHACL validation at arbitrary
+        times **without** capturing violations or raising.
+        Returns `(conforms: bool, report_graph, _details)` – identical to
+        `pyshacl.validate`.
+        """
+        if self.shapes_graph is None:
+            # With no shapes configured every state trivially conforms
+            from rdflib import Graph
+            return True, Graph(), ""
+        data_graph = KnowledgeGraph.graph()
+        overlay = self._build_overlay_graph()
+        union = data_graph + overlay
+        return validate(
+            union,
+            shacl_graph=self.shapes_graph,
+            ont_graph=self.shapes_graph,
+            inference=self.inference,
+            advanced=True,
+            debug=False,
+        )
