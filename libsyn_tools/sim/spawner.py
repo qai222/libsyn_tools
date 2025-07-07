@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import weakref
 from abc import ABC, abstractmethod
+from types import MethodType
 from typing import Optional, Callable, Any
 
 import simpy
@@ -114,7 +115,6 @@ class KGInspectorSpawner(Spawner):
         Monkey-patch OperationProcess.add_event_log so we get called
         exactly once per OPERATION_END.
         """
-        from types import MethodType
 
         def _wrap_add_event_log(proc_self, event_type, data=None, *, _orig=sim.operation_registry):
             OperationProcess.add_event_log(proc_self, event_type, data)
@@ -141,3 +141,68 @@ class KGInspectorSpawner(Spawner):
             return self._run_every_dt(sim)
         # inspect_interval == 0
         return self._run_on_every_operation(sim)
+
+
+class ProcessInterruptSpawner(Spawner):
+    """
+    Listen for `simpy.Interrupt` events that abort running operations and
+    launch corrective or resumption Operations.
+
+    Parameters
+    ----------
+    interrupt_dispatch : dict[str, Callable[[OperationProcess, str], Operation]]
+        Mapping **reason string ➜ factory**.
+        * The *reason* is what the interrupted process stored under
+          `data["reason"]` when it called
+          `add_event_log("OPERATION_INTERRUPT", {"reason": ...})`.
+        * The factory receives `(proc, reason)` and must return a fully
+          constructed `Operation` ready for `sim.spawn_operation()`.
+          Return `None` to ignore the interrupt.
+    """
+
+    interrupt_dispatch: dict[str, Callable[[OperationProcess, str], Optional[Operation]]]
+
+    def _install_wrapper(self, sim: Simulation):
+        """
+        Monkey-patch `OperationProcess.add_event_log` so that every time an
+        interrupt is logged we can react.  The wrapper is installed **once**
+        per Python process, no matter how many spawners are attached.
+        """
+        if getattr(OperationProcess, "_interrupt_wrapper_installed", False):
+            return  # somebody else already patched
+
+        original_add = OperationProcess.add_event_log
+        spawner_ref = weakref.ref(self)  # avoid cycles
+
+        def _wrapped(proc_self, event_type, data=None, *, _orig=original_add):
+            # keep original behaviour first
+            _orig(proc_self, event_type, data)
+
+            if event_type != "OPERATION_INTERRUPT":
+                return
+
+            spawner = spawner_ref()
+            if spawner is None:  # spawner GC'ed
+                return
+
+            reason = str((data or {}).get("reason", ""))
+            factory = spawner.interrupt_dispatch.get(reason)
+            if factory is None:
+                return  # reason not mapped
+
+            op = factory(proc_self, reason)
+            if op is not None:
+                spawner.sim.spawn_operation(op)
+
+        # class-level patch (affects future OperationProcess instances)
+        OperationProcess.add_event_log = _wrapped
+        OperationProcess._interrupt_wrapper_installed = True  # flag
+
+        # also patch every *existing* instance so they go through wrapper
+        for proc in sim.operation_registry.values():
+            proc.add_event_log = MethodType(_wrapped, proc)
+
+    def _run(self, sim: Simulation):
+        # one-time installation, then just keep the coroutine alive
+        self._install_wrapper(sim)
+        yield sim.env.timeout(float("inf"))  # dormant forever

@@ -15,9 +15,10 @@ from rdflib import Graph, ConjunctiveGraph
 from tqdm import tqdm
 
 from .effect_engine import EffectEngine, KnowledgeGraph
-from .knowledge_graph import LabObject
+from .knowledge_graph import LabObject, Has_interrupt_events
 from .operation.operation import Operation, _OpState
 from .operation.runtime import _needs_runtime_tracking, get_runtime_state, _RUNTIME_CACHE
+from .operation.unitary_edit import AddDataProperty
 
 
 class OperationEventRecord(BaseModel):
@@ -83,8 +84,27 @@ class OperationProcess:
         try:
             yield from self._run_core()
         except simpy.Interrupt as interrupt:
-            self.add_event_log("OPERATION_INTERRUPT", {"reason": str(interrupt.cause)})
+
+            edits = []
+            reason_txt = f"{self.operation.identifier}:{interrupt.cause}"
+            for participant_name in self.operation.model_fields:
+                if not participant_name.startswith("participant_"):
+                    continue
+                iri = getattr(self.operation, participant_name)
+                if not isinstance(iri, str):
+                    continue
+                edits.append(
+                    AddDataProperty(
+                        instance_1_iri=iri,
+                        property_iri=Has_interrupt_events.predicate_iri,
+                        data_value=reason_txt,
+                    )
+                )
+            if edits:
+                self.effect_engine.apply(edits, self.env, self.operation.identifier)
+
             self.operation.post_act(self.env)
+            self.add_event_log("OPERATION_INTERRUPT", {"reason": str(interrupt.cause)})
             self.done_event.succeed()
 
     def _run_core(self):
