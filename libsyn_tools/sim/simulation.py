@@ -81,7 +81,7 @@ class OperationProcess:
 
     def run(self):
         try:
-            self._run_core()
+            yield from self._run_core()
         except simpy.Interrupt as interrupt:
             self.add_event_log("OPERATION_INTERRUPT", {"reason": str(interrupt.cause)})
             self.operation.post_act(self.env)
@@ -252,7 +252,40 @@ class Simulation:
         df_log.to_csv(filename, index=False)
         logger.info(f"Event log exported → {filename}")
 
-    # Convenience factory ------------------------------------------------ #
+    def spawn_operation(
+            self,
+            op: Operation,
+            *,
+            precedents: list[str] | None = None,
+            start_immediately: bool = True,
+    ) -> "OperationProcess":
+        """
+        Public helper – register `op` with this Simulation **after**
+        construction time.  Useful for spawners and what-if scenarios.
+        """
+        if op.identifier in self.operation_registry:
+            raise ValueError(f"Operation id {op.identifier!r} already exists")
+
+        if precedents:
+            op.required_precedents.extend(precedents)
+
+        proc = OperationProcess(
+            env=self.env,
+            operation=op,
+            operation_registry=self.operation_registry,
+            dependents=self.dependents,
+            history_log=self.history_log,
+            effect_engine=self.effect_engine,
+            speed_factor=self.speed_factor,
+        )
+        self.operation_registry[op.identifier] = proc
+        for pred in op.required_precedents:
+            self.dependents[pred].append(op.identifier)
+
+        if start_immediately:
+            proc.simpy_process = self.env.process(proc.run())
+        return proc
+
     @classmethod
     def compile_actions(cls, *actions: Operation, **kwargs) -> "Simulation":
         """Sugar for `Simulation(list(actions), **kwargs)`."""
