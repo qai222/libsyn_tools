@@ -1,4 +1,4 @@
 instance_iri,instance_type,operation_id,operation_type,sim_timestamp
-beaker_1,LabObject,c1641639-6989-41da-931a-03fb3dc6aba0,TransferMaterialByPortionSize,0.0
-beaker_2,LabObject,c1641639-6989-41da-931a-03fb3dc6aba0,TransferMaterialByPortionSize,0.0
-pipette_3,LabObject,c1641639-6989-41da-931a-03fb3dc6aba0,TransferMaterialByPortionSize,0.0
+beaker_1,MaterialContainer,50d75316-83e5-4e7e-8fe9-dc3cdd4f173e,TransferMaterialByPortionSize,0.0
+beaker_2,MaterialContainer,50d75316-83e5-4e7e-8fe9-dc3cdd4f173e,TransferMaterialByPortionSize,0.0
+pipette_3,LabObject,50d75316-83e5-4e7e-8fe9-dc3cdd4f173e,TransferMaterialByPortionSize,0.0

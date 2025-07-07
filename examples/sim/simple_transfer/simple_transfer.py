@@ -1,6 +1,8 @@
 import os
+
 from twa.data_model.base_ontology import KnowledgeGraph
-from libsyn_tools.sim import LabObject, Chemical, PortionOfMaterial, logger, Create, Simulation, SimOntology
+
+from libsyn_tools.sim import LabObject, Chemical, PortionOfMaterial, logger, Create, Simulation, MaterialContainer
 from libsyn_tools.sim.operation_preset import TransferMaterialByPortionSize
 
 """
@@ -10,8 +12,8 @@ a simple transfer action between two containers
 
 def init_world():
     # lab objects
-    beaker_1 = LabObject(identifier="beaker_1")
-    beaker_2 = LabObject(identifier="beaker_2")
+    beaker_1 = MaterialContainer(identifier="beaker_1")
+    beaker_2 = MaterialContainer(identifier="beaker_2")
     pipette_1 = LabObject(identifier="pipette_3")
 
     # init materials
