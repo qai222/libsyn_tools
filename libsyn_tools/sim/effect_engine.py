@@ -124,6 +124,8 @@ class EffectEngine:
             union_graph.add(triple)
         for triple in overlay_graph.triples((None, None, None)):
             union_graph.add(triple)
+        # TODO or just union_graph = data_graph + overlay_graph
+        #  is overlay_graph necessary? can we ge all derived info in shacl graph?
 
         conforms, shacl_report_graph, _ = validate(
             union_graph,
