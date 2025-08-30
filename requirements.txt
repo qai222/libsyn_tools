@@ -3,6 +3,7 @@ scipy==1.14.0
 pytest==8.2.2
 pytest-order==1.2.1
 loguru==0.7.2
+tqdm
 # schema
 networkx==3.3
 pydantic==2.7.4
@@ -16,4 +17,8 @@ gurobipy==11.0.2
 # sim
 pandas==2.2.3
 simpy==4.1.1
-twa==0.0.7
+twa==0.0.9
+pyshacl
+# test
+seaborn
+matplotlib
