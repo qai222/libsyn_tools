@@ -184,7 +184,7 @@ class Simulation:
 
         if shacl_shapes is None:
             shapes_graph = None
-        elif isinstance(shacl_shapes, ConjunctiveGraph):
+        elif isinstance(shacl_shapes, (Graph, ConjunctiveGraph)):
             shapes_graph = shacl_shapes
         else:
             shapes_graph = Graph().parse(str(shacl_shapes), format="turtle")
