@@ -10,6 +10,7 @@ import weakref
 from abc import ABC, abstractmethod
 from types import MethodType
 from typing import Optional, Callable, Any
+from loguru import logger
 
 import simpy
 from pydantic import BaseModel, Field, PrivateAttr
@@ -95,6 +96,7 @@ class KGInspectorSpawner(Spawner):
         for vr in g.subjects(RDF.type, SH.ValidationResult):
             shape_iri = str(g.value(vr, SH.sourceShape))
             focus_iri = str(g.value(vr, SH.focusNode))
+            logger.critical(f"DBG sourceShape = {shape_iri}")
             factory = self.shape_dispatch.get(shape_iri)
             if factory is None:
                 continue  # shape not in our interest list
@@ -115,32 +117,30 @@ class KGInspectorSpawner(Spawner):
         Monkey-patch OperationProcess.add_event_log so we get called
         exactly once per OPERATION_END.
         """
+        original_add = OperationProcess.add_event_log
 
-        def _wrap_add_event_log(proc_self, event_type, data=None, *, _orig=sim.operation_registry):
-            OperationProcess.add_event_log(proc_self, event_type, data)
+        def _wrap(proc_self, event_type, data=None, *, _orig=original_add):
+            _orig(proc_self, event_type, data)  # call previous impl.
             if event_type == "OPERATION_END":
                 conforms, report, _ = sim.effect_engine.validate_now()
                 if not conforms:
                     self._spawn_for_violations(sim, report)
 
-        # patch *new* processes as well
-        def _patch(proc):
-            proc.add_event_log = MethodType(_wrap_add_event_log, proc)
+        # class-level patch
+        OperationProcess.add_event_log = _wrap
+        OperationProcess._kginsp_patched = True
 
-        for proc in sim.operation_registry.values():
-            _patch(proc)
+        # re-bind every existing instance
+        for p in sim.operation_registry.values():
+            p.add_event_log = MethodType(_wrap, p)
 
-        # remember for future spawned ops
-        OperationProcess.add_event_log = _wrap_add_event_log  # type: ignore
-        OperationProcess.add_event_log_patched = True  # flag
-
-        yield sim.env.timeout(float("inf"))  # keep coroutine alive
+        yield sim.env.timeout(float("inf"))
 
     def _run(self, sim: Simulation):
         if self.inspect_interval > 0:
-            return self._run_every_dt(sim)
+            yield from self._run_every_dt(sim)
         # inspect_interval == 0
-        return self._run_on_every_operation(sim)
+        yield from self._run_on_every_operation(sim)
 
 
 class ProcessInterruptSpawner(Spawner):
