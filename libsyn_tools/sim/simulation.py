@@ -84,7 +84,7 @@ class OperationProcess:
         try:
             yield from self._run_core()
         except simpy.Interrupt as interrupt:
-
+            # Record interrupt reason on each participant (as data prop)
             edits = []
             reason_txt = f"{self.operation.identifier}:{interrupt.cause}"
             for participant_name in self.operation.model_fields:
@@ -101,7 +101,12 @@ class OperationProcess:
                     )
                 )
             if edits:
-                self.effect_engine.apply(edits, self.env, self.operation.identifier)
+                self.effect_engine.apply(
+                    edits,
+                    self.env,
+                    operation_id=self.operation.identifier,
+                    locked_iris=self.operation.resources,  # coverage check
+                )
 
             self.operation.post_act(self.env)
             self.add_event_log("OPERATION_INTERRUPT", {"reason": str(interrupt.cause)})
@@ -111,10 +116,10 @@ class OperationProcess:
         """
         High-level lifecycle
         --------------------
-        1.  Wait for schedule window + precedent operations
+        1.  Wait for scheduled start + precedent operations
         2.  `operation.pre_act()` → participant resolution & locking
         3.  Simulated execution delay (`temporal_cost`)
-        4.  Apply edits atomically
+        4.  Apply edits (mechanical pre-checks + SHACL audit)
         """
         # 1) if scheduled, minimum delay to the scheduled time
         if self.operation.scheduled_start_time is not None:
@@ -122,7 +127,7 @@ class OperationProcess:
             if delay > 0:
                 yield self.env.timeout(self.sim_time(delay))
 
-        # wait for all precedents at once
+        # wait for all precedents at once (binary precedence only; lmin/lmax via SHACL if desired)
         precedent_events = [self.operation_registry[pid].done_event for pid in self.operation.required_precedents]
         if precedent_events:
             yield simpy.events.AllOf(self.env, precedent_events)
@@ -130,26 +135,31 @@ class OperationProcess:
         # 2) Resolve dynamic participants + acquire locks
         yield self.operation.pre_act(self.env)
         self.operation._mark_running()
-        # check presumptions
-        for pres in self.operation.presumptions:
-            if not pres.validate(...):  # supply KG or context
-                raise ValueError(f"Presumption failed for {self.operation.identifier}: {pres}")
 
         # 3) Log start and simulate intrinsic duration
         self.add_event_log("OPERATION_START")
         logger.debug(
-            f"[t={self.env.now:.2f}] Start {self.operation.__class__.__name__}={self.operation.identifier}")
+            f"[t={self.env.now:.2f}] Start {self.operation.__class__.__name__}={self.operation.identifier}"
+        )
 
         if self.operation.temporal_cost:
             yield self.env.timeout(self.sim_time(self.operation.temporal_cost))
 
-        # 4) apply edits atomically
+        # 4) apply edits with mechanical pre-checks and SHACL audit
         staged = self.effect_engine.prepare(self.operation)
-        self.effect_engine.apply(staged, self.env, operation_id=self.operation.identifier)
+        self.effect_engine.apply(
+            staged,
+            self.env,
+            operation_id=self.operation.identifier,
+            locked_iris=self.operation.resources,  # coverage check aligns edits with locks
+        )
 
+        # provenance: remember which ops touched each runtime-tracked object
+        # Guard against ANNIHILATE: if the object is no longer present,
+        # its simpy.Resource has been removed and we must not touch runtime state.
         for iri in self.operation.resources:  # source, destination, device …
             obj = KnowledgeGraph.get_object_from_lookup(iri)
-            if _needs_runtime_tracking(obj):
+            if _needs_runtime_tracking(obj) and getattr(obj, "is_present", {False}) == {True}:
                 get_runtime_state(obj, self.env).recent_operations.append(self.operation)
 
         # Normal completion – mark process done
@@ -247,8 +257,7 @@ class Simulation:
         for proc in self.operation_registry.values():
             proc.simpy_process = self.env.process(proc.run())
 
-        bar = tqdm(total=len(self.operation_registry),
-                   desc="Sim", unit="op")
+        bar = tqdm(total=len(self.operation_registry), desc="Sim", unit="op")
 
         # ---- patch OperationProcess.add_event_log on-the-fly -------
         def _wrap_add_event_log(self, event_type, data=None, *, _orig=OperationProcess.add_event_log):
@@ -281,7 +290,7 @@ class Simulation:
     ) -> "OperationProcess":
         """
         Public helper – register `op` with this Simulation **after**
-        construction time.  Useful for spawners and what-if scenarios.
+        construction time. Useful for spawners and what-if scenarios.
         """
         if op.identifier in self.operation_registry:
             raise ValueError(f"Operation id {op.identifier!r} already exists")
@@ -338,9 +347,6 @@ class Simulation:
                         "instance_type": rs.obj.__class__.__name__,
                         "operation_id": operation.identifier,
                         "operation_type": operation.__class__.__name__,
-                        # "sim_timestamp": action.scheduled_start_time
-                        # if action.scheduled_start_time is not None
-                        # else self.env.now,
                         "sim_timestamp": end_time_index.get(operation.identifier, None),
                     }
                 )

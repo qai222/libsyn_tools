@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from enum import StrEnum, auto
 from typing import Any, Optional, Union
 
 import simpy
@@ -11,13 +12,14 @@ from libsyn_tools.sim.operation.runtime import get_object_for_resource
 from libsyn_tools.sim.operation.selector import Selector, LiteralSelector, FilterStoreRegistry
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit, UnitaryEditType
 from libsyn_tools.utils import str_uuid
-from enum import StrEnum, auto
+
 
 class _OpState(StrEnum):
-    NEW = auto()        # never prepared
-    PREPARED = auto()   # selectors resolved, locks held
-    RUNNING = auto()    # currently inside OperationProcess.run()
+    NEW = auto()  # never prepared
+    PREPARED = auto()  # selectors resolved, locks held
+    RUNNING = auto()  # currently inside OperationProcess.run()
     FINISHED = auto()
+
 
 class Presumption(BaseModel):
     """
@@ -214,13 +216,34 @@ class Operation(ABC, BaseModel):
             )
 
     def post_act(self, env: simpy.Environment):
+        """
+        Release all held locks and reinsert surviving objects into their FilterStores.
+
+        Robust to ANNIHILATE:
+        - If an object was annihilated during `apply(...)`, its Resource will have
+          been removed from `_RESOURCE_MAP`. Reverse lookups for such resources
+          will fail; we still release the lock (on the Resource instance we hold),
+          but skip reinsertion (object is not present).
+        """
         if self.sim_state is not _OpState.RUNNING:
             raise RuntimeError(f"{self.identifier}: post_act called in state {self.sim_state}")
+
         for req in self.locks:
-            obj = get_object_for_resource(req.resource)
+            obj = None
+            # Try to map Resource -> LabObject; this may fail if the object was annihilated.
+            try:
+                obj = get_object_for_resource(req.resource)
+            except KeyError:
+                # Resource no longer registered (likely ANNIHILATE). We can still release the lock below.
+                pass
+
+            # Always release the SimPy lock we hold
             req.resource.release(req)
-            if obj.is_present == {True}:
+
+            # Reinsert only if we successfully mapped and the object is still present
+            if obj is not None and getattr(obj, "is_present", {False}) == {True}:
                 FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+
         self.locks.clear()
         self.sim_state = _OpState.FINISHED
 
