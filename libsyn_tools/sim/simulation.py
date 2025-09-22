@@ -3,7 +3,6 @@ from __future__ import annotations
 import random
 from collections import defaultdict
 from pathlib import Path
-from types import MethodType
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -16,6 +15,7 @@ from tqdm import tqdm
 
 from .effect_engine import EffectEngine, KnowledgeGraph
 from .knowledge_graph import LabObject, Has_interrupt_events
+from .lifecycle import LifecycleCallbacks
 from .operation.operation import Operation, _OpState
 from .operation.runtime import _needs_runtime_tracking, get_runtime_state, _RUNTIME_CACHE
 from .operation.unitary_edit import AddDataProperty
@@ -27,13 +27,8 @@ class OperationEventRecord(BaseModel):
     event_type: str
     operation_data: dict
 
-    def __repr__(self) -> str:  # pragma: no cover – for interactive debug only
-        return (
-            f"OperationEventRecord("
-            f"operation_id={self.operation_id}, "
-            f"timestamp={self.timestamp:.3f}, "
-            f"event_type={self.event_type})"
-        )
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"OperationEventRecord(operation_id={self.operation_id}, timestamp={self.timestamp:.3f}, event_type={self.event_type})"
 
 
 class OperationProcess:
@@ -53,6 +48,7 @@ class OperationProcess:
             history_log: List[OperationEventRecord],
             effect_engine: EffectEngine,
             speed_factor: float,
+            callbacks: LifecycleCallbacks,  # NEW
     ):
         self.env = env
         self.operation = operation
@@ -62,12 +58,11 @@ class OperationProcess:
         self.history_log = history_log
         self.effect_engine = effect_engine
         self.speed_factor = speed_factor
+        self.callbacks = callbacks  # NEW
 
-        # Public event that predecessors / dependents can `yield`
         self.done_event = env.event()
 
     def sim_time(self, dt: float) -> float:
-        """Scale a wall-clock delta by the *simulation* speed factor."""
         return dt * self.speed_factor
 
     def add_event_log(self, event_type: str, data: dict | None = None) -> None:
@@ -84,9 +79,9 @@ class OperationProcess:
         try:
             yield from self._run_core()
         except simpy.Interrupt as interrupt:
-            # Record interrupt reason on each participant (as data prop)
             edits = []
             reason_txt = f"{self.operation.identifier}:{interrupt.cause}"
+            # record interrupt on participants (only if literal IRIs)
             for participant_name in self.operation.model_fields:
                 if not participant_name.startswith("participant_"):
                     continue
@@ -101,78 +96,67 @@ class OperationProcess:
                     )
                 )
             if edits:
-                self.effect_engine.apply(
-                    edits,
-                    self.env,
-                    operation_id=self.operation.identifier,
-                    locked_iris=self.operation.resources,  # coverage check
-                )
-
+                self.effect_engine.apply(edits, self.env, operation_id=self.operation.identifier,
+                                         locked_iris=self.operation.resources)
             self.operation.post_act(self.env)
+
+            # NEW: lifecycle callback
+            self.callbacks.emit_operation_interrupt(self, str(interrupt.cause))
             self.add_event_log("OPERATION_INTERRUPT", {"reason": str(interrupt.cause)})
             self.done_event.succeed()
 
     def _run_core(self):
-        """
-        High-level lifecycle
-        --------------------
-        1.  Wait for scheduled start + precedent operations
-        2.  `operation.pre_act()` → participant resolution & locking
-        3.  Simulated execution delay (`temporal_cost`)
-        4.  Apply edits (mechanical pre-checks + SHACL audit)
-        """
-        # 1) if scheduled, minimum delay to the scheduled time
+        # scheduled start gate
         if self.operation.scheduled_start_time is not None:
             delay = self.operation.scheduled_start_time - self.env.now
             if delay > 0:
                 yield self.env.timeout(self.sim_time(delay))
 
-        # wait for all precedents at once (binary precedence only; lmin/lmax via SHACL if desired)
+        # wait for precedents
         precedent_events = [self.operation_registry[pid].done_event for pid in self.operation.required_precedents]
         if precedent_events:
             yield simpy.events.AllOf(self.env, precedent_events)
 
-        # 2) Resolve dynamic participants + acquire locks
+        # pre-act
         yield self.operation.pre_act(self.env)
         self.operation._mark_running()
 
-        # 3) Log start and simulate intrinsic duration
+        # START
+        self.callbacks.emit_operation_start(self)
         self.add_event_log("OPERATION_START")
-        logger.debug(
-            f"[t={self.env.now:.2f}] Start {self.operation.__class__.__name__}={self.operation.identifier}"
-        )
+        logger.debug(f"[t={self.env.now:.2f}] Start {self.operation.__class__.__name__}={self.operation.identifier}")
 
+        # intrinsic duration
         if self.operation.temporal_cost:
             yield self.env.timeout(self.sim_time(self.operation.temporal_cost))
 
-        # 4) apply edits with mechanical pre-checks and SHACL audit
+        # apply edits (mechanical checks + SHACL audit)
         staged = self.effect_engine.prepare(self.operation)
         self.effect_engine.apply(
             staged,
             self.env,
             operation_id=self.operation.identifier,
-            locked_iris=self.operation.resources,  # coverage check aligns edits with locks
+            locked_iris=self.operation.resources,
         )
 
         # provenance: remember which ops touched each runtime-tracked object
-        # Guard against ANNIHILATE: if the object is no longer present,
-        # its simpy.Resource has been removed and we must not touch runtime state.
-        for iri in self.operation.resources:  # source, destination, device …
+        # Guard against ANNIHILATE ⇒ resource removed; skip non-present objects
+        for iri in self.operation.resources:
             obj = KnowledgeGraph.get_object_from_lookup(iri)
             if _needs_runtime_tracking(obj) and getattr(obj, "is_present", {False}) == {True}:
                 get_runtime_state(obj, self.env).recent_operations.append(self.operation)
 
-        # Normal completion – mark process done
+        # FINISH
         self.operation.post_act(self.env)
         self.done_event.succeed()
+        self.callbacks.emit_operation_end(self)
         self.add_event_log("OPERATION_END")
         logger.debug(f"[t={self.env.now:.2f}] Finished {self.operation.identifier}")
 
 
 class Simulation:
     """
-    Orchestrates a collection of `Operation` instances inside a SimPy
-    `Environment`.  One `Simulation` ≈ one *experimental run*.
+    Orchestrates a collection of `Operation` instances inside a SimPy environment.
     """
 
     def __init__(
@@ -184,11 +168,9 @@ class Simulation:
             shacl_shapes: str | Path | Graph | None = None,
             shacl_inference: str = "owlrl"
     ):
-        # 0) SimPy env + RNG
         self.env = simpy.Environment()
         self.rng = random.Random(random_seed)
 
-        # 1) Core data
         self.operations = operations
         self.speed_factor = simulation_speed_factor
 
@@ -199,40 +181,29 @@ class Simulation:
         else:
             shapes_graph = Graph().parse(str(shacl_shapes), format="turtle")
 
+        # NEW: lifecycle callbacks (shared among engine + processes)
+        self.callbacks = LifecycleCallbacks()
+
         self.effect_engine = EffectEngine(
             shapes_graph=shapes_graph,
             inference=shacl_inference,
+            callbacks=self.callbacks,  # NEW
         )
 
-        # 2) Runtime bookkeeping
         self.operation_registry: Dict[str, OperationProcess] = {}
         self.dependents: Dict[str, List[str]] = defaultdict(list)
         self.history_log: List[OperationEventRecord] = []
 
-        # 3) Build runtime artefacts
         self._build_dependency_map()
         self._build_resources()
         self._build_processes()
 
-    # .................................................................. #
-    # Construction helpers
-    # .................................................................. #
     def _build_dependency_map(self) -> None:
         for op in self.operations:
             for pred in op.required_precedents:
                 self.dependents[pred].append(op.identifier)
 
     def _build_resources(self) -> None:
-        """
-        For **every** `LabObject` currently known in memory:
-
-        • Create a capacity-1 `simpy.Resource`
-        • Store it in *both* the per-simulation map *and*
-          the global runtime map used by selectors
-        • If the object carries a `pool_type`, drop it into the
-          corresponding `FilterStore` so Attribute/History selectors work
-          without manual intervention.
-        """
         for obj in LabObject.all_instances():
             self.effect_engine._register_if_new(obj, self.env)
 
@@ -250,33 +221,30 @@ class Simulation:
                 history_log=self.history_log,
                 effect_engine=self.effect_engine,
                 speed_factor=self.speed_factor,
+                callbacks=self.callbacks,  # NEW
             )
 
     def run(self, until: float | None = None) -> None:
-        """Kick off all `OperationProcess` coroutines and block until done."""
+        """Start all processes and block until done or until time limit."""
         for proc in self.operation_registry.values():
             proc.simpy_process = self.env.process(proc.run())
 
+        # progress bar via lifecycle callback (no monkey-patch)
         bar = tqdm(total=len(self.operation_registry), desc="Sim", unit="op")
 
-        # ---- patch OperationProcess.add_event_log on-the-fly -------
-        def _wrap_add_event_log(self, event_type, data=None, *, _orig=OperationProcess.add_event_log):
-            _orig(self, event_type, data)  # ← original behaviour
-            if event_type == "OPERATION_END":
-                bar.update()
+        def _bar_on_end(proc: OperationProcess):
+            bar.update()
 
-        # bind the new method to *each* existing instance
-        for proc in self.operation_registry.values():
-            proc.add_event_log = MethodType(_wrap_add_event_log, proc)
+        self.callbacks.on_operation_end.append(_bar_on_end)
 
         logger.info("Simulation start")
         self.env.run(until=until)
         logger.info(f"Simulation end @ t = {self.env.now}")
 
+        self.callbacks.on_operation_end.remove(_bar_on_end)
         bar.close()
 
     def export_event_log(self, filename: FilePath) -> None:
-        """Persist the in-memory history to CSV/JSON downstream."""
         df_log = pd.DataFrame.from_records([r.model_dump() for r in self.history_log])
         df_log.to_csv(filename, index=False)
         logger.info(f"Event log exported → {filename}")
@@ -288,10 +256,6 @@ class Simulation:
             precedents: list[str] | None = None,
             start_immediately: bool = True,
     ) -> "OperationProcess":
-        """
-        Public helper – register `op` with this Simulation **after**
-        construction time. Useful for spawners and what-if scenarios.
-        """
         if op.identifier in self.operation_registry:
             raise ValueError(f"Operation id {op.identifier!r} already exists")
 
@@ -306,6 +270,7 @@ class Simulation:
             history_log=self.history_log,
             effect_engine=self.effect_engine,
             speed_factor=self.speed_factor,
+            callbacks=self.callbacks,  # NEW
         )
         self.operation_registry[op.identifier] = proc
         for pred in op.required_precedents:
@@ -317,29 +282,14 @@ class Simulation:
 
     @classmethod
     def compile_actions(cls, *actions: Operation, **kwargs) -> "Simulation":
-        """Sugar for `Simulation(list(actions), **kwargs)`."""
         return cls(list(actions), **kwargs)
 
     def export_instance_history(self, filename: FilePath) -> None:
-        """
-        Write a CSV that lists every LabObject that participated in an
-        `Operation` during this simulation run, together with the action
-        identifier and class name.
-
-        Columns:
-            instance_iri, instance_type, action_id, action_type, sim_timestamp
-        """
-        end_time_index = {
-            r.operation_id: r.timestamp
-            for r in self.history_log
-            if r.event_type == "OPERATION_END"
-        }
-
+        end_time_index = {r.operation_id: r.timestamp for r in self.history_log if r.event_type == "OPERATION_END"}
         rows: list[dict] = []
         for rs in _RUNTIME_CACHE.values():
             if not _needs_runtime_tracking(rs.obj):
-                continue  # skip PortionOfMaterial etc.
-
+                continue
             for operation in rs.recent_operations:
                 rows.append(
                     {
@@ -350,7 +300,5 @@ class Simulation:
                         "sim_timestamp": end_time_index.get(operation.identifier, None),
                     }
                 )
-
-        df = pd.DataFrame(rows)
-        df.to_csv(filename, index=False)
+        pd.DataFrame(rows).to_csv(filename, index=False)
         logger.info(f"Instance history exported → {filename}")
