@@ -18,6 +18,7 @@ from libsyn_tools.sim.knowledge_graph.physical_entities import (
 from libsyn_tools.sim.operation.operation import Operation
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit, Create, AddObjectProperty
 from libsyn_tools.sim.operation_preset.transfer import TransferMaterialByPortionSize
+from libsyn_tools.sim.overlay.current_volume_overlay import CurrentVolumeOverlayProvider
 from libsyn_tools.sim.spawner import KGInspectorSpawner, TimerSpawner
 
 SHAPE_IRI = "https://libsyn-sim/shapes/OverflowShape"
@@ -87,6 +88,7 @@ def test_timer_and_inspector_coexist_and_spawn_once():
     )
 
     sim = Simulation([viol], shacl_shapes=_overflow_shape_named())
+    sim.effect_engine.register_overlay_provider(CurrentVolumeOverlayProvider().snapshot)
 
     # Timer that just generates extra OPERATION_END events in the background;
     # use UNIQUE ids per spawn to avoid spawn_operation collisions.

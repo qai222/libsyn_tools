@@ -8,6 +8,8 @@ from pydantic import Field
 from libsyn_tools.chem_schema import Chemical
 from .base import Individual, BaseClass, SimFunctionalDataProperty, SimDataProperty, SimObjectProperty
 
+# TODO align these with sppt `PartOf`
+
 T = TypeVar("T", bound=BaseClass)
 T_co = TypeVar("T_co", bound=BaseClass, covariant=True)
 

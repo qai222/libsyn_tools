@@ -14,6 +14,7 @@ from rdflib import Graph, ConjunctiveGraph
 from tqdm import tqdm
 
 from .effect_engine import EffectEngine, KnowledgeGraph
+from .overlay import SPPTOverlayProvider, CurrentVolumeOverlayProvider
 from .knowledge_graph import LabObject, Has_interrupt_events
 from .lifecycle import LifecycleCallbacks
 from .operation.operation import Operation, _OpState

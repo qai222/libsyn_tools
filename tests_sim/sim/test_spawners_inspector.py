@@ -16,6 +16,7 @@ from libsyn_tools.sim.knowledge_graph.physical_entities import (
 )
 from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty
 from libsyn_tools.sim.operation_preset.transfer import TransferMaterialByPortionSize
+from libsyn_tools.sim.overlay.current_volume_overlay import CurrentVolumeOverlayProvider
 from libsyn_tools.sim.spawner import KGInspectorSpawner
 
 SHAPE_IRI = "https://libsyn-sim/shapes/OverflowShape"
@@ -115,6 +116,7 @@ def test_inspector_per_op_spawns_and_resolves_once():
     )
 
     sim = Simulation([viol], shacl_shapes=_overflow_shape_named())
+    sim.effect_engine.register_overlay_provider(CurrentVolumeOverlayProvider().snapshot)
     KGInspectorSpawner(
         shape_dispatch={SHAPE_IRI: _fix_factory_transfer(v1.identifier, res.identifier, pip.identifier)},
         inspect_interval=0.0,  # hook on OPERATION_END
@@ -143,6 +145,7 @@ def test_inspector_no_violation_no_spawn():
     )
 
     sim = Simulation([ok], shacl_shapes=_overflow_shape_named())
+    sim.effect_engine.register_overlay_provider(CurrentVolumeOverlayProvider().snapshot)
     KGInspectorSpawner(
         shape_dispatch={SHAPE_IRI: _fix_factory_transfer(v1.identifier, res.identifier, pip.identifier)},
         inspect_interval=0.0,
@@ -166,6 +169,7 @@ def test_inspector_polling_interval_spawns_after_dt():
     )
 
     sim = Simulation([viol], shacl_shapes=_overflow_shape_named())
+    sim.effect_engine.register_overlay_provider(CurrentVolumeOverlayProvider().snapshot)
     KGInspectorSpawner(
         shape_dispatch={SHAPE_IRI: _fix_factory_transfer(v1.identifier, res.identifier, pip.identifier)},
         inspect_interval=3.0,  # poll at t=3

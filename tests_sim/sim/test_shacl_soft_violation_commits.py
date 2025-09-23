@@ -1,4 +1,4 @@
-# ### THIS IS THE START OF CONTENT OF tests_sim/sim/test_shacl_soft_violation_commits.py ###
+# === REPLACE FULL FILE tests_sim/sim/test_shacl_soft_violation_commits.py ===
 from __future__ import annotations
 
 import simpy
@@ -15,10 +15,10 @@ from libsyn_tools.sim.knowledge_graph.physical_entities import (
 )
 from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty
 from libsyn_tools.sim.operation_preset.transfer import TransferMaterialByPortionSize
+from libsyn_tools.sim.overlay.current_volume_overlay import CurrentVolumeOverlayProvider
 
 
 def _overflow_shape() -> Graph:
-    """Flag any container whose overlay currentVolume > 9.9."""
     lib = Namespace("https://libsyn-sim/kg/")
     ttl = f'''
     PREFIX sh: <{SH}>
@@ -37,20 +37,16 @@ def _overflow_shape() -> Graph:
 
 
 def _world_reservoir(amount: float):
-    """Reservoir with a single POM of `amount` mL; empty v1; one pipette."""
     v1 = MaterialContainer(identifier="v1")
     res = MaterialContainer(identifier="reservoir")
     pip = MaterialContainer(identifier="pipette")
-
-    pom = PortionOfMaterial(identifier="water")
-    pom.add_chemical(Chemical(mass=amount, density=1.0))
-    pom.is_directly_contained_by.add(res)
-
-    for o in (v1, res, pip, pom):
+    p = PortionOfMaterial(identifier="water")
+    p.add_chemical(Chemical(mass=amount, density=1.0))
+    for o in (v1, res, pip, p):
         KnowledgeGraph.get_object_from_lookup(o.identifier)
         Create(instance_1_iri=o.identifier).apply()
     AddObjectProperty(
-        instance_1_iri=pom.identifier,
+        instance_1_iri=p.identifier,
         instance_2_iri=res.identifier,
         property_iri=Is_directly_contained_by.predicate_iri,
     ).apply()
@@ -58,7 +54,7 @@ def _world_reservoir(amount: float):
 
 
 def test_shacl_violation_is_soft_commit(env: simpy.Environment):
-    v1, res, pip = _world_reservoir(12.0)  # move all → v1 volume=12 (>9.9)
+    v1, res, pip = _world_reservoir(12.0)
 
     op = TransferMaterialByPortionSize(
         identifier="fill",
@@ -69,12 +65,12 @@ def test_shacl_violation_is_soft_commit(env: simpy.Environment):
         temporal_cost=0.5,
     )
     sim = Simulation([op], shacl_shapes=_overflow_shape())
+
+    # Explicitly add currentVolume overlay
+    sim.effect_engine.register_overlay_provider(CurrentVolumeOverlayProvider().snapshot)
+
     sim.run()
 
-    # Edits committed
     assert v1.directly_contained_pom_volume > 9.9
-
-    # SHACL recorded a soft, committed violation
-    viols = sim.effect_engine._shacl_violations  # test access
+    viols = sim.effect_engine._shacl_violations
     assert any(v.origin == "SHACL" and v.severity == "soft" and v.disposition == "committed" for v in viols)
-# ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_shacl_soft_violation_commits.py ###

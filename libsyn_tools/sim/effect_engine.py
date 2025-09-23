@@ -1,8 +1,9 @@
+# ### THIS IS THE START OF CONTENT OF libsyn_tools/sim/effect_engine.py ###
 from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import List, Union, Iterable as It, Optional
+from typing import List, Union, Iterable as It, Optional, Callable
 from uuid import uuid4
 
 import pandas as pd
@@ -32,51 +33,62 @@ class SHACLValidationError(RuntimeError):
 
 class EffectEngine:
     """
-    Apply `UnitaryEdit`s for one operation as a **micro-commit**:
-    - run *mechanical* hard checks first (abort if fail; no edits applied)
-    - apply edits in-order (no yield; single SimPy microstep)
-    - run SHACL over (data ⊎ overlay); record soft violations
-
-    Note: We *do not* roll back SHACL violations. They are recorded and
-    the simulation proceeds (unless `raise_shacl=True`).
+    Micro-commit of edits + SHACL audit. Supports pluggable overlay providers.
     """
 
     def __init__(
-            self,
-            *,
-            shapes_graph: ConjunctiveGraph | None = None,
-            raise_shacl: bool = False,
-            inference: str = "owlrl",
-            callbacks: LifecycleCallbacks | None = None,  # NEW
+        self,
+        *,
+        shapes_graph: ConjunctiveGraph | None = None,
+        raise_shacl: bool = False,
+        inference: str = "owlrl",
+        callbacks: LifecycleCallbacks | None = None,
     ):
         self.shapes_graph = shapes_graph
         self.inference = inference
         self._shacl_violations: list[SHACLViolationRecord] = []
         self.raise_shacl = raise_shacl
-        self.callbacks = callbacks  # NEW
+        self.callbacks = callbacks
 
-    # ---------- Overlay construction (ephemeral) ----------
+        # registered overlay providers → functions that return an rdflib.Graph
+        self._overlay_providers: list[Callable[[], Graph]] = []
 
+
+    # --- overlay provider registry ---
+    def register_overlay_provider(self, provider: Callable[[], Graph]) -> None:
+        """
+        Register a callable that returns an rdflib.Graph to be unioned into the overlay.
+        Providers should be fast and side-effect free.
+        """
+        self._overlay_providers.append(provider)
+
+    # --- overlay construction (ephemeral) ---
     def _build_overlay_graph(self) -> Graph:
+        """
+        Build the overlay by calling all registered providers.
+        Providers must be fast and side-effect free.
+        """
         g = Graph()
-        for c in MaterialContainer.object_lookup.values():
-            if c.is_present != {True}:
-                continue
-            vol = c.directly_contained_pom_volume
-            g.add((URIRef(c.instance_iri), LIB_SYN.currentVolume, Literal(vol, datatype=XSD.double)))
+        for prov in self._overlay_providers:
+            try:
+                pg = prov()
+                if isinstance(pg, Graph):
+                    for t in pg.triples((None, None, None)):
+                        g.add(t)
+            except Exception as e:
+                logger.error(f"Overlay provider failed: {e!r}")
         return g
 
-    # ---------- SHACL helpers ----------
-
+    # --- SHACL helpers (unchanged) ---
     def _collect_shacl_violations(
-            self,
-            *,
-            env_now: float,
-            operation_id: str,
-            shacl_report_graph: Graph,
-            batch_id: Optional[str],
-            edit_fingerprints: Optional[list[str]],
-            seed: Optional[int]
+        self,
+        *,
+        env_now: float,
+        operation_id: str,
+        shacl_report_graph: Graph,
+        batch_id: Optional[str],
+        edit_fingerprints: Optional[list[str]],
+        seed: Optional[int]
     ) -> list[SHACLViolationRecord]:
         records: list[SHACLViolationRecord] = []
         for vr in _iter_validation_results(shacl_report_graph):
@@ -98,13 +110,13 @@ class EffectEngine:
         return records
 
     def _run_shacl_validation(
-            self,
-            *,
-            env: simpy.Environment,
-            operation_id: str,
-            batch_id: Optional[str],
-            edit_fingerprints: Optional[list[str]],
-            seed: Optional[int]
+        self,
+        *,
+        env: simpy.Environment,
+        operation_id: str,
+        batch_id: Optional[str],
+        edit_fingerprints: Optional[list[str]],
+        seed: Optional[int]
     ) -> None:
         if self.shapes_graph is None:
             return
@@ -138,15 +150,13 @@ class EffectEngine:
                 seed=seed,
             )
             self._shacl_violations.extend(recs)
-            # NEW: emit to lifecycle subscribers
             if self.callbacks:
                 for rec in recs:
                     self.callbacks.emit_violation(rec)
             if self.raise_shacl:
                 raise SHACLValidationError(shacl_report_graph)
 
-    # ---------- CSV export ----------
-
+    # --- CSV export (unchanged) ---
     def write_shacl_csv(self, filepath: Union[str, Path], include_ttl: bool = False, **to_csv_kwargs) -> None:
         records_as_dicts = [
             rec.model_dump() if include_ttl else rec.model_dump(exclude={"report_graph_ttl"})
@@ -154,19 +164,16 @@ class EffectEngine:
         ]
         pd.DataFrame.from_records(records_as_dicts).to_csv(Path(filepath), index=False, **to_csv_kwargs)
 
-    # ---------- Mechanical pre-checks (unchanged semantics) ----------
-
+    # --- Mechanical pre-checks + apply (unchanged semantics) ---
     @staticmethod
     def _fingerprint_edit(edit: UnitaryEdit) -> str:
         dv = edit.data_value
         dv_repr = str(dv) if dv is None or isinstance(dv, (int, float, str, bool)) else f"<{type(dv).__name__}>"
-        return "|".join(
-            [edit.type.value, edit.instance_1_iri or "", edit.property_iri or "", edit.instance_2_iri or "", dv_repr])
+        return "|".join([edit.type.value, edit.instance_1_iri or "", edit.property_iri or "", edit.instance_2_iri or "", dv_repr])
 
     def _precheck_mechanical(self, *, edits: It[UnitaryEdit], locked_iris: Optional[It[str]] = None) -> None:
         locked = set(locked_iris or [])
         edits_list = list(edits)
-
         creates = [e.instance_1_iri for e in edits_list if e.type is UnitaryEditType.CREATE]
         if len(creates) != len(set(creates)):
             raise RuntimeError(f"Mechanical check failed: duplicate CREATE in batch: {creates}")
@@ -187,12 +194,9 @@ class EffectEngine:
                 subj = KnowledgeGraph.get_object_from_lookup(e.instance_1_iri)
                 if subj is not None and getattr(subj, "is_present", {False}) == {True}:
                     raise RuntimeError(f"Mechanical check failed: CREATE on present object {e.instance_1_iri}")
-
-            elif t in (UnitaryEditType.ADD_DATA_PROPERTY, UnitaryEditType.CHANGE_DATA_PROPERTY,
-                       UnitaryEditType.ANNIHILATE):
+            elif t in (UnitaryEditType.ADD_DATA_PROPERTY, UnitaryEditType.CHANGE_DATA_PROPERTY, UnitaryEditType.ANNIHILATE):
                 if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
                     raise RuntimeError(f"Mechanical check failed: dangling subject {e.instance_1_iri}")
-
             elif t in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY):
                 if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
                     raise RuntimeError(f"Mechanical check failed: dangling subject {e.instance_1_iri}")
@@ -210,13 +214,13 @@ class EffectEngine:
         return action.operation_effects.copy()
 
     def apply(
-            self,
-            edits: Iterable[UnitaryEdit],
-            env: simpy.Environment,
-            *,
-            operation_id: str,
-            locked_iris: Optional[Iterable[str]] = None,
-            seed: Optional[int] = None,
+        self,
+        edits: Iterable[UnitaryEdit],
+        env: simpy.Environment,
+        *,
+        operation_id: str,
+        locked_iris: Optional[Iterable[str]] = None,
+        seed: Optional[int] = None,
     ) -> None:
         edits = list(edits)
         batch_id = str(uuid4())
@@ -229,9 +233,8 @@ class EffectEngine:
             obj2 = (
                 KnowledgeGraph.get_object_from_lookup(edit.instance_2_iri)
                 if edit.type in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY)
-                   and edit.instance_2_iri else None
+                and edit.instance_2_iri else None
             )
-
             self._register_if_new(subj, env)
             if edit.type is not UnitaryEditType.CREATE and obj2:
                 self._register_if_new(obj2, env)
@@ -254,8 +257,7 @@ class EffectEngine:
             seed=seed,
         )
 
-    # ---------- Runtime artefact helpers ----------
-
+    # --- runtime artefacts (unchanged) ---
     def _log_and_sync(self, obj: BaseClass, edit: UnitaryEdit, env: simpy.Environment) -> None:
         if obj is None or not _needs_runtime_tracking(obj):
             return

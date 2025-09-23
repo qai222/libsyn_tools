@@ -16,6 +16,7 @@ from libsyn_tools.sim.knowledge_graph.physical_entities import (
 )
 from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty
 from libsyn_tools.sim.operation_preset.transfer import TransferMaterialByPortionSize
+from libsyn_tools.sim.overlay.current_volume_overlay import CurrentVolumeOverlayProvider
 
 
 def _overflow_shape() -> Graph:
@@ -70,6 +71,7 @@ def test_shacl_raise_policy_commits_then_raises():
         temporal_cost=0.0,
     )
     sim = Simulation([op], shacl_shapes=_overflow_shape())
+    sim.effect_engine.register_overlay_provider(CurrentVolumeOverlayProvider().snapshot)
     # Turn on raise behavior
     sim.effect_engine.raise_shacl = True
 

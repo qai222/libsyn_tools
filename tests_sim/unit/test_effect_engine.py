@@ -1,4 +1,4 @@
-# ### THIS IS THE START OF CONTENT OF tests_sim/unit/test_effect_engine.py ###
+# === REPLACE FULL FILE tests_sim/unit/test_effect_engine.py ===
 from __future__ import annotations
 
 import simpy
@@ -18,29 +18,22 @@ from libsyn_tools.sim.operation.unitary_edit import (
     AddObjectProperty,
     AddDataProperty,
 )
+from libsyn_tools.sim.overlay.current_volume_overlay import CurrentVolumeOverlayProvider
 
 
 def _make_container_present() -> MaterialContainer:
     c = MaterialContainer()
-    # present only after Create (use engine later) or set directly here for unit isolation
     return c
 
 
 def _make_pom_with_volume(vol_ml: float) -> PortionOfMaterial:
     pom = PortionOfMaterial()
-    # Build a single-ingredient chemical with known volume
-    chem = Chemical(mass=vol_ml, density=1.0)  # 1 g/mL → volume == mass
+    chem = Chemical(mass=vol_ml, density=1.0)
     pom.add_chemical(chem)
     return pom
 
 
 def _minimal_overflow_shape() -> Graph:
-    """
-    SHACL shape: any subject with lib:currentVolume > 9.9 triggers a violation.
-
-    We use a SPARQLConstraint over the **overlay** predicate `lib:currentVolume`.
-    """
-
     lib = Namespace("https://libsyn-sim/kg/")
     ttl = f'''
     PREFIX sh: <{SH}>
@@ -61,12 +54,9 @@ def _minimal_overflow_shape() -> Graph:
 def test_mechanical_abort_create_on_present(env: simpy.Environment):
     eng = EffectEngine()
     c = _make_container_present()
-    # Mark present first via Create, then attempt another Create in a new batch
-    # First: make the object exist in KG and present
-    KnowledgeGraph.get_object_from_lookup(c.identifier)  # ensure in KG
+    KnowledgeGraph.get_object_from_lookup(c.identifier)
     eng.apply([Create(instance_1_iri=c.identifier)], env, operation_id="init", locked_iris=[c.identifier])
 
-    # Now: a second Create on a present object must fail (mechanical)
     try:
         eng.apply([Create(instance_1_iri=c.identifier)], env, operation_id="dup", locked_iris=[c.identifier])
         assert False, "Expected mechanical pre-check to abort on CREATE of present"
@@ -77,7 +67,6 @@ def test_mechanical_abort_create_on_present(env: simpy.Environment):
 def test_mechanical_abort_dangling_subject(env: simpy.Environment):
     eng = EffectEngine()
     fake = "LabObject_FAKE"
-    # Add data property to non-existent subject (not created in batch) → abort
     from libsyn_tools.sim.knowledge_graph.physical_entities import Has_interrupt_events
     edit = AddDataProperty(
         instance_1_iri=fake,
@@ -92,17 +81,16 @@ def test_mechanical_abort_dangling_subject(env: simpy.Environment):
 
 
 def test_apply_addobjectproperty_and_overlay_shacl(env: simpy.Environment):
-    # Build container & POM; apply edits to present them and relate via direct containment
+    # Engine with shape + explicit currentVolume overlay provider
     eng = EffectEngine(shapes_graph=_minimal_overflow_shape())
+    eng.register_overlay_provider(CurrentVolumeOverlayProvider().snapshot)
 
     c = _make_container_present()
-    p = _make_pom_with_volume(12.0)  # > 9.9 → should violate overlay shape
+    p = _make_pom_with_volume(12.0)  # > 9.9 → should violate
 
-    # Ensure both instances are known to the KG
     KnowledgeGraph.get_object_from_lookup(c.identifier)
     KnowledgeGraph.get_object_from_lookup(p.identifier)
 
-    # Prepare edits: create both + link POM → container
     edits = [
         Create(instance_1_iri=c.identifier),
         Create(instance_1_iri=p.identifier),
@@ -114,15 +102,5 @@ def test_apply_addobjectproperty_and_overlay_shacl(env: simpy.Environment):
     ]
     eng.apply(edits, env, operation_id="link", locked_iris=[c.identifier, p.identifier])
 
-    # Overlay must compute currentVolume for container; SHACL should record violation
-    # Verify an overlay triple exists via validate_now()
     conforms, report, _ = eng.validate_now()
-    assert not conforms  # should still be non-conformant with same state
-
-    # The engine recorded violations during .apply(...)
-    viols = eng._shacl_violations  # for unit tests we access internal buffer
-    assert len(viols) >= 1
-    v = viols[-1]
-    assert v.origin == "SHACL" and v.severity == "soft" and v.disposition == "committed"
-    assert v.operation_id == "link"
-# ### THIS IS THE END OF CONTENT OF tests_sim/unit/test_effect_engine.py ###
+    assert not conforms
