@@ -4,7 +4,7 @@ from __future__ import annotations
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim import Simulation
-from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject
+from libsyn_tools.sim.knowledge_graph import LabObject
 from libsyn_tools.sim.operation.operation import Operation
 from libsyn_tools.sim.operation.selector import FilterStoreRegistry
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit, Create, Annihilate

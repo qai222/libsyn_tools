@@ -8,7 +8,7 @@ from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
 from libsyn_tools.sim.effect_engine import EffectEngine
-from libsyn_tools.sim.knowledge_graph.physical_entities import (
+from libsyn_tools.sim.knowledge_graph   import (
     MaterialContainer,
     PortionOfMaterial,
     Is_directly_contained_by,
@@ -67,7 +67,7 @@ def test_mechanical_abort_create_on_present(env: simpy.Environment):
 def test_mechanical_abort_dangling_subject(env: simpy.Environment):
     eng = EffectEngine()
     fake = "LabObject_FAKE"
-    from libsyn_tools.sim.knowledge_graph.physical_entities import Has_interrupt_events
+    from libsyn_tools.sim.knowledge_graph   import Has_interrupt_events
     edit = AddDataProperty(
         instance_1_iri=fake,
         property_iri=Has_interrupt_events.predicate_iri,

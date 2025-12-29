@@ -5,7 +5,7 @@ import simpy
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim.effect_engine import EffectEngine
-from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject
+from libsyn_tools.sim.knowledge_graph   import LabObject
 from libsyn_tools.sim.operation.runtime import get_runtime_state
 from libsyn_tools.sim.operation.selector import (
     AttributeSelector,

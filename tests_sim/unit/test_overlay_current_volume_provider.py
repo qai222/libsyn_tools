@@ -4,7 +4,7 @@ from rdflib import Namespace
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
-from libsyn_tools.sim.knowledge_graph.physical_entities import (
+from libsyn_tools.sim.knowledge_graph   import (
     MaterialContainer, PortionOfMaterial, Is_directly_contained_by
 )
 from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty

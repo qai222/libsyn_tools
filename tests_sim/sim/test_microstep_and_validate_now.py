@@ -6,7 +6,7 @@ from rdflib import Graph
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim import Simulation
-from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject, Has_interrupt_events
+from libsyn_tools.sim.knowledge_graph  import LabObject, Has_interrupt_events
 from libsyn_tools.sim.operation.operation import Operation
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit, AddDataProperty
 

@@ -6,7 +6,7 @@ from pydantic import Field
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim import Simulation
-from libsyn_tools.sim.knowledge_graph.physical_entities import (
+from libsyn_tools.sim.knowledge_graph  import (
     LabObject,
     Is_directly_contained_by,
 )

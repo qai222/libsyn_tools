@@ -5,7 +5,7 @@ from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
 from libsyn_tools.sim.effect_engine import EffectEngine
-from libsyn_tools.sim.knowledge_graph.physical_entities import (
+from libsyn_tools.sim.knowledge_graph   import (
     PortionOfMaterial,
     MaterialContainer,
     Is_directly_contained_by,

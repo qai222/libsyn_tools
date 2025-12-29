@@ -7,7 +7,7 @@ from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
 from libsyn_tools.sim import Simulation
-from libsyn_tools.sim.knowledge_graph.physical_entities import (
+from libsyn_tools.sim.knowledge_graph import (
     LabObject,
     MaterialContainer,
     PortionOfMaterial,

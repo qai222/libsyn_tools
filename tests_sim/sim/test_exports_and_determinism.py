@@ -7,7 +7,7 @@ from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
 from libsyn_tools.sim import Simulation
-from libsyn_tools.sim.knowledge_graph.physical_entities import (
+from libsyn_tools.sim.knowledge_graph import (
     MaterialContainer,
     PortionOfMaterial,
     Is_directly_contained_by,
@@ -69,7 +69,7 @@ def test_exports_and_determinism(tmp_path):
     g.remove((None, None, None))
     from libsyn_tools.sim.operation.runtime import _RESOURCE_MAP, _RUNTIME_CACHE
     from libsyn_tools.sim.operation.selector import FilterStoreRegistry
-    from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject, MaterialContainer, PortionOfMaterial
+    from libsyn_tools.sim.knowledge_graph  import LabObject, MaterialContainer, PortionOfMaterial
     for cls in (PortionOfMaterial, MaterialContainer, LabObject):
         try:
             cls.object_lookup.clear()

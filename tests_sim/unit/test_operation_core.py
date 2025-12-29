@@ -6,7 +6,7 @@ from pydantic import Field
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim.effect_engine import EffectEngine
-from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject
+from libsyn_tools.sim.knowledge_graph   import LabObject
 from libsyn_tools.sim.operation.operation import Operation, _OpState
 from libsyn_tools.sim.operation.unitary_edit import Create, UnitaryEdit
 
