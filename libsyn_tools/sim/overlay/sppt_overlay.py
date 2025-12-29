@@ -1,17 +1,30 @@
 from __future__ import annotations
 
 """
-SPPT overlay provider: builds time-boxed Process nodes from lifecycle callbacks.
+SPPT overlay provider: materialize time-boxed event skeletons from lifecycle callbacks.
 
-For each operation:
-- On start: record t0
-- On end:   record t1; emit a Process instance with:
-    lib:has_participant (for each resolved participant IRI)
-    lib:has_interval    → TimeInterval node with begin/end
+What this provider emits
+------------------------
+For each completed Operation (via lifecycle callbacks):
+  • a Process node:        <lib:Process/{op_id}> a lib:Process .
+  • a TimeInterval node:   <lib:Interval/{op_id}> a lib:TimeInterval ;
+                              lib:has_begin_time t0 ; lib:has_end_time t1 .
+  • a Process→Interval link:    lib:has_interval
+  • Process→Substance participants: lib:has_participant
 
-Note: No import of Simulation/OperationProcess (avoid circular). We only
-rely on the attributes actually used on the 'proc' argument (env.now,
-operation.identifier, operation.resources).
+Deliberately *not* emitted here (leave to domain-specific providers):
+  • lib:occurs_in (Place), lib:precedes/causes
+  • role reification (instrument/source/destination)
+  • derived shortcuts (e.g., in_contact_with, exposed_to)
+  • currentVolume (there is a separate provider)
+
+Design notes
+------------
+• No import of Simulation/OperationProcess to avoid circular deps; we depend only on
+  attributes observed on the proc object: proc.env.now, proc.operation.identifier,
+  proc.operation.resources.
+• Participants are emitted with the canonical lib: namespace, i.e., LIB[iri_string]
+  so they match test expectations and any code that builds LIB[...] IRIs.
 """
 
 from dataclasses import dataclass, field
@@ -20,7 +33,7 @@ from typing import Dict, Optional, List, Any
 from rdflib import Graph, Namespace, URIRef, Literal
 from rdflib.namespace import RDF, XSD
 
-from libsyn_tools.sim.knowledge_graph.sppt import (
+from libsyn_tools.sim.knowledge_graph.ontology import (
     Has_participant, Has_interval, Has_begin_time, Has_end_time
 )
 
@@ -37,6 +50,7 @@ class _OpSpan:
 class SPPTOverlayProvider:
     """
     Collect operation spans via lifecycle callbacks and materialize them as SPPT events.
+    Register this provider with the EffectEngine to include its triples in the overlay union.
     """
 
     def __init__(self, callbacks) -> None:
@@ -49,6 +63,7 @@ class SPPTOverlayProvider:
         op = proc.operation
         span = self._spans.setdefault(op.identifier, _OpSpan())
         span.t0 = float(proc.env.now)
+        # After pre_act(), resources hold resolved participant IRIs (strings)
         if op.resources:
             span.participants = list(op.resources)
 
@@ -61,30 +76,34 @@ class SPPTOverlayProvider:
 
     # ---- overlay snapshot ----
     def snapshot(self) -> Graph:
+        """
+        Build an rdflib.Graph snapshot of SPPT events (Process + TimeInterval + links).
+        Keep this fast; called by EffectEngine during validation.
+        """
         g = Graph()
         for op_id, span in self._spans.items():
             if span.t0 is None or span.t1 is None:
                 continue
 
+            # Process and Interval IRIs
             proc_iri = LIB[f"Process/{op_id}"]
-            int_iri = LIB[f"Interval/{op_id}"]
+            int_iri  = LIB[f"Interval/{op_id}"]
 
-            # rdf:type assertions for Process and TimeInterval
+            # Types
             g.add((proc_iri, RDF.type, LIB.Process))
-            g.add((int_iri, RDF.type, LIB.TimeInterval))
+            g.add((int_iri,  RDF.type, LIB.TimeInterval))
 
-            # interval begin/end (use proper predicate IRIs)
-            g.add((int_iri, URIRef(Has_begin_time.predicate_iri),
+            # Interval endpoints (use property IRIs from ontology)
+            g.add((int_iri,  URIRef(Has_begin_time.predicate_iri),
                    Literal(span.t0, datatype=XSD.double)))
-            g.add((int_iri, URIRef(Has_end_time.predicate_iri),
+            g.add((int_iri,  URIRef(Has_end_time.predicate_iri),
                    Literal(span.t1, datatype=XSD.double)))
 
-            # link process -> interval
+            # Process ↔ Interval
             g.add((proc_iri, URIRef(Has_interval.predicate_iri), int_iri))
 
-            # participants (use proper predicate IRI)
+            # Participants (namespaced IRIs so tests and SHACL targets match)
             for p in span.participants:
-                # Use namespaced IRIs so triples match tests (LIB.has_participant, LIB[p])
                 g.add((proc_iri, URIRef(Has_participant.predicate_iri), LIB[p]))
 
         return g

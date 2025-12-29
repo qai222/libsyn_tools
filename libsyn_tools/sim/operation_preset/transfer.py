@@ -7,7 +7,7 @@ from pydantic import Field, field_validator
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim import MaterialContainer
-from libsyn_tools.sim.knowledge_graph.physical_entities import (
+from libsyn_tools.sim.knowledge_graph import (
     LabObject,
     PortionOfMaterial,
     Is_directly_contained_by,

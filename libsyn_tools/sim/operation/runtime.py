@@ -5,11 +5,12 @@ from typing import Dict, TYPE_CHECKING
 
 import simpy
 from twa.data_model.base_ontology import KnowledgeGraph
+
+from libsyn_tools.sim.knowledge_graph import LabObject, BaseClass
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit
-from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject, BaseClass
 
 if TYPE_CHECKING:
-    from libsyn_tools.sim.operation.operation import Operation
+    pass
 
 # each lab object is mapped to a capacity=1 resource
 _RESOURCE_MAP: Dict[str, simpy.Resource] = {}
@@ -66,15 +67,16 @@ def get_runtime_state(obj: LabObject, env: simpy.Environment) -> _RuntimeState:
         setattr(obj, "_runtime", rs)
     return rs
 
+
 def _needs_runtime_tracking(obj: BaseClass) -> bool:
     """
     Return True for objects that should be locked, pooled and keep
     a _RuntimeState entry (i.e. real LabObjects – glassware, pumps,
     robots …).  PortionOfMaterial and other data-only nodes return False.
     """
-    from libsyn_tools.sim.knowledge_graph.physical_entities import LabObject
 
     return isinstance(obj, LabObject)
+
 
 def get_object_for_resource(res: simpy.Resource) -> LabObject:
     """

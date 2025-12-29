@@ -14,7 +14,7 @@ Notes
 
 from rdflib import Graph, Namespace, URIRef, Literal
 from rdflib.namespace import XSD
-from libsyn_tools.sim.knowledge_graph.physical_entities import MaterialContainer
+from libsyn_tools.sim.knowledge_graph import MaterialContainer
 
 LIB = Namespace("https://libsyn-sim/kg/")
 

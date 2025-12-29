@@ -7,7 +7,7 @@ from pydantic import Field
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim import MaterialContainer, PortionOfMaterial
-from libsyn_tools.sim.knowledge_graph.physical_entities import (
+from libsyn_tools.sim.knowledge_graph import (
     Is_directly_contained_by, LabObject
 )
 from libsyn_tools.sim.operation.operation import Operation, StrOrSelector

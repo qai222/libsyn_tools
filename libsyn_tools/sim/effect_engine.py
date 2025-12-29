@@ -14,7 +14,7 @@ from rdflib import Graph, Literal, URIRef, Namespace, ConjunctiveGraph
 from rdflib.namespace import XSD, SH
 from twa.data_model.base_ontology import KnowledgeGraph
 
-from libsyn_tools.sim.knowledge_graph.physical_entities import BaseClass, MaterialContainer
+from libsyn_tools.sim.knowledge_graph import BaseClass, MaterialContainer
 from libsyn_tools.sim.operation import Operation, UnitaryEdit, UnitaryEditType, FilterStoreRegistry, get_runtime_state
 from libsyn_tools.sim.operation.runtime import _RESOURCE_MAP, _RUNTIME_CACHE, _needs_runtime_tracking
 from .effect_shacl import SHACLViolationRecord, _iter_validation_results, _first
