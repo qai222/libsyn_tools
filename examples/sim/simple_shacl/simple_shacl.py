@@ -13,7 +13,7 @@ from libsyn_tools.sim import (
     KnowledgeGraph
 )
 from libsyn_tools.sim.operation_preset.transfer import TransferMaterialByPortionSize
-
+from libsyn_tools.sim.overlay import CurrentVolumeOverlayProvider, SPPTOverlayProvider
 HERE = Path(__file__).parent
 
 
@@ -71,6 +71,11 @@ def main():
         simulation_speed_factor=1.0,
         shacl_shapes=HERE / "constraints.ttl",
     )
+    sppt = SPPTOverlayProvider(sim.callbacks)  # optional for processes/intervals
+    sim.effect_engine.register_overlay_provider(sppt.snapshot)
+
+    cv = CurrentVolumeOverlayProvider()  # REQUIRED for lib:currentVolume
+    sim.effect_engine.register_overlay_provider(cv.snapshot)
 
     sim.run()
 

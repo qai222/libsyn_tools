@@ -1,5 +1,5 @@
-sim_time,operation_id,shape_iri,focus_iri,message
-2.0,op1,https://libsyn-sim/kg/Container90PctShape,material_container_v1,Container filled beyond 90 % of its capacity.
-6.0,op2,https://libsyn-sim/kg/Rack40mLShape_Inferred,rack,Rack holds more than 40 mL in total.
-6.0,op2,https://libsyn-sim/kg/Container90PctShape,material_container_v2,Container filled beyond 90 % of its capacity.
-6.0,op2,https://libsyn-sim/kg/Container90PctShape,material_container_v1,Container filled beyond 90 % of its capacity.
+violation_id,sim_time,operation_id,origin,focus_iri,message
+83774aeb-210e-4cc0-81a0-3aab9e42cc44,2.0,op1,SHACL,material_container_v1,Container filled beyond 90 % of its capacity.
+0e5e0f82-129c-40d6-948a-543148602c1a,6.0,op2,SHACL,material_container_v2,Container filled beyond 90 % of its capacity.
+e39c7099-fe71-4a9e-b8e8-688b868ae39f,6.0,op2,SHACL,material_container_v1,Container filled beyond 90 % of its capacity.
+9dbe8394-f92b-458f-a56c-331992764074,6.0,op2,SHACL,rack,Rack holds more than 40 mL in total.

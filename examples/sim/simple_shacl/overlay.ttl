@@ -1,9 +1,29 @@
 @prefix ns1: <https://libsyn-sim/kg/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
+<https://libsyn-sim/kg/Process/op1> a ns1:Process ;
+    ns1:has_interval <https://libsyn-sim/kg/Interval/op1> ;
+    ns1:has_participant ns1:material_container_v1,
+        ns1:pipette_1,
+        ns1:reservoir .
+
+<https://libsyn-sim/kg/Process/op2> a ns1:Process ;
+    ns1:has_interval <https://libsyn-sim/kg/Interval/op2> ;
+    ns1:has_participant ns1:material_container_v2,
+        ns1:pipette_1,
+        ns1:reservoir .
+
 <material_container_v1> ns1:currentVolume 3e+01 .
 
 <material_container_v2> ns1:currentVolume 1.5e+01 .
 
 <reservoir> ns1:currentVolume 1.5e+01 .
+
+<https://libsyn-sim/kg/Interval/op1> a ns1:TimeInterval ;
+    ns1:has_begin_time 0e+00 ;
+    ns1:has_end_time 2e+00 .
+
+<https://libsyn-sim/kg/Interval/op2> a ns1:TimeInterval ;
+    ns1:has_begin_time 2e+00 ;
+    ns1:has_end_time 6e+00 .
 
