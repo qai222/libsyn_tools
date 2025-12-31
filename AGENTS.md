@@ -18,7 +18,7 @@ Do NOT start Phase 2/3 features (transactional rollback, policy bundles, remedia
 
 ## Repo constraints
 - You only have access to THIS repo.
-- The repo already has a `tests/` folder and all tests currently pass.
+- The repo already has a `tests_sim/` folder and all tests currently pass.
 - Your changes MUST keep the full test suite passing.
 - Prefer minimal surface-area API breakage. Internal refactors are fine; public imports should remain stable when possible.
 
@@ -28,8 +28,7 @@ Do NOT start Phase 2/3 features (transactional rollback, policy bundles, remedia
 1) Read `codex_state.md` first.
 2) Implement exactly the requested task prompt (no extra refactors).
 3) Run tests:
-   - Prefer the repo’s standard command (check `pyproject.toml`, `tox.ini`, `Makefile`).
-   - Otherwise run: `python -m pytest -q`.
+   - `pytest tests_sim`.
 4) Update `codex_state.md`:
    - Add a new log entry with: what changed, files touched, tests run, results, and what’s next.
    - Update the “Status / Next prompt” section.
@@ -73,4 +72,4 @@ You should expect to touch these modules:
 - Filter store semantics are coherent:
   - stores contain only present + unlocked objects
 - Time scaling is consistent between operations and spawner timeouts.
-- All tests pass.
+- All tests in `tests_sim` pass.
