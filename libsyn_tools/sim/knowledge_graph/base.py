@@ -4,6 +4,7 @@ from typing import Any
 from uuid import uuid4
 
 from pydantic import Field
+from rdflib import URIRef
 from twa.data_model.base_ontology import BaseClass, BaseOntology, DatatypeProperty, ObjectProperty
 
 
@@ -73,3 +74,23 @@ class Individual(BaseClass):
 
 
 Individual.model_rebuild()
+
+
+def canonical_iri(instance_iri: str) -> URIRef:
+    """
+    Convert an instance IRI or identifier into the canonical KG URIRef.
+    """
+    base_url = SimOntology.base_url
+    if instance_iri.startswith(base_url):
+        return URIRef(instance_iri)
+    return URIRef(f"{base_url}{instance_iri}")
+
+
+def identifier_from_iri(instance_iri: str) -> str:
+    """
+    Normalize a canonical KG IRI back to its identifier form.
+    """
+    base_url = SimOntology.base_url
+    if instance_iri.startswith(base_url):
+        return instance_iri[len(base_url):]
+    return instance_iri

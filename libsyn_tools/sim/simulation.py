@@ -18,7 +18,7 @@ from .overlay import SPPTOverlayProvider, CurrentVolumeOverlayProvider
 from .knowledge_graph import LabObject, Has_interrupt_events
 from .lifecycle import LifecycleCallbacks
 from .operation.operation import Operation, _OpState
-from .operation.runtime import _needs_runtime_tracking, get_runtime_state, _RUNTIME_CACHE
+from .operation.runtime import _needs_runtime_tracking, get_runtime_context, get_runtime_state
 from .operation.unitary_edit import AddDataProperty
 
 
@@ -158,6 +158,9 @@ class OperationProcess:
 class Simulation:
     """
     Orchestrates a collection of `Operation` instances inside a SimPy environment.
+
+    simulation_speed_factor scales all simulated durations (operations and spawner timeouts)
+    by multiplying base time values to obtain sim-time delays.
     """
 
     def __init__(
@@ -170,6 +173,7 @@ class Simulation:
             shacl_inference: str = "owlrl"
     ):
         self.env = simpy.Environment()
+        get_runtime_context(self.env)
         self.rng = random.Random(random_seed)
 
         self.operations = operations
@@ -288,7 +292,8 @@ class Simulation:
     def export_instance_history(self, filename: FilePath) -> None:
         end_time_index = {r.operation_id: r.timestamp for r in self.history_log if r.event_type == "OPERATION_END"}
         rows: list[dict] = []
-        for rs in _RUNTIME_CACHE.values():
+        ctx = get_runtime_context(self.env, create=False)
+        for rs in ctx.runtime_cache.values():
             if not _needs_runtime_tracking(rs.obj):
                 continue
             for operation in rs.recent_operations:

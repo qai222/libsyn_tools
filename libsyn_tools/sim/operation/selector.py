@@ -22,39 +22,49 @@ from __future__ import annotations
 import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Generator, Tuple, Dict
+from typing import Generator, Tuple
 
 import simpy
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim.knowledge_graph import LabObject
-from libsyn_tools.sim.operation.runtime import get_runtime_state
+from libsyn_tools.sim.knowledge_graph import identifier_from_iri
+from libsyn_tools.sim.operation.runtime import get_runtime_context, get_runtime_state
 
 
 class FilterStoreRegistry:
-    _stores: Dict[str, simpy.FilterStore] = dict()
-
     @classmethod
     def get_filter_store(cls, pool_type: str, env: simpy.Environment | None = None) -> simpy.FilterStore:
-        if pool_type not in cls._stores:
-            if env is None:
-                raise RuntimeError("env required on first call for a pool_type")
-            cls._stores[pool_type] = simpy.FilterStore(env)
-        return cls._stores[pool_type]
+        if env is None:
+            raise RuntimeError("env required to access a filter store")
+        ctx = get_runtime_context(env)
+        if pool_type not in ctx.filter_stores:
+            ctx.filter_stores[pool_type] = simpy.FilterStore(env)
+        return ctx.filter_stores[pool_type]
 
     @classmethod
     def put_obj_into_filter_store(cls, obj: LabObject, env: simpy.Environment):
         pool_type = next(iter(obj.has_pool_type), None)
-        if pool_type is not None:
-            store = cls.get_filter_store(pool_type, env)
-            if obj not in store.items:
-                store.put(obj)
+        if pool_type is None:
+            return
+        if obj.is_present != {True}:
+            return
+        rs = get_runtime_state(obj, env)
+        if rs.lock.count > 0:
+            return
+        store = cls.get_filter_store(pool_type, env)
+        if obj not in store.items:
+            store.put(obj)
 
     @classmethod
-    def remove_obj_from_filter_store(cls, obj: LabObject):
-        for store in cls._stores.values():
-            if store and obj in store.items:
-                store.items.remove(obj)
+    def remove_obj_from_filter_store(cls, obj: LabObject, env: simpy.Environment):
+        pool_type = next(iter(obj.has_pool_type), None)
+        if pool_type is None:
+            return
+        ctx = get_runtime_context(env)
+        store = ctx.filter_stores.get(pool_type)
+        if store and obj in store.items:
+            store.items.remove(obj)
 
 
 class Selector(ABC):
@@ -122,7 +132,13 @@ class LiteralSelector(Selector):
             self, env: simpy.Environment
     ) -> Generator[simpy.events.Event, None, Tuple[str, simpy.events.Event]]:
         obj = KnowledgeGraph.get_object_from_lookup(iri=self._iri)
+        if obj is None:
+            obj = KnowledgeGraph.get_object_from_lookup(iri=identifier_from_iri(self._iri))
         obj: LabObject
+        pool_type = next(iter(obj.has_pool_type), None)
+        if pool_type is not None and obj.is_present == {True}:
+            store = FilterStoreRegistry.get_filter_store(pool_type, env)
+            yield store.get(filter=lambda candidate: candidate is obj)
         rs = get_runtime_state(obj, env)
         req = rs.lock.request()
         yield req

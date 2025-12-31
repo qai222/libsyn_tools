@@ -68,7 +68,6 @@ def test_exports_and_determinism(tmp_path):
     g: Graph = KnowledgeGraph.graph()
     g.remove((None, None, None))
     from libsyn_tools.sim.operation.runtime import _RESOURCE_MAP, _RUNTIME_CACHE
-    from libsyn_tools.sim.operation.selector import FilterStoreRegistry
     from libsyn_tools.sim.knowledge_graph  import LabObject, MaterialContainer, PortionOfMaterial
     for cls in (PortionOfMaterial, MaterialContainer, LabObject):
         try:
@@ -77,7 +76,6 @@ def test_exports_and_determinism(tmp_path):
             pass
     _RESOURCE_MAP.clear()
     _RUNTIME_CACHE.clear()
-    FilterStoreRegistry._stores.clear()
 
     # Run 2 (identical)
     sim2 = _build_sim()

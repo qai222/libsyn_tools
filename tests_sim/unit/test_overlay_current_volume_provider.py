@@ -9,6 +9,10 @@ from libsyn_tools.sim.knowledge_graph   import (
 )
 from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty
 from libsyn_tools.sim.overlay.current_volume_overlay import CurrentVolumeOverlayProvider
+from libsyn_tools.sim.overlay.sppt_overlay import SPPTOverlayProvider
+from libsyn_tools.sim.operation.operation import Operation
+from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit
+from libsyn_tools.sim import Simulation
 
 LIB = Namespace("https://libsyn-sim/kg/")
 
@@ -33,5 +37,42 @@ def test_current_volume_overlay_emits_volume_triple():
     triples = list(g.triples((None, LIB.currentVolume, None)))
     assert len(triples) == 1
     s, _, o = triples[0]
-    assert str(s).endswith(c.identifier)
+    assert s == LIB[c.identifier]
     assert float(o) == 12.0
+
+
+class _Ping(Operation):
+    participant_obj: str
+
+    def get_operation_effects(self) -> list[UnitaryEdit]:
+        return []
+
+
+def test_current_volume_overlay_uses_canonical_iris():
+    c = MaterialContainer()
+    p = PortionOfMaterial()
+    p.add_chemical(Chemical(mass=5.0, density=1.0))
+
+    for o in (c, p):
+        KnowledgeGraph.get_object_from_lookup(o.identifier)
+        Create(instance_1_iri=o.identifier).apply()
+
+    AddObjectProperty(
+        instance_1_iri=p.identifier,
+        instance_2_iri=c.identifier,
+        property_iri=Is_directly_contained_by.predicate_iri,
+    ).apply()
+
+    op = _Ping(participant_obj=c.identifier)
+    sim = Simulation([op])
+    sppt = SPPTOverlayProvider(sim.callbacks)
+    sim.run()
+
+    cv_graph = CurrentVolumeOverlayProvider().snapshot()
+    sppt_graph = sppt.snapshot()
+
+    cv_subjects = {s for s, _, _ in cv_graph.triples((None, LIB.currentVolume, None))}
+    sppt_participants = {o for _, _, o in sppt_graph.triples((None, LIB.has_participant, None))}
+
+    assert LIB[c.identifier] in cv_subjects
+    assert LIB[c.identifier] in sppt_participants

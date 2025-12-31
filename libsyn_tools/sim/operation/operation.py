@@ -177,6 +177,9 @@ class Operation(ABC, BaseModel):
         acquired: dict[str, simpy.events.Event] = {}  # iri → lock (for dedup)
 
         for role, spec in ordered_specs:
+            if isinstance(spec, str) and spec in acquired:
+                resolved[role] = spec
+                continue
             if isinstance(spec, Selector):
                 iri, req = yield env.process(spec.resolve(env))
             elif isinstance(spec, str):
@@ -194,9 +197,9 @@ class Operation(ABC, BaseModel):
                 req = acquired[iri]
             else:
                 acquired[iri] = req
+                self.locks.append(req)
 
             resolved[role] = iri
-            self.locks.append(req)
 
         # overwrite participant_* fields with pure strings -------------
         self.resolved_resources = resolved  # remember bindings
@@ -221,7 +224,7 @@ class Operation(ABC, BaseModel):
 
         Robust to ANNIHILATE:
         - If an object was annihilated during `apply(...)`, its Resource will have
-          been removed from `_RESOURCE_MAP`. Reverse lookups for such resources
+          been removed from the runtime context. Reverse lookups for such resources
           will fail; we still release the lock (on the Resource instance we hold),
           but skip reinsertion (object is not present).
         """

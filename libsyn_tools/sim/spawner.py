@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field, PrivateAttr
 from rdflib.namespace import SH, RDF
 
 from .simulation import Simulation, Operation, OperationProcess
+from .knowledge_graph import identifier_from_iri
 
 
 class Spawner(BaseModel, ABC):
@@ -42,6 +43,11 @@ class Spawner(BaseModel, ABC):
             raise RuntimeError("Spawner has not been attached yet")
         return s
 
+    @staticmethod
+    def _sim_time(sim: Simulation, dt: float) -> float:
+        """Apply simulation_speed_factor to a base dt for spawner timeouts."""
+        return dt * sim.speed_factor
+
     @abstractmethod
     def _on_attach(self, sim: Simulation) -> None:
         """Install callbacks or processes into the Simulation."""
@@ -53,7 +59,7 @@ class Spawner(BaseModel, ABC):
 
 class TimerSpawner(Spawner):
     op_factory: Callable[[Any], Operation]
-    interval: float = Field(..., description="delta t in sim time")
+    interval: float = Field(..., description="delta t in base time (scaled by simulation_speed_factor)")
     start_offset: float = 0.0
     alive: bool = True
 
@@ -72,11 +78,11 @@ class TimerSpawner(Spawner):
     def _run(self, sim: Simulation):
         env = sim.env
         if self.start_offset > 0:
-            yield env.timeout(self.start_offset)
+            yield env.timeout(self._sim_time(sim, self.start_offset))
         while self.alive:
             op = self.op_factory(sim)
             sim.spawn_operation(op)
-            yield env.timeout(self._sample_dt())
+            yield env.timeout(self._sim_time(sim, self._sample_dt()))
 
 
 class KGInspectorSpawner(Spawner):
@@ -88,7 +94,8 @@ class KGInspectorSpawner(Spawner):
         *focusNode IRI* and must return a fully constructed Operation
         ready for spawn_operation(). Return None to ignore.
     inspect_interval : float
-        • > 0   → run every `inspect_interval` seconds of sim-time
+        • > 0   → run every `inspect_interval` seconds of base time
+                 (scaled by simulation_speed_factor)
         • == 0  → run right after every OPERATION_END (via callbacks)
     """
 
@@ -100,7 +107,7 @@ class KGInspectorSpawner(Spawner):
         g = report
         for vr in g.subjects(RDF.type, SH.ValidationResult):
             shape_iri = str(g.value(vr, SH.sourceShape))
-            focus_iri = str(g.value(vr, SH.focusNode))
+            focus_iri = identifier_from_iri(str(g.value(vr, SH.focusNode)))
             logger.critical(f"DBG sourceShape = {shape_iri}")
             factory = self.shape_dispatch.get(shape_iri)
             if factory is None:
@@ -136,7 +143,7 @@ class KGInspectorSpawner(Spawner):
         env = sim.env
         dt = self.inspect_interval
         while True:
-            yield env.timeout(dt)
+            yield env.timeout(self._sim_time(sim, dt))
             conforms, report, _ = sim.effect_engine.validate_now()
             if not conforms:
                 self._spawn_for_violations(sim, report)

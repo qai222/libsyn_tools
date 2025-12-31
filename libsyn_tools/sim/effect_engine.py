@@ -16,7 +16,7 @@ from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim.knowledge_graph import BaseClass, MaterialContainer
 from libsyn_tools.sim.operation import Operation, UnitaryEdit, UnitaryEditType, FilterStoreRegistry, get_runtime_state
-from libsyn_tools.sim.operation.runtime import _RESOURCE_MAP, _RUNTIME_CACHE, _needs_runtime_tracking
+from libsyn_tools.sim.operation.runtime import get_runtime_context, _needs_runtime_tracking
 from .effect_shacl import SHACLViolationRecord, _iter_validation_results, _first
 from .lifecycle import LifecycleCallbacks
 
@@ -247,7 +247,7 @@ class EffectEngine:
             if edit.type is UnitaryEditType.CREATE:
                 self._register_if_new(subj, env)
             elif edit.type is UnitaryEditType.ANNIHILATE:
-                self._unregister_object(subj)
+                self._unregister_object(subj, env)
 
         self._run_shacl_validation(
             env=env,
@@ -268,23 +268,25 @@ class EffectEngine:
     def _register_if_new(obj: BaseClass, env: simpy.Environment):
         if not _needs_runtime_tracking(obj):
             return
-        if obj.instance_iri not in _RESOURCE_MAP:
-            _RESOURCE_MAP[obj.instance_iri] = simpy.Resource(env, capacity=1)
+        ctx = get_runtime_context(env)
+        if obj.instance_iri not in ctx.resource_map:
+            ctx.resource_map[obj.instance_iri] = simpy.Resource(env, capacity=1)
             FilterStoreRegistry.put_obj_into_filter_store(obj, env)
             logger.debug(f"auto register new object: {obj.__class__.__name__}={obj.instance_iri}")
 
-    def _unregister_object(self, obj: BaseClass):
+    def _unregister_object(self, obj: BaseClass, env: simpy.Environment):
         if not _needs_runtime_tracking(obj):
             return
-        _RESOURCE_MAP.pop(obj.instance_iri, None)
-        FilterStoreRegistry.remove_obj_from_filter_store(obj)
-        _RUNTIME_CACHE.pop(obj.instance_iri, None)
+        ctx = get_runtime_context(env, create=False)
+        ctx.resource_map.pop(obj.instance_iri, None)
+        FilterStoreRegistry.remove_obj_from_filter_store(obj, env)
+        ctx.runtime_cache.pop(obj.instance_iri, None)
         setattr(obj, "_runtime", None)
 
     def _sync_filter_stores(self, obj: BaseClass, env: simpy.Environment):
         if not _needs_runtime_tracking(obj):
             return
-        FilterStoreRegistry.remove_obj_from_filter_store(obj)
+        FilterStoreRegistry.remove_obj_from_filter_store(obj, env)
         if obj.is_present == {True}:
             FilterStoreRegistry.put_obj_into_filter_store(obj, env)
 

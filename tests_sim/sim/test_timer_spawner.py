@@ -32,4 +32,17 @@ def test_timer_spawns_periodic_ops(env: simpy.Environment):
     # Count END events for Calibrate operations
     end_count = sum(1 for r in sim.history_log if r.event_type == "OPERATION_END")
     assert end_count == 4
+
+
+def test_timer_spawns_scaled_by_speed_factor():
+    sim = Simulation.compile_actions(simulation_speed_factor=2.0)
+    TimerSpawner(
+        op_factory=lambda s: Calibrate(),
+        interval=5.0,
+    ).attach(sim)
+
+    # With speed_factor=2.0, interval=5.0 => spawns at t=0,10,20
+    sim.run(until=20.1)
+    end_count = sum(1 for r in sim.history_log if r.event_type == "OPERATION_END")
+    assert end_count == 3
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_timer_spawner.py ###

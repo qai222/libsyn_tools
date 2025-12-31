@@ -19,7 +19,6 @@ from libsyn_tools.sim.knowledge_graph import (
     PortionOfMaterial,
 )
 from libsyn_tools.sim.operation.runtime import _RESOURCE_MAP, _RUNTIME_CACHE
-from libsyn_tools.sim.operation.selector import FilterStoreRegistry
 
 # Capture the original add_event_log once (before any spawner patches)
 _ORIG_ADD_EVENT_LOG = _OP.add_event_log
@@ -75,7 +74,6 @@ def fresh_kg() -> Iterator[None]:
     # 3) Clear runtime artefacts
     _RESOURCE_MAP.clear()
     _RUNTIME_CACHE.clear()
-    FilterStoreRegistry._stores.clear()
 
     # 4) Deterministic ambient RNG if anyone relies on random()
     random.seed(0)

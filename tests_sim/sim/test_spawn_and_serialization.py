@@ -85,7 +85,6 @@ def test_multi_resource_serialization_is_deterministic():
     g: Graph = KnowledgeGraph.graph()
     g.remove((None, None, None))
     from libsyn_tools.sim.operation.runtime import _RESOURCE_MAP, _RUNTIME_CACHE
-    from libsyn_tools.sim.operation.selector import FilterStoreRegistry
     from libsyn_tools.sim.knowledge_graph  import LabObject
     for cls in (PortionOfMaterial, MaterialContainer, LabObject):
         try:
@@ -94,7 +93,6 @@ def test_multi_resource_serialization_is_deterministic():
             setattr(cls, "object_lookup", {})
     _RESOURCE_MAP.clear()
     _RUNTIME_CACHE.clear()
-    FilterStoreRegistry._stores.clear()
 
     # Recreate world identically and run again
     src, d1, d2, dev = _multi_resource_world()
