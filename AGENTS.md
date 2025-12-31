@@ -28,7 +28,7 @@ Do NOT start Phase 2/3 features (transactional rollback, policy bundles, remedia
 1) Read `codex_state.md` first.
 2) Implement exactly the requested task prompt (no extra refactors).
 3) Run tests:
-   - `pytest tests_sim`.
+   - `PYTHONPATH=. pytest tests_sim`.
 4) Update `codex_state.md`:
    - Add a new log entry with: what changed, files touched, tests run, results, and what’s next.
    - Update the “Status / Next prompt” section.
