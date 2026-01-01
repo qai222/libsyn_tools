@@ -204,6 +204,10 @@ class Simulation:
             inference=shacl_inference,
             callbacks=self.callbacks,  # NEW
         )
+        self._sppt_overlay = SPPTOverlayProvider(self.callbacks)
+        self._current_volume_overlay = CurrentVolumeOverlayProvider()
+        self.effect_engine.register_overlay_provider(self._sppt_overlay.snapshot)
+        self.effect_engine.register_overlay_provider(self._current_volume_overlay.snapshot)
 
         self.operation_registry: Dict[str, OperationProcess] = {}
         self.dependents: Dict[str, List[str]] = defaultdict(list)
