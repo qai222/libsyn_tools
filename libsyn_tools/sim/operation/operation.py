@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 from simpy.resources.resource import Request
 
 from libsyn_tools.sim.operation.runtime import get_object_for_resource
+from libsyn_tools.sim.knowledge_graph import identifier_from_iri
+from twa.data_model.base_ontology import KnowledgeGraph
 from libsyn_tools.sim.operation.selector import Selector, LiteralSelector, FilterStoreRegistry
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit, UnitaryEditType
 from libsyn_tools.utils import str_uuid
@@ -80,8 +82,9 @@ class Operation(ABC, BaseModel):
 
     scheduled_start_time: Optional[float] = None
     """ 
-    the scheduled start time, the actual start time in a simulation of this operation cannot be earlier than the 
-    scheduled start time 
+    The scheduled start time expressed in base time. The actual start time in a simulation of this operation
+    cannot be earlier than the scheduled start time; the simulation_speed_factor multiplies this base-time delay
+    to produce the sim-time timeout.
     """
 
     required_precedents: list[str] = Field(default_factory=list)
@@ -177,9 +180,17 @@ class Operation(ABC, BaseModel):
         acquired: dict[str, simpy.events.Event] = {}  # iri → lock (for dedup)
 
         for role, spec in ordered_specs:
-            if isinstance(spec, str) and spec in acquired:
-                resolved[role] = spec
-                continue
+            if isinstance(spec, (str, LiteralSelector)):
+                if isinstance(spec, LiteralSelector):
+                    literal_iri = spec._iri
+                else:
+                    literal_iri = spec
+                obj = KnowledgeGraph.get_object_from_lookup(iri=literal_iri)
+                if obj is None:
+                    obj = KnowledgeGraph.get_object_from_lookup(iri=identifier_from_iri(literal_iri))
+                if obj is not None and obj.identifier in acquired:
+                    resolved[role] = obj.identifier
+                    continue
             if isinstance(spec, Selector):
                 iri, req = yield env.process(spec.resolve(env))
             elif isinstance(spec, str):

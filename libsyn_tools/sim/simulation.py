@@ -109,9 +109,10 @@ class OperationProcess:
     def _run_core(self):
         # scheduled start gate
         if self.operation.scheduled_start_time is not None:
-            delay = self.operation.scheduled_start_time - self.env.now
-            if delay > 0:
-                yield self.env.timeout(self.sim_time(delay))
+            base_now = self.env.now / self.speed_factor
+            delay_base = self.operation.scheduled_start_time - base_now
+            if delay_base > 0:
+                yield self.env.timeout(self.sim_time(delay_base))
 
         # wait for precedents
         precedent_events = [self.operation_registry[pid].done_event for pid in self.operation.required_precedents]

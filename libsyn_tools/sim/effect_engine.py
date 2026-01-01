@@ -188,6 +188,26 @@ class EffectEngine:
                 return False
             return obj is not None
 
+        def _is_runtime_tracked(iri: Optional[str]) -> bool:
+            if not iri:
+                return False
+            try:
+                obj = KnowledgeGraph.get_object_from_lookup(iri)
+            except Exception:
+                return False
+            if obj is None:
+                return False
+            return _needs_runtime_tracking(obj)
+
+        def _require_lock_if_runtime_tracked(iri: Optional[str]) -> None:
+            if not iri or iri in creates_set:
+                return
+            if _is_runtime_tracked(iri) and iri not in locked:
+                raise RuntimeError(
+                    "Mechanical check failed: write coverage requires lock or create; "
+                    f"got edit on {iri!r} not in locked set {locked}"
+                )
+
         for e in edits_list:
             t = e.type
             if t is UnitaryEditType.CREATE:
@@ -197,18 +217,14 @@ class EffectEngine:
             elif t in (UnitaryEditType.ADD_DATA_PROPERTY, UnitaryEditType.CHANGE_DATA_PROPERTY, UnitaryEditType.ANNIHILATE):
                 if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
                     raise RuntimeError(f"Mechanical check failed: dangling subject {e.instance_1_iri}")
+                _require_lock_if_runtime_tracked(e.instance_1_iri)
             elif t in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY):
                 if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
                     raise RuntimeError(f"Mechanical check failed: dangling subject {e.instance_1_iri}")
                 if not (_exists(e.instance_2_iri) or e.instance_2_iri in creates_set):
                     raise RuntimeError(f"Mechanical check failed: dangling object {e.instance_2_iri}")
-                if locked:
-                    for iri in (e.instance_1_iri, e.instance_2_iri):
-                        if iri not in locked and iri not in creates_set:
-                            raise RuntimeError(
-                                "Mechanical check failed: write coverage requires lock or create; "
-                                f"got edit on {iri!r} not in locked set {locked}"
-                            )
+                _require_lock_if_runtime_tracked(e.instance_1_iri)
+                _require_lock_if_runtime_tracked(e.instance_2_iri)
 
     def prepare(self, action: Operation) -> List[UnitaryEdit]:
         return action.operation_effects.copy()

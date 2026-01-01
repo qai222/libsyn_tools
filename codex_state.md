@@ -55,6 +55,56 @@ Expected rule (documented):
 
 ## Execution log (append newest entries at top)
 
+### 2026-01-01 02:54
+**Prompt executed:** PREP2 — lock coverage for runtime-tracked writes
+**Summary:**
+- What changed: extended mechanical precheck to require locks for runtime-tracked objects on data-property edits and annihilations; added tests for unlocked LabObject data writes (reject) and locked writes (accept) with POM edits.
+- Why: enforce write coverage for all runtime-tracked mutations while allowing non-runtime nodes like POMs.
+**Files changed:**
+- libsyn_tools/sim/effect_engine.py
+- tests_sim/sim/test_mechanical_lock_coverage_data.py
+- tests_sim/sim/test_microstep_and_validate_now.py
+**Tests run:**
+- PYTHONPATH=. pytest tests_sim
+**Result:**
+- Passed (60 tests).
+**Notes / follow-ups:**
+- Remaining pre-Phase-2 issues: none (Phase exit criteria satisfied).
+**Next prompt:** PREP3
+
+### 2026-01-01 02:16
+**Prompt executed:** PREP1 — dedup literal participant bindings
+**Summary:**
+- What changed: deduplicated literal bindings based on canonical identifier before resolving/locking; added tests for duplicate literal strings and duplicate LiteralSelector bindings.
+- Why: prevent self-deadlock when the same literal object is bound to multiple roles.
+**Files changed:**
+- libsyn_tools/sim/operation/operation.py
+- tests_sim/sim/test_duplicate_literal_bindings.py
+**Tests run:**
+- PYTHONPATH=. pytest tests_sim
+**Result:**
+- Passed (58 tests).
+**Notes / follow-ups:**
+- Remaining pre-Phase-2 issue: mechanical precheck lock coverage for runtime-tracked object edits.
+**Next prompt:** PREP2
+
+### 2026-01-01 01:50
+**Prompt executed:** PREP0 — scheduled_start_time base-time scaling
+**Summary:**
+- What changed: scheduled_start_time gating now converts env.now to base time before computing delay; documented scheduled_start_time as base time; added regression test using TimerSpawner to validate speed_factor scaling.
+- Why: ensure scheduled start respects base-time semantics and speed factor produces sim-time delay correctly.
+**Files changed:**
+- libsyn_tools/sim/simulation.py
+- libsyn_tools/sim/operation/operation.py
+- tests_sim/sim/test_scheduled_start_time_speed.py
+**Tests run:**
+- PYTHONPATH=. pytest tests_sim
+**Result:**
+- Passed (56 tests).
+**Notes / follow-ups:**
+- Remaining pre-Phase-2 issues: duplicate literal bindings + mechanical precheck lock coverage.
+**Next prompt:** PREP1
+
 ### [UNSTARTED] Initial state
 - Tests: user reports all tests pass.
 - No pre-Phase-2 patch work has been done.

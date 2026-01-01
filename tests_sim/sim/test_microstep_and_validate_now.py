@@ -13,12 +13,12 @@ from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit, AddDataProperty
 
 class InstantOp(Operation):
     """Zero-duration operation that writes a small data property."""
-    participant: str = Field(...)
+    participant_obj: str = Field(...)
 
     def get_operation_effects(self) -> list[UnitaryEdit]:
         return [
             AddDataProperty(
-                instance_1_iri=self.participant,
+                instance_1_iri=self.participant_obj,
                 property_iri=Has_interrupt_events.predicate_iri,
                 data_value="instant",
             )
@@ -29,7 +29,7 @@ def test_apply_happens_in_single_microstep_timestamp_equal():
     obj = LabObject()
     KnowledgeGraph.get_object_from_lookup(obj.identifier)
 
-    op = InstantOp(identifier="I", participant=obj.identifier, temporal_cost=0.0)
+    op = InstantOp(identifier="I", participant_obj=obj.identifier, temporal_cost=0.0)
     sim = Simulation([op])
     sim.run()
 
