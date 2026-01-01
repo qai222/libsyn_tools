@@ -1,51 +1,69 @@
-# agents.md — Codex instructions (pre-Phase-2 hardening)
+# agents.md — Codex operating instructions (Phase 2: Contracts + Transactions)
 
-## Mission
-Finalize Phase-1 kernel correctness so we can safely start Phase-2 (“SHACL contracts as enforceable policy + transactional semantics”).
+## Mission (Phase 2)
+Implement **enforceable SHACL contracts** and **transactional effect application** in `libsyn_tools.sim`:
 
-This pre-Phase-2 patch set MUST address:
-1) scheduled_start_time time scaling correctness
-2) duplicate literal participant bindings (no self-deadlock)
-3) mechanical precheck: write coverage requires lock for runtime-tracked objects (not only object properties)
+- The canonical state is the KG (TWA BaseClass + KnowledgeGraph).
+- Correctness is enforced using SHACL contracts (configurable hard/soft).
+- Effect application becomes transactional: stage → apply → validate → (commit | rollback).
 
-Do NOT implement Phase-2 features (transactions, rollback, policy bundles, remediation libraries).
+Phase 2 focuses on the EffectEngine and its interaction with OperationProcess.
+
+Do NOT start Phase 3 (closed-loop remediation libraries, policy-driven spawners, KG query selectors).
 
 ---
 
-## Repo constraints
-- Only this repo is available.
-- `tests_sim/` exists and currently passes.
-- Changes must keep the entire test suite passing.
-- Prefer small diffs; avoid refactors unrelated to the prompt.
+## Current baseline assumptions
+- Phase 1 refactor is already merged.
+- Per-env RuntimeContext exists (resource_map/runtime_cache/filter_stores).
+- Duplicate literal bindings and time scaling semantics are fixed.
+- tests_sim passes under: `PYTHONPATH=. pytest tests_sim`.
 
 ---
 
 ## Required workflow (EVERY run)
 1) Read `codex_state.md` first.
-2) Execute exactly one task prompt.
-3) Run tests `PYTHONPATH=. pytest tests_sim`.
+2) Execute exactly ONE task prompt (PH2-0, PH2-1, ...).
+3) Run tests:
+   - Minimum: `PYTHONPATH=. pytest tests_sim`
+   - If there are other tests, also run: `PYTHONPATH=. pytest -q` (optional but recommended)
 4) Update `codex_state.md`:
-   - what changed + why
+   - what changed and why
    - files touched
-   - tests run + result
-   - next prompt to run
+   - tests run + results
+   - next prompt to execute
 
-If you hit a blocker, record it in `codex_state.md` with enough info to resume, then stop.
-
----
-
-## Guardrails
-- Do not introduce infinite waits in tests. If validating a “hang fix”, use `Simulation.run(until=...)` and assert completion/non-completion deterministically.
-- Keep semantics consistent with docs:
-  `simulation_speed_factor` multiplies base-time durations to produce sim-time timeouts.
-- When enforcing lock coverage, apply it only to runtime-tracked objects (LabObject) to avoid breaking POM bookkeeping edits.
+If blocked, log the blocker with enough detail to continue next run, then stop.
 
 ---
 
-## Likely target files
-- `libsyn_tools/sim/simulation.py` (docstring for speed factor)
-- `libsyn_tools/sim/operation_process.py` or wherever `OperationProcess._run_core` lives
-- `libsyn_tools/sim/operation/operation.py` (`Operation._pre_act_implementation`)
-- `libsyn_tools/sim/operation/selector.py` (`LiteralSelector.resolve`)
-- `libsyn_tools/sim/effect_engine.py` (`_precheck_mechanical`)
-- `tests_sim/...` (new regression tests)
+## Implementation rules / guardrails
+- Keep diffs small and reversible.
+- Preserve backwards compatibility where reasonable:
+  - existing `EffectEngine.apply(...)` can remain, but introduce `apply_tx(...)` returning a result.
+  - default behavior should remain "audit" (commit even if SHACL violations) unless enforcement is explicitly enabled.
+- When enforcement is enabled and a transaction aborts, ensure:
+  - KG state is rolled back to pre-transaction
+  - runtime artifacts remain consistent (resource_map/filter stores not corrupted)
+  - Operation locks are released (avoid hangs).
+- Always emit structured violation records for BOTH:
+  - engine/mechanical failures (origin="ENGINE")
+  - SHACL failures (origin="SHACL")
+
+---
+
+## Likely files to touch
+- `libsyn_tools/sim/effect_engine.py`        (transaction API + enforcement)
+- `libsyn_tools/sim/effect_shacl.py`         (record + helpers; may add policy fields)
+- `libsyn_tools/sim/simulation.py`           (catch/record aborted ops; ensure post_act executes)
+- `libsyn_tools/sim/operation/unitary_edit.py` (optional: inverse helpers, if you choose that route)
+- `tests_sim/...`                            (new tests for enforcement + rollback)
+
+---
+
+## Phase 2 exit criteria
+1) A new transaction API exists (apply_tx / TransactionResult) with batch_id + fingerprints.
+2) SHACL contracts support hard/soft modes and configurable disposition.
+3) Enforced mode can abort a violating transaction AND roll back KG state.
+4) Engine mechanical failures generate structured violation records.
+5) tests_sim remains green.
