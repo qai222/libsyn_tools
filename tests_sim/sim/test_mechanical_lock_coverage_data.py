@@ -1,7 +1,6 @@
 # ### THIS IS THE START OF CONTENT OF tests_sim/sim/test_mechanical_lock_coverage_data.py ###
 from __future__ import annotations
 
-import pytest
 from pydantic import Field
 from twa.data_model.base_ontology import KnowledgeGraph
 
@@ -58,8 +57,10 @@ def test_unlocked_labobject_data_write_rejected():
     )
     sim = Simulation([op])
 
-    with pytest.raises(RuntimeError, match="Mechanical check failed"):
-        sim.run()
+    sim.run()
+
+    violations = sim.effect_engine._shacl_violations
+    assert any(v.origin == "ENGINE" and v.disposition == "aborted" for v in violations)
 
 
 def test_locked_labobject_data_write_allowed():

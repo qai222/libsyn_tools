@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from rdflib import Graph, ConjunctiveGraph
 from tqdm import tqdm
 
-from .effect_engine import EffectEngine, KnowledgeGraph
+from .effect_engine import EffectEngine, KnowledgeGraph, EngineMechanicalError, ContractViolationError
 from .overlay import SPPTOverlayProvider, CurrentVolumeOverlayProvider
 from .knowledge_graph import LabObject, Has_interrupt_events
 from .lifecycle import LifecycleCallbacks
@@ -79,6 +79,10 @@ class OperationProcess:
     def run(self):
         try:
             yield from self._run_core()
+        except (EngineMechanicalError, ContractViolationError) as err:
+            self.operation.post_act(self.env)
+            self.add_event_log("OPERATION_ABORT", {"reason": str(err)})
+            self.done_event.succeed()
         except simpy.Interrupt as interrupt:
             edits = []
             reason_txt = f"{self.operation.identifier}:{interrupt.cause}"
@@ -162,6 +166,11 @@ class Simulation:
 
     simulation_speed_factor scales all simulated durations (operations and spawner timeouts)
     by multiplying base time values to obtain sim-time delays.
+
+    Example (enforced SHACL policy):
+        policy = PolicyBundle(per_shape={shape_iri: PolicyRule(severity="hard", disposition="aborted")})
+        sim = Simulation(ops, shacl_shapes=shape_graph)
+        sim.effect_engine.policy = policy
     """
 
     def __init__(

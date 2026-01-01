@@ -83,7 +83,7 @@ class Operation(ABC, BaseModel):
     scheduled_start_time: Optional[float] = None
     """ 
     The scheduled start time expressed in base time. The actual start time in a simulation of this operation
-    cannot be earlier than the scheduled start time; the simulation_speed_factor multiplies this base-time delay
+    cannot be earlier than the scheduled start time; the simulation_speed_factor multiplies the base-time delay
     to produce the sim-time timeout.
     """
 

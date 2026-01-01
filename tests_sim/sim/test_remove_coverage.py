@@ -1,7 +1,6 @@
 # ### THIS IS THE START OF CONTENT OF tests_sim/sim/test_remove_coverage.py ###
 from __future__ import annotations
 
-import pytest
 from pydantic import Field
 from twa.data_model.base_ontology import KnowledgeGraph
 
@@ -41,6 +40,7 @@ def test_remove_object_property_requires_lock_coverage():
     op = BadRemove(participant_src=a.identifier, dst_iri=b.identifier)
     sim = Simulation([op])
 
-    with pytest.raises(RuntimeError, match="Mechanical check failed"):
-        sim.run()
+    sim.run()
+    types = [r.event_type for r in sim.history_log if r.operation_id == op.identifier]
+    assert "OPERATION_ABORT" in types
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_remove_coverage.py ###

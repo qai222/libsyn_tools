@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Union, Iterable as It, Optional, Callable
 from uuid import uuid4
@@ -14,10 +15,11 @@ from rdflib import Graph, Literal, URIRef, Namespace, ConjunctiveGraph
 from rdflib.namespace import XSD, SH
 from twa.data_model.base_ontology import KnowledgeGraph
 
-from libsyn_tools.sim.knowledge_graph import BaseClass, MaterialContainer
+from libsyn_tools.sim.knowledge_graph import BaseClass, MaterialContainer, SimOntology
 from libsyn_tools.sim.operation import Operation, UnitaryEdit, UnitaryEditType, FilterStoreRegistry, get_runtime_state
 from libsyn_tools.sim.operation.runtime import get_runtime_context, _needs_runtime_tracking
 from .effect_shacl import SHACLViolationRecord, _iter_validation_results, _first
+from .policy import PolicyBundle
 from .lifecycle import LifecycleCallbacks
 
 LIB_SYN = Namespace("https://libsyn-sim/kg/")
@@ -29,6 +31,43 @@ class SHACLValidationError(RuntimeError):
     SHACL shapes *after* an Operation has been applied (policy violation).
     """
     pass
+
+
+class EngineMechanicalError(RuntimeError):
+    def __init__(
+        self,
+        message: str,
+        violation: SHACLViolationRecord | list[SHACLViolationRecord] | None = None,
+    ):
+        super().__init__(message, violation)
+        if violation is None:
+            self.violations = []
+        else:
+            self.violations = violation if isinstance(violation, list) else [violation]
+
+
+class ContractViolationError(RuntimeError):
+    def __init__(self, result: TransactionResult):
+        super().__init__("Transaction aborted due to SHACL contract violation", result)
+        self.result = result
+
+
+@dataclass(frozen=True)
+class TransactionResult:
+    batch_id: str
+    edit_fingerprints: list[str]
+    committed: bool
+    violations: list[SHACLViolationRecord]
+
+
+@dataclass
+class _ObjectSnapshot:
+    is_present: set
+    fields: dict[str, set]
+    runtime_registered: bool
+    runtime_cache_present: bool
+    runtime_in_filter_store: bool
+    pool_type: str | None
 
 
 class EffectEngine:
@@ -43,12 +82,14 @@ class EffectEngine:
         raise_shacl: bool = False,
         inference: str = "owlrl",
         callbacks: LifecycleCallbacks | None = None,
+        policy: PolicyBundle | None = None,
     ):
         self.shapes_graph = shapes_graph
         self.inference = inference
         self._shacl_violations: list[SHACLViolationRecord] = []
         self.raise_shacl = raise_shacl
         self.callbacks = callbacks
+        self.policy = policy
 
         # registered overlay providers → functions that return an rdflib.Graph
         self._overlay_providers: list[Callable[[], Graph]] = []
@@ -92,16 +133,18 @@ class EffectEngine:
     ) -> list[SHACLViolationRecord]:
         records: list[SHACLViolationRecord] = []
         for vr in _iter_validation_results(shacl_report_graph):
+            shape_iri = _first(shacl_report_graph, vr, SH.sourceShape)
+            policy = self.policy.rule_for_shape(shape_iri) if self.policy else None
             rec = SHACLViolationRecord(
                 sim_time=env_now,
                 operation_id=operation_id,
                 origin="SHACL",
-                severity="soft",
-                disposition="committed",
+                severity=policy.severity if policy else "soft",
+                disposition=policy.disposition if policy else "committed",
                 batch_id=batch_id,
                 edit_fingerprints=edit_fingerprints,
                 seed=seed,
-                shape_iri=_first(shacl_report_graph, vr, SH.sourceShape),
+                shape_iri=shape_iri,
                 focus_iri=_first(shacl_report_graph, vr, SH.focusNode),
                 message=_first(shacl_report_graph, vr, SH.resultMessage),
                 report_graph_ttl=shacl_report_graph.serialize(format="turtle"),
@@ -171,12 +214,29 @@ class EffectEngine:
         dv_repr = str(dv) if dv is None or isinstance(dv, (int, float, str, bool)) else f"<{type(dv).__name__}>"
         return "|".join([edit.type.value, edit.instance_1_iri or "", edit.property_iri or "", edit.instance_2_iri or "", dv_repr])
 
-    def _precheck_mechanical(self, *, edits: It[UnitaryEdit], locked_iris: Optional[It[str]] = None) -> None:
+    def _precheck_mechanical(
+        self,
+        *,
+        edits: It[UnitaryEdit],
+        locked_iris: Optional[It[str]] = None,
+        env_now: float,
+        operation_id: str,
+        batch_id: str,
+        edit_fingerprints: list[str],
+        seed: Optional[int],
+    ) -> None:
         locked = set(locked_iris or [])
         edits_list = list(edits)
         creates = [e.instance_1_iri for e in edits_list if e.type is UnitaryEditType.CREATE]
         if len(creates) != len(set(creates)):
-            raise RuntimeError(f"Mechanical check failed: duplicate CREATE in batch: {creates}")
+            self._raise_mechanical(
+                f"Mechanical check failed: duplicate CREATE in batch: {creates}",
+                env_now=env_now,
+                operation_id=operation_id,
+                batch_id=batch_id,
+                edit_fingerprints=edit_fingerprints,
+                seed=seed,
+            )
         creates_set = set(creates)
 
         def _exists(iri: Optional[str]) -> bool:
@@ -203,9 +263,14 @@ class EffectEngine:
             if not iri or iri in creates_set:
                 return
             if _is_runtime_tracked(iri) and iri not in locked:
-                raise RuntimeError(
+                self._raise_mechanical(
                     "Mechanical check failed: write coverage requires lock or create; "
-                    f"got edit on {iri!r} not in locked set {locked}"
+                    f"got edit on {iri!r} not in locked set {locked}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    seed=seed,
                 )
 
         for e in edits_list:
@@ -213,23 +278,170 @@ class EffectEngine:
             if t is UnitaryEditType.CREATE:
                 subj = KnowledgeGraph.get_object_from_lookup(e.instance_1_iri)
                 if subj is not None and getattr(subj, "is_present", {False}) == {True}:
-                    raise RuntimeError(f"Mechanical check failed: CREATE on present object {e.instance_1_iri}")
+                    self._raise_mechanical(
+                        f"Mechanical check failed: CREATE on present object {e.instance_1_iri}",
+                        env_now=env_now,
+                        operation_id=operation_id,
+                        batch_id=batch_id,
+                        edit_fingerprints=edit_fingerprints,
+                        seed=seed,
+                    )
             elif t in (UnitaryEditType.ADD_DATA_PROPERTY, UnitaryEditType.CHANGE_DATA_PROPERTY, UnitaryEditType.ANNIHILATE):
                 if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
-                    raise RuntimeError(f"Mechanical check failed: dangling subject {e.instance_1_iri}")
+                    self._raise_mechanical(
+                        f"Mechanical check failed: dangling subject {e.instance_1_iri}",
+                        env_now=env_now,
+                        operation_id=operation_id,
+                        batch_id=batch_id,
+                        edit_fingerprints=edit_fingerprints,
+                        seed=seed,
+                    )
                 _require_lock_if_runtime_tracked(e.instance_1_iri)
             elif t in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY):
                 if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
-                    raise RuntimeError(f"Mechanical check failed: dangling subject {e.instance_1_iri}")
+                    self._raise_mechanical(
+                        f"Mechanical check failed: dangling subject {e.instance_1_iri}",
+                        env_now=env_now,
+                        operation_id=operation_id,
+                        batch_id=batch_id,
+                        edit_fingerprints=edit_fingerprints,
+                        seed=seed,
+                    )
                 if not (_exists(e.instance_2_iri) or e.instance_2_iri in creates_set):
-                    raise RuntimeError(f"Mechanical check failed: dangling object {e.instance_2_iri}")
+                    self._raise_mechanical(
+                        f"Mechanical check failed: dangling object {e.instance_2_iri}",
+                        env_now=env_now,
+                        operation_id=operation_id,
+                        batch_id=batch_id,
+                        edit_fingerprints=edit_fingerprints,
+                        seed=seed,
+                    )
                 _require_lock_if_runtime_tracked(e.instance_1_iri)
                 _require_lock_if_runtime_tracked(e.instance_2_iri)
+
+    def _raise_mechanical(
+        self,
+        message: str,
+        *,
+        env_now: float,
+        operation_id: str,
+        batch_id: str,
+        edit_fingerprints: list[str],
+        seed: Optional[int],
+    ) -> None:
+        violation = SHACLViolationRecord(
+            sim_time=env_now,
+            operation_id=operation_id,
+            origin="ENGINE",
+            severity="hard",
+            disposition="aborted",
+            batch_id=batch_id,
+            edit_fingerprints=edit_fingerprints,
+            seed=seed,
+            message=message,
+        )
+        raise EngineMechanicalError(message, violation)
+
+    def _snapshot_objects(
+        self,
+        *,
+        env: simpy.Environment,
+        edits: list[UnitaryEdit],
+    ) -> dict[str, _ObjectSnapshot]:
+        field_names_by_iri: dict[str, set[str]] = {}
+        affected_iris: set[str] = set()
+        for edit in edits:
+            affected_iris.add(edit.instance_1_iri)
+            if edit.instance_2_iri:
+                affected_iris.add(edit.instance_2_iri)
+            if edit.property_iri is None:
+                continue
+            if edit.type in (UnitaryEditType.ADD_DATA_PROPERTY, UnitaryEditType.CHANGE_DATA_PROPERTY):
+                data_prop = SimOntology.data_property_lookup[edit.property_iri]
+                field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
+                field_names_by_iri.setdefault(edit.instance_1_iri, set()).add(field_name)
+            elif edit.type in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY):
+                obj_prop = SimOntology.object_property_lookup[edit.property_iri]
+                field_name = obj_prop.__name__[0].lower() + obj_prop.__name__[1:]
+                field_names_by_iri.setdefault(edit.instance_1_iri, set()).add(field_name)
+
+        ctx = get_runtime_context(env)
+        snapshots: dict[str, _ObjectSnapshot] = {}
+        for iri in affected_iris:
+            obj = KnowledgeGraph.get_object_from_lookup(iri)
+            if obj is None:
+                continue
+            fields: dict[str, set] = {}
+            for name in field_names_by_iri.get(iri, set()):
+                fields[name] = set(getattr(obj, name))
+            runtime_registered = False
+            runtime_cache_present = False
+            runtime_in_filter_store = False
+            pool_type = None
+            if _needs_runtime_tracking(obj):
+                pool_type = next(iter(obj.has_pool_type), None)
+                runtime_registered = obj.instance_iri in ctx.resource_map
+                runtime_cache_present = obj.instance_iri in ctx.runtime_cache
+                if pool_type:
+                    store = ctx.filter_stores.get(pool_type)
+                    runtime_in_filter_store = bool(store and obj in store.items)
+            snapshots[iri] = _ObjectSnapshot(
+                is_present=set(obj.is_present),
+                fields=fields,
+                runtime_registered=runtime_registered,
+                runtime_cache_present=runtime_cache_present,
+                runtime_in_filter_store=runtime_in_filter_store,
+                pool_type=pool_type,
+            )
+        return snapshots
+
+    def _restore_objects(
+        self,
+        *,
+        env: simpy.Environment,
+        snapshots: dict[str, _ObjectSnapshot],
+    ) -> None:
+        ctx = get_runtime_context(env)
+        for iri, snap in snapshots.items():
+            obj = KnowledgeGraph.get_object_from_lookup(iri)
+            if obj is None:
+                continue
+            obj.is_present = set(snap.is_present)
+            for name, values in snap.fields.items():
+                setattr(obj, name, set(values))
+
+            if not _needs_runtime_tracking(obj):
+                continue
+
+            if snap.runtime_registered:
+                if obj.instance_iri not in ctx.resource_map:
+                    ctx.resource_map[obj.instance_iri] = simpy.Resource(env, capacity=1)
+            else:
+                ctx.resource_map.pop(obj.instance_iri, None)
+
+            if snap.runtime_cache_present:
+                if obj.instance_iri not in ctx.runtime_cache:
+                    if obj.instance_iri not in ctx.resource_map:
+                        ctx.resource_map[obj.instance_iri] = simpy.Resource(env, capacity=1)
+                    get_runtime_state(obj, env)
+            else:
+                ctx.runtime_cache.pop(obj.instance_iri, None)
+                setattr(obj, "_runtime", None)
+
+            if snap.pool_type:
+                store = ctx.filter_stores.get(snap.pool_type)
+                if snap.runtime_in_filter_store:
+                    if store is None:
+                        store = FilterStoreRegistry.get_filter_store(snap.pool_type, env)
+                    if obj not in store.items:
+                        store.items.append(obj)
+                elif store and obj in store.items:
+                    store.items.remove(obj)
 
     def prepare(self, action: Operation) -> List[UnitaryEdit]:
         return action.operation_effects.copy()
 
-    def apply(
+    def apply_tx(
         self,
         edits: Iterable[UnitaryEdit],
         env: simpy.Environment,
@@ -237,13 +449,37 @@ class EffectEngine:
         operation_id: str,
         locked_iris: Optional[Iterable[str]] = None,
         seed: Optional[int] = None,
-    ) -> None:
+    ) -> TransactionResult:
+        """
+        Apply edits transactionally: precheck -> apply -> SHACL audit -> commit/rollback.
+
+        Default behavior is audit-only (committed=True) unless a policy marks any
+        SHACL violation with disposition="aborted", which triggers rollback and
+        returns committed=False.
+        """
         edits = list(edits)
         batch_id = str(uuid4())
         fingerprints = [self._fingerprint_edit(e) for e in edits]
+        snapshots = self._snapshot_objects(env=env, edits=edits)
 
-        self._precheck_mechanical(edits=edits, locked_iris=list(locked_iris or []))
+        try:
+            self._precheck_mechanical(
+                edits=edits,
+                locked_iris=list(locked_iris or []),
+                env_now=env.now,
+                operation_id=operation_id,
+                batch_id=batch_id,
+                edit_fingerprints=fingerprints,
+                seed=seed,
+            )
+        except EngineMechanicalError as err:
+            self._shacl_violations.extend(err.violations)
+            if self.callbacks:
+                for rec in err.violations:
+                    self.callbacks.emit_violation(rec)
+            raise
 
+        before_len = len(self._shacl_violations)
         for edit in edits:
             subj = KnowledgeGraph.get_object_from_lookup(edit.instance_1_iri)
             obj2 = (
@@ -272,6 +508,40 @@ class EffectEngine:
             edit_fingerprints=fingerprints,
             seed=seed,
         )
+        new_violations = self._shacl_violations[before_len:]
+        if any(v.disposition == "aborted" for v in new_violations):
+            self._restore_objects(env=env, snapshots=snapshots)
+            return TransactionResult(
+                batch_id=batch_id,
+                edit_fingerprints=fingerprints,
+                committed=False,
+                violations=new_violations,
+            )
+        return TransactionResult(
+            batch_id=batch_id,
+            edit_fingerprints=fingerprints,
+            committed=True,
+            violations=new_violations,
+        )
+
+    def apply(
+        self,
+        edits: Iterable[UnitaryEdit],
+        env: simpy.Environment,
+        *,
+        operation_id: str,
+        locked_iris: Optional[Iterable[str]] = None,
+        seed: Optional[int] = None,
+    ) -> None:
+        result = self.apply_tx(
+            edits,
+            env,
+            operation_id=operation_id,
+            locked_iris=locked_iris,
+            seed=seed,
+        )
+        if not result.committed:
+            raise ContractViolationError(result)
 
     # --- runtime artefacts (unchanged) ---
     def _log_and_sync(self, obj: BaseClass, edit: UnitaryEdit, env: simpy.Environment) -> None:

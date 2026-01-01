@@ -1,7 +1,6 @@
 # ### THIS IS THE START OF CONTENT OF tests_sim/sim/test_mechanical_abort_no_commit.py ###
 from __future__ import annotations
 
-import pytest
 import simpy
 from pydantic import Field
 from twa.data_model.base_ontology import KnowledgeGraph
@@ -30,14 +29,16 @@ class BadOp(Operation):
 def test_mechanical_abort_raises_and_no_commit(env: simpy.Environment):
     sim = Simulation([BadOp(identifier="bad1")])
 
-    # EffectEngine pre-check should abort the operation and bubble RuntimeError
-    with pytest.raises(RuntimeError, match="Mechanical check failed"):
-        sim.run()
+    # EffectEngine pre-check should abort the operation and record violation
+    sim.run()
 
     # Event log contains START but no END for the bad op
     types = [r.event_type for r in sim.history_log]
     assert "OPERATION_START" in types
     assert "OPERATION_END" not in types
+    assert "OPERATION_ABORT" in types
+
+    assert any(v.origin == "ENGINE" for v in sim.effect_engine._shacl_violations)
 
     # No effect applied: either the object doesn't exist, or it exists but
     # is not present and does not have the data value we tried to add.
