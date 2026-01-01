@@ -29,6 +29,7 @@ from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim.knowledge_graph import LabObject
 from libsyn_tools.sim.knowledge_graph import identifier_from_iri
+from libsyn_tools.sim.env_utils import get_effect_engine
 from libsyn_tools.sim.operation.runtime import get_runtime_context, get_runtime_state
 
 
@@ -203,10 +204,50 @@ class HistorySelector(RuntimeSelector):
         return f"HistorySelector(pool={self.pool_type}, pred={self._source})"
 
 
+class KgQuerySelector(Selector):
+    """
+    Run a SPARQL query over the union graph (KG + overlays) and pick a candidate
+    from a FilterStore pool.
+    """
+
+    def __init__(self, pool_type: str, sparql: str, var: str = "s"):
+        self.pool_type = pool_type
+        self.sparql = sparql
+        self.var = var
+
+    def resolve(
+            self, env: simpy.Environment
+    ) -> Generator[simpy.events.Event, None, Tuple[str, simpy.events.Event]]:
+        engine = get_effect_engine(env)
+        query_graph = engine.build_query_graph()
+        var_name = self.var.lstrip("?")
+        candidates: set[str] = set()
+        for row in query_graph.query(self.sparql):
+            value = row.asdict().get(var_name)
+            if value is None:
+                continue
+            candidates.add(identifier_from_iri(str(value)))
+
+        if not candidates:
+            raise RuntimeError(f"KgQuerySelector query returned no candidates: {self.sparql}")
+
+        store = FilterStoreRegistry.get_filter_store(self.pool_type, env)
+        iri, req = yield from self._atomic_get_and_lock(
+            env,
+            store,
+            lambda obj: identifier_from_iri(obj.identifier) in candidates,
+        )
+        return iri, req
+
+    def __str__(self) -> str:
+        return f"KgQuerySelector(pool={self.pool_type}, var={self.var})"
+
+
 __all__ = [
     "Selector",
     "LiteralSelector",
     "AttributeSelector",
     "HistorySelector",
+    "KgQuerySelector",
     "FilterStoreRegistry"
 ]

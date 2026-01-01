@@ -74,6 +74,125 @@ Minimum: `PYTHONPATH=. pytest tests_sim`
 
 ## Execution log (append newest entries at top)
 
+### 2026-01-01 10:26
+**Prompt executed:** PH4-5 — Doc snippet for selectors and schedule bridge
+**Summary:**
+- What changed: Added module docstring examples for KgQuerySelector and compile_schedule_to_simulation usage.
+- Why: Provide minimal runnable usage snippets for Phase 4 features.
+**Files changed:**
+- libsyn_tools/sim/adapters/schedule_bridge.py
+- codex_state.md
+**Tests run:**
+- PYTHONPATH=. pytest tests_sim
+**Result:**
+- Passed (73 passed, 734 warnings).
+**Notes / follow-ups:**
+- None.
+**Next prompt:** PH4-6
+
+### 2026-01-01 10:20
+**Prompt executed:** PH4-4 — Schedule bridge translator
+**Summary:**
+- What changed: Added op_translator support in schedule bridge and a translator test using TransferMaterialByVolume to mutate the KG.
+- Why: Allow custom sim.Operation mapping from planned operations while preserving schedule semantics.
+**Files changed:**
+- libsyn_tools/sim/adapters/schedule_bridge.py
+- tests_sim/sim/test_schedule_bridge.py
+- codex_state.md
+**Tests run:**
+- PYTHONPATH=. pytest tests_sim
+**Result:**
+- Passed (73 passed, 734 warnings).
+**Notes / follow-ups:**
+- None.
+**Next prompt:** PH4-5
+
+### 2026-01-01 10:15
+**Prompt executed:** PH4-3 — Schedule bridge constraints
+**Summary:**
+- What changed: Added schedule bridge tests for precedents and module contention to ensure start times obey dependencies and locks.
+- Why: Validate schedule bridge semantics under inconsistent schedules and shared-module contention.
+**Files changed:**
+- tests_sim/sim/test_schedule_bridge.py
+- codex_state.md
+**Tests run:**
+- PYTHONPATH=. pytest tests_sim
+**Result:**
+- Passed (72 passed, 734 warnings).
+**Notes / follow-ups:**
+- None.
+**Next prompt:** PH4-4
+
+### 2026-01-01 09:55
+**Prompt executed:** PH4-2 — Schedule bridge adapter
+**Summary:**
+- What changed: Added schedule bridge adapter to compile scheduler output into sim operations and new tests for scheduled timing.
+- Why: Enable planned schedule execution in the DES kernel per Phase 4.
+**Files changed:**
+- libsyn_tools/sim/adapters/__init__.py
+- libsyn_tools/sim/adapters/schedule_bridge.py
+- tests_sim/sim/test_schedule_bridge.py
+- codex_state.md
+**Tests run:**
+- PYTHONPATH=. pytest tests_sim
+**Result:**
+- Passed (70 passed, 734 warnings).
+**Notes / follow-ups:**
+- None.
+**Next prompt:** PH4-3
+
+### 2026-01-01 09:34
+**Prompt executed:** PH4-1 — KgQuerySelector + query-based test
+**Summary:**
+- What changed: Implemented KgQuerySelector with KG/overlay SPARQL selection, normalized identifiers, and added a simulation test for currentVolume-based selection.
+- Why: Enable deterministic Level 4 selection over KG + overlays per Phase 4 requirements.
+**Files changed:**
+- libsyn_tools/sim/operation/selector.py
+- libsyn_tools/sim/env_utils.py
+- tests_sim/sim/test_kg_query_selector.py
+- codex_state.md
+**Tests run:**
+- PYTHONPATH=. pytest tests_sim
+**Result:**
+- Passed (69 passed, 732 warnings).
+**Notes / follow-ups:**
+- None.
+**Next prompt:** PH4-2
+
+### 2026-01-01 08:41
+**Prompt executed:** PH4-0 — Build query graph + env access
+**Summary:**
+- What changed: Added EffectEngine.build_query_graph, attached engine to Simulation env, added env helper, and new test for currentVolume overlay in query graph.
+- Why: Enable KG query selection and safe access to the effect engine on the SimPy environment.
+**Files changed:**
+- libsyn_tools/sim/effect_engine.py
+- libsyn_tools/sim/simulation.py
+- libsyn_tools/sim/env_utils.py
+- tests_sim/sim/test_effect_engine_query_graph.py
+- codex_state.md
+**Tests run:**
+- PYTHONPATH=. pytest tests_sim
+**Result:**
+- Passed (68 passed, 732 warnings).
+**Notes / follow-ups:**
+- None.
+**Next prompt:** PH4-1
+
+### 2025-09-24 06:25
+**Prompt executed:** PH4-0 — Test run only
+**Summary:**
+- What changed: Ran the required test suite; no code changes.
+- Why: User requested running tests and recording results.
+**Files changed:**
+- codex_state.md
+**Tests run:**
+- PYTHONPATH=. pytest tests_sim
+**Result:**
+- Passed (67 passed, 732 warnings).
+**Notes / follow-ups:**
+- None.
+**Next prompt:** PH4-0
+
 ### [UNSTARTED] Phase 4 start
 - Phase 3 baseline present.
 - No Phase 4 work done yet.

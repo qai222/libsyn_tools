@@ -120,6 +120,18 @@ class EffectEngine:
                 logger.error(f"Overlay provider failed: {e!r}")
         return g
 
+    def build_query_graph(self) -> Graph:
+        """
+        Build a union graph of the base KG plus all overlay providers.
+        This is side-effect free and intended for query/selection.
+        """
+        data_graph: Graph = KnowledgeGraph.graph()
+        overlay_graph: Graph = self._build_overlay_graph()
+        union_graph = Graph()
+        union_graph += data_graph
+        union_graph += overlay_graph
+        return union_graph
+
     # --- SHACL helpers (unchanged) ---
     def _collect_shacl_violations(
         self,
