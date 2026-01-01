@@ -111,6 +111,9 @@ class Operation(ABC, BaseModel):
     operation_effects_description: Optional[str] = None
     """ free text description for the effects of this action """
 
+    remediation: bool = Field(default=False)
+    """ whether this operation was spawned for remediation """
+
     resolved_resources: dict[str, str] = Field(default_factory=dict)
     """
     resolved participant-iri pairs

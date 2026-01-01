@@ -118,6 +118,7 @@ class KGInspectorSpawner(Spawner):
                 continue
             op = factory(focus_iri)
             if op is not None:
+                op.remediation = True
                 sim.spawn_operation(op)
 
     def _on_attach(self, sim: Simulation) -> None:
@@ -172,6 +173,7 @@ class ProcessInterruptSpawner(Spawner):
                 return
             op = factory(proc, reason)
             if op is not None:
+                op.remediation = True
                 self.sim.spawn_operation(op)
 
         sim.callbacks.on_operation_interrupt.append(_on_interrupt)
@@ -233,6 +235,7 @@ class PolicyEnforcerSpawner(Spawner):
             op = factory(record)
             if op is None:
                 return
+            op.remediation = True
             self._mark_seen(record)
             sim.spawn_operation(op, precedents=[record.operation_id])
 

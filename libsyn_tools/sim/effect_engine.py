@@ -219,6 +219,9 @@ class EffectEngine:
         ]
         pd.DataFrame.from_records(records_as_dicts).to_csv(Path(filepath), index=False, **to_csv_kwargs)
 
+    def get_violation_records(self) -> list[SHACLViolationRecord]:
+        return list(self._shacl_violations)
+
     # --- Mechanical pre-checks + apply (unchanged semantics) ---
     @staticmethod
     def _fingerprint_edit(edit: UnitaryEdit) -> str:

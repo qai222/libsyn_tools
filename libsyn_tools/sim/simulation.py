@@ -20,6 +20,7 @@ from .lifecycle import LifecycleCallbacks
 from .operation.operation import Operation, _OpState
 from .operation.runtime import _needs_runtime_tracking, get_runtime_context, get_runtime_state
 from .operation.unitary_edit import AddDataProperty
+from .report import RunReport
 
 
 class OperationEventRecord(BaseModel):
@@ -269,6 +270,27 @@ class Simulation:
         df_log.to_csv(filename, index=False)
         logger.info(f"Event log exported → {filename}")
 
+    def _build_instance_history_dataframe(self) -> pd.DataFrame:
+        end_time_index = {r.operation_id: r.timestamp for r in self.history_log if r.event_type == "OPERATION_END"}
+        rows: list[dict] = []
+        ctx = get_runtime_context(self.env, create=False)
+        for rs in ctx.runtime_cache.values():
+            if not _needs_runtime_tracking(rs.obj):
+                continue
+            pool_type = next(iter(getattr(rs.obj, "has_pool_type", set())), None)
+            for operation in rs.recent_operations:
+                rows.append(
+                    {
+                        "instance_iri": rs.obj.identifier,
+                        "instance_type": rs.obj.__class__.__name__,
+                        "pool_type": pool_type,
+                        "operation_id": operation.identifier,
+                        "operation_type": operation.__class__.__name__,
+                        "sim_timestamp": end_time_index.get(operation.identifier, None),
+                    }
+                )
+        return pd.DataFrame(rows)
+
     def spawn_operation(
             self,
             op: Operation,
@@ -305,21 +327,96 @@ class Simulation:
         return cls(list(actions), **kwargs)
 
     def export_instance_history(self, filename: FilePath) -> None:
-        end_time_index = {r.operation_id: r.timestamp for r in self.history_log if r.event_type == "OPERATION_END"}
-        rows: list[dict] = []
-        ctx = get_runtime_context(self.env, create=False)
-        for rs in ctx.runtime_cache.values():
-            if not _needs_runtime_tracking(rs.obj):
-                continue
-            for operation in rs.recent_operations:
-                rows.append(
-                    {
-                        "instance_iri": rs.obj.identifier,
-                        "instance_type": rs.obj.__class__.__name__,
-                        "operation_id": operation.identifier,
-                        "operation_type": operation.__class__.__name__,
-                        "sim_timestamp": end_time_index.get(operation.identifier, None),
-                    }
-                )
-        pd.DataFrame(rows).to_csv(filename, index=False)
+        df = self._build_instance_history_dataframe()
+        df.to_csv(filename, index=False)
         logger.info(f"Instance history exported → {filename}")
+
+    def build_report(self, include_ttl: bool = False) -> RunReport:
+        event_log_df = pd.DataFrame.from_records([r.model_dump() for r in self.history_log])
+        violation_records = self.effect_engine.get_violation_records()
+        if include_ttl:
+            shacl_df = pd.DataFrame.from_records([rec.model_dump() for rec in violation_records])
+        else:
+            shacl_df = pd.DataFrame.from_records(
+                [rec.model_dump(exclude={"report_graph_ttl"}) for rec in violation_records]
+            )
+        instance_history_df = self._build_instance_history_dataframe()
+
+        end_times = [r.timestamp for r in self.history_log if r.event_type == "OPERATION_END"]
+        makespan = max(end_times) if end_times else None
+
+        op_counts = {
+            "start": sum(1 for r in self.history_log if r.event_type == "OPERATION_START"),
+            "end": sum(1 for r in self.history_log if r.event_type == "OPERATION_END"),
+            "abort": sum(1 for r in self.history_log if r.event_type == "OPERATION_ABORT"),
+        }
+
+        violation_counts = {
+            "by_origin": {},
+            "by_severity": {},
+            "by_shape_iri": {},
+        }
+        violation_by_shape_disposition: dict[tuple[str | None, str], int] = {}
+        for rec in violation_records:
+            violation_counts["by_origin"][rec.origin] = violation_counts["by_origin"].get(rec.origin, 0) + 1
+            violation_counts["by_severity"][rec.severity] = violation_counts["by_severity"].get(rec.severity, 0) + 1
+            shape_key = rec.shape_iri if rec.shape_iri is not None else "None"
+            violation_counts["by_shape_iri"][shape_key] = violation_counts["by_shape_iri"].get(shape_key, 0) + 1
+            disp_key = (rec.shape_iri, rec.disposition)
+            violation_by_shape_disposition[disp_key] = violation_by_shape_disposition.get(disp_key, 0) + 1
+
+        started_ops = set(event_log_df.loc[event_log_df["event_type"] == "OPERATION_START", "operation_id"])
+        if started_ops:
+            utilization_df = instance_history_df[instance_history_df["operation_id"].isin(started_ops)]
+        else:
+            utilization_df = instance_history_df
+
+        utilization_by_pool_type: dict[str, int] = {}
+        for pool_type in utilization_df.get("pool_type", pd.Series([], dtype=object)).dropna():
+            utilization_by_pool_type[pool_type] = utilization_by_pool_type.get(pool_type, 0) + 1
+
+        utilization_by_module: dict[str, int] = {}
+        if "pool_type" in utilization_df.columns:
+            module_rows = utilization_df[utilization_df["pool_type"] == "MODULE"]
+            for module_iri in module_rows["instance_iri"]:
+                utilization_by_module[module_iri] = utilization_by_module.get(module_iri, 0) + 1
+
+        remediation_ops_spawned = 0
+        if not event_log_df.empty and "operation_data" in event_log_df:
+            start_rows = event_log_df[event_log_df["event_type"] == "OPERATION_START"]
+            for data in start_rows["operation_data"]:
+                if isinstance(data, dict) and data.get("remediation"):
+                    remediation_ops_spawned += 1
+
+        summary = {
+            "makespan": makespan,
+            "operation_counts": op_counts,
+            "violation_counts": violation_counts,
+            "violations_by_shape_disposition": [
+                {"shape_iri": shape_iri, "disposition": disposition, "count": count}
+                for (shape_iri, disposition), count in violation_by_shape_disposition.items()
+            ],
+            "resource_utilization": {
+                "by_pool_type": utilization_by_pool_type,
+                "by_module": utilization_by_module,
+            },
+            "remediation_ops_spawned": remediation_ops_spawned,
+        }
+
+        return RunReport(
+            summary=summary,
+            event_log=event_log_df,
+            shacl_violations=shacl_df,
+            instance_history=instance_history_df,
+        )
+
+    def run_and_report(
+            self,
+            out_dir: str | Path,
+            until: float | None = None,
+            include_ttl: bool = False,
+    ) -> RunReport:
+        self.run(until=until)
+        report = self.build_report(include_ttl=include_ttl)
+        report.write_dir(out_dir, include_ttl=include_ttl)
+        return report

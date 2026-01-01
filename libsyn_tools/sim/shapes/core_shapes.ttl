@@ -1,0 +1,31 @@
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix lib: <https://libsyn-sim/kg/> .
+
+lib:CapacityShape a sh:NodeShape ;
+    sh:targetSubjectsOf lib:currentVolume ;
+    sh:message "Container currentVolume exceeds capacity" ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:select """
+SELECT ?this WHERE {
+  ?this lib:currentVolume ?v ;
+        lib:has_capacity ?cap ;
+        lib:is_present true .
+  FILTER(xsd:double(?v) > xsd:double(?cap))
+}
+""" ;
+    ] .
+
+lib:NonNegativeCapacityShape a sh:NodeShape ;
+    sh:targetSubjectsOf lib:has_capacity ;
+    sh:message "Container capacity must be non-negative" ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:select """
+SELECT ?this WHERE {
+  ?this lib:has_capacity ?cap .
+  FILTER(xsd:double(?cap) < 0)
+}
+""" ;
+    ] .
