@@ -1,7 +1,4 @@
-# ### THIS IS THE START OF CONTENT OF tests_sim/sim/test_report.py ###
 from __future__ import annotations
-
-from pathlib import Path
 
 from twa.data_model.base_ontology import KnowledgeGraph
 
@@ -16,12 +13,12 @@ from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty
 from libsyn_tools.sim.operation_preset.transfer import TransferMaterialByPortionSize
 
 
-def _build_sim() -> Simulation:
+def build_world() -> tuple[MaterialContainer, MaterialContainer, MaterialContainer]:
     src = MaterialContainer(identifier="SRC")
     dst = MaterialContainer(identifier="DST")
     pip = MaterialContainer(identifier="PIP")
     pom = PortionOfMaterial(identifier="POM")
-    pom.add_chemical(Chemical(mass=4.0, density=1.0))
+    pom.add_chemical(Chemical(mass=2.0, density=1.0))
     pom.is_directly_contained_by.add(src)
 
     for obj in (src, dst, pip, pom):
@@ -33,33 +30,24 @@ def _build_sim() -> Simulation:
         instance_2_iri=src.identifier,
         property_iri=Is_directly_contained_by.predicate_iri,
     ).apply()
+    return src, dst, pip
 
+
+def main() -> None:
+    src, dst, pip = build_world()
     op = TransferMaterialByPortionSize(
-        identifier="transfer-one",
+        identifier="transfer-demo",
         participant_source=src.identifier,
         participant_destination=dst.identifier,
         participant_device=pip.identifier,
         portion_size=0.5,
-        temporal_cost=1.0,
+        temporal_cost=0.0,
     )
-    return Simulation([op])
+    sim = Simulation([op])
+    sim.run()
+    report = sim.build_report()
+    print(report.summary)
 
 
-def test_run_and_report_outputs(tmp_path: Path) -> None:
-    sim = _build_sim()
-    out_dir = tmp_path / "report"
-    report = sim.run_and_report(out_dir)
-
-    assert report.summary.get("makespan") is not None
-    assert (out_dir / "event_log.csv").exists()
-    assert (out_dir / "summary.json").exists()
-    summary_md = out_dir / "summary.md"
-    assert summary_md.exists()
-    content = summary_md.read_text(encoding="utf-8")
-    assert "Run Summary" in content
-    assert "Violations by Shape/Disposition" in content
-    assert "| shape_iri | disposition | count |" in content
-    assert "effect_descriptions" in report.event_log.columns
-    start_rows = report.event_log[report.event_log["event_type"] == "OPERATION_START"]
-    assert start_rows["effect_descriptions"].iloc[0]
-# ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_report.py ###
+if __name__ == "__main__":
+    main()

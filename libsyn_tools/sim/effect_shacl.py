@@ -39,6 +39,7 @@ class SHACLViolationRecord(BaseModel):
     # optional run metadata
     batch_id: Optional[str] = None
     edit_fingerprints: Optional[List[str]] = None
+    edit_descriptions: Optional[List[str]] = None
     seed: Optional[int] = None
 
     # SHACL-specific decoration (optional for ENGINE)

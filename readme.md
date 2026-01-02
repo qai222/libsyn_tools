@@ -3,6 +3,9 @@ Library synthesis tools
 
 Software tools developed for scheduling and simulating synthesis campaigns.
 
+For extending the simulator with custom Operations or spawners, see
+`docs/sim/EXTENDING.md` and the runnable example `examples/sim_minimal.py`.
+
 
 ### Schedule optimization
 

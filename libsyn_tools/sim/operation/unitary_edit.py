@@ -25,6 +25,9 @@ class UnitaryEditType(str, Enum):
     ADD_DATA_PROPERTY = "ADD_DATA_PROPERTY"
     """ add data to non-functional data property """
 
+    REMOVE_DATA_PROPERTY = "REMOVE_DATA_PROPERTY"
+    """ remove data from non-functional data property """
+
     ADD_OBJECT_PROPERTY = "ADD_OBJECT_PROPERTY"
     """ add an object property between two lab objects """
 
@@ -47,6 +50,23 @@ class UnitaryEdit(BaseModel):
     def apply(self) -> None: ...
 
     def compute_inverse(self) -> "UnitaryEdit": ...  # implemented per subclass
+
+    def describe(self) -> str:
+        if self.type is UnitaryEditType.CREATE:
+            return f"CREATE {self.instance_1_iri}"
+        if self.type is UnitaryEditType.ANNIHILATE:
+            return f"ANNIHILATE {self.instance_1_iri}"
+        if self.type is UnitaryEditType.CHANGE_DATA_PROPERTY:
+            return f"SET {self.instance_1_iri} {self.property_iri} = {self.data_value!r}"
+        if self.type is UnitaryEditType.ADD_DATA_PROPERTY:
+            return f"ADD_DATA {self.instance_1_iri} {self.property_iri} += {self.data_value!r}"
+        if self.type is UnitaryEditType.REMOVE_DATA_PROPERTY:
+            return f"REMOVE_DATA {self.instance_1_iri} {self.property_iri} -= {self.data_value!r}"
+        if self.type is UnitaryEditType.ADD_OBJECT_PROPERTY:
+            return f"ADD {self.instance_1_iri} {self.property_iri} {self.instance_2_iri}"
+        if self.type is UnitaryEditType.REMOVE_OBJECT_PROPERTY:
+            return f"REMOVE {self.instance_1_iri} {self.property_iri} {self.instance_2_iri}"
+        return f"{self.type.value} {self.instance_1_iri}"
 
     # backwards-compat aliases --------------------------------------
     @classmethod
@@ -116,6 +136,18 @@ class AddDataProperty(UnitaryEdit):
         existing_values.add(self.data_value)
 
 
+class RemoveDataProperty(UnitaryEdit):
+    type: Literal[UnitaryEditType.REMOVE_DATA_PROPERTY] = UnitaryEditType.REMOVE_DATA_PROPERTY
+
+    def apply(self):
+        subj = KnowledgeGraph.get_object_from_lookup(self.instance_1_iri)
+        data_prop = SimOntology.data_property_lookup[self.property_iri]
+        field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
+        existing_values = getattr(subj, field_name)
+        if self.data_value in existing_values:
+            existing_values.remove(self.data_value)
+
+
 class ChangeDataProperty(UnitaryEdit):
     type: Literal[UnitaryEditType.CHANGE_DATA_PROPERTY] = UnitaryEditType.CHANGE_DATA_PROPERTY
 
@@ -162,4 +194,5 @@ __all__ = [
     "AddObjectProperty",
     "RemoveObjectProperty",
     "AddDataProperty",
+    "RemoveDataProperty",
 ]

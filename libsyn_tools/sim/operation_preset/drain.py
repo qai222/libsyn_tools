@@ -11,9 +11,8 @@ from libsyn_tools.sim.knowledge_graph import (
     Is_directly_contained_by, LabObject
 )
 from libsyn_tools.sim.operation.operation import Operation, StrOrSelector
-from libsyn_tools.sim.operation.unitary_edit import (
-    UnitaryEdit, AddObjectProperty, RemoveObjectProperty, Annihilate, Create
-)
+from libsyn_tools.sim.operation.effects_dsl import EffectsBuilder
+from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit
 
 _EPS = 1e-6
 
@@ -43,7 +42,7 @@ class DrainExcess(Operation):
         if not isinstance(src, MaterialContainer):
             raise RuntimeError("DrainExcess: source must be a MaterialContainer")
 
-        edits: list[UnitaryEdit] = []
+        builder = EffectsBuilder()
         prop_iri = Is_directly_contained_by.predicate_iri
 
         # how much must be taken out?
@@ -64,26 +63,18 @@ class DrainExcess(Operation):
             residual = pom.get_portion_by_volume(pom.volume - take)
             surplus -= take
 
-            edits += [
-                # remove original POM from the beaker
-                RemoveObjectProperty(instance_1_iri=pom.identifier,
-                                     instance_2_iri=src.identifier,
-                                     property_iri=prop_iri),
-                Annihilate(instance_1_iri=pom.identifier),
+            # remove original POM from the beaker
+            builder.unlink(pom.identifier, prop_iri, src.identifier)
+            builder.annihilate(pom.identifier)
 
-                # residual stays in source
-                Create(instance_1_iri=residual.identifier),
-                AddObjectProperty(instance_1_iri=residual.identifier,
-                                  instance_2_iri=src.identifier,
-                                  property_iri=prop_iri),
+            # residual stays in source
+            builder.create(residual.identifier)
+            builder.link(residual.identifier, prop_iri, src.identifier)
 
-                # moved portion goes to destination
-                Create(instance_1_iri=portion.identifier),
-                AddObjectProperty(instance_1_iri=portion.identifier,
-                                  instance_2_iri=dst.identifier,
-                                  property_iri=prop_iri),
-            ]
+            # moved portion goes to destination
+            builder.create(portion.identifier)
+            builder.link(portion.identifier, prop_iri, dst.identifier)
 
         logger.info(f"DrainExcess: moved {current_v - self.target_volume:.3g} "
                     f"from {src.identifier} to {dst.identifier}")
-        return edits
+        return builder.build()

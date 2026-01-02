@@ -8,13 +8,8 @@ from twa.data_model.base_ontology import KnowledgeGraph
 from libsyn_tools.sim import MaterialContainer, PortionOfMaterial
 from libsyn_tools.sim.knowledge_graph import Is_directly_contained_by, LabObject
 from libsyn_tools.sim.operation.operation import Operation, StrOrSelector
-from libsyn_tools.sim.operation.unitary_edit import (
-    UnitaryEdit,
-    AddObjectProperty,
-    RemoveObjectProperty,
-    Annihilate,
-    Create,
-)
+from libsyn_tools.sim.operation.effects_dsl import EffectsBuilder
+from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit
 
 
 class MixInContainer(Operation):
@@ -40,26 +35,10 @@ class MixInContainer(Operation):
                 mixed_pom.add_chemical(chemical)
 
         prop_iri = Is_directly_contained_by.predicate_iri
-        edits: list[UnitaryEdit] = []
+        builder = EffectsBuilder()
         for pom in poms:
-            edits.extend(
-                [
-                    RemoveObjectProperty(
-                        instance_1_iri=pom.identifier,
-                        instance_2_iri=container.identifier,
-                        property_iri=prop_iri,
-                    ),
-                    Annihilate(instance_1_iri=pom.identifier),
-                ]
-            )
-        edits.extend(
-            [
-                Create(instance_1_iri=mixed_pom.identifier),
-                AddObjectProperty(
-                    instance_1_iri=mixed_pom.identifier,
-                    instance_2_iri=container.identifier,
-                    property_iri=prop_iri,
-                ),
-            ]
-        )
-        return edits
+            builder.unlink(pom.identifier, prop_iri, container.identifier)
+            builder.annihilate(pom.identifier)
+        builder.create(mixed_pom.identifier)
+        builder.link(mixed_pom.identifier, prop_iri, container.identifier)
+        return builder.build()

@@ -333,6 +333,14 @@ class Simulation:
 
     def build_report(self, include_ttl: bool = False) -> RunReport:
         event_log_df = pd.DataFrame.from_records([r.model_dump() for r in self.history_log])
+        effects_by_op = {
+            op_id: proc.operation.describe_effects()
+            for op_id, proc in self.operation_registry.items()
+        }
+        if not event_log_df.empty and "operation_id" in event_log_df:
+            event_log_df["effect_descriptions"] = event_log_df["operation_id"].map(
+                lambda op_id: effects_by_op.get(op_id, [])
+            )
         violation_records = self.effect_engine.get_violation_records()
         if include_ttl:
             shacl_df = pd.DataFrame.from_records([rec.model_dump() for rec in violation_records])

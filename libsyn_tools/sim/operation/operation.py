@@ -155,6 +155,9 @@ class Operation(ABC, BaseModel):
     def get_operation_effects(self) -> list[UnitaryEdit]:
         pass
 
+    def describe_effects(self) -> list[str]:
+        return [edit.describe() for edit in self.operation_effects]
+
     def pre_act(self, env: simpy.Environment):
         """
         * resolve selectors  → IRIs

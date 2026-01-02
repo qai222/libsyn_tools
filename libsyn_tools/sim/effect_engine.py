@@ -19,6 +19,7 @@ from libsyn_tools.sim.knowledge_graph import BaseClass, MaterialContainer, SimOn
 from libsyn_tools.sim.operation import Operation, UnitaryEdit, UnitaryEditType, FilterStoreRegistry, get_runtime_state
 from libsyn_tools.sim.operation.runtime import get_runtime_context, _needs_runtime_tracking
 from .effect_shacl import SHACLViolationRecord, _iter_validation_results, _first
+from .graph_utils import union_view_many, union_view_for_shacl
 from .policy import PolicyBundle
 from .lifecycle import LifecycleCallbacks
 
@@ -56,6 +57,7 @@ class ContractViolationError(RuntimeError):
 class TransactionResult:
     batch_id: str
     edit_fingerprints: list[str]
+    edit_descriptions: list[str]
     committed: bool
     violations: list[SHACLViolationRecord]
 
@@ -104,21 +106,20 @@ class EffectEngine:
         self._overlay_providers.append(provider)
 
     # --- overlay construction (ephemeral) ---
-    def _build_overlay_graph(self) -> Graph:
+    def _collect_overlay_graphs(self) -> list[Graph]:
         """
-        Build the overlay by calling all registered providers.
+        Collect overlay graphs by calling all registered providers.
         Providers must be fast and side-effect free.
         """
-        g = Graph()
+        graphs: list[Graph] = []
         for prov in self._overlay_providers:
             try:
                 pg = prov()
                 if isinstance(pg, Graph):
-                    for t in pg.triples((None, None, None)):
-                        g.add(t)
+                    graphs.append(pg)
             except Exception as e:
                 logger.error(f"Overlay provider failed: {e!r}")
-        return g
+        return graphs
 
     def build_query_graph(self) -> Graph:
         """
@@ -126,11 +127,8 @@ class EffectEngine:
         This is side-effect free and intended for query/selection.
         """
         data_graph: Graph = KnowledgeGraph.graph()
-        overlay_graph: Graph = self._build_overlay_graph()
-        union_graph = Graph()
-        union_graph += data_graph
-        union_graph += overlay_graph
-        return union_graph
+        overlay_graphs = self._collect_overlay_graphs()
+        return union_view_many([data_graph, *overlay_graphs])
 
     # --- SHACL helpers (unchanged) ---
     def _collect_shacl_violations(
@@ -141,6 +139,7 @@ class EffectEngine:
         shacl_report_graph: Graph,
         batch_id: Optional[str],
         edit_fingerprints: Optional[list[str]],
+        edit_descriptions: Optional[list[str]],
         seed: Optional[int]
     ) -> list[SHACLViolationRecord]:
         records: list[SHACLViolationRecord] = []
@@ -155,6 +154,7 @@ class EffectEngine:
                 disposition=policy.disposition if policy else "committed",
                 batch_id=batch_id,
                 edit_fingerprints=edit_fingerprints,
+                edit_descriptions=edit_descriptions,
                 seed=seed,
                 shape_iri=shape_iri,
                 focus_iri=_first(shacl_report_graph, vr, SH.focusNode),
@@ -171,19 +171,15 @@ class EffectEngine:
         operation_id: str,
         batch_id: Optional[str],
         edit_fingerprints: Optional[list[str]],
+        edit_descriptions: Optional[list[str]],
         seed: Optional[int]
     ) -> None:
         if self.shapes_graph is None:
             return
 
         data_graph: Graph = KnowledgeGraph.graph()
-        overlay_graph: Graph = self._build_overlay_graph()
-
-        union_graph = ConjunctiveGraph()
-        for t in data_graph.triples((None, None, None)):
-            union_graph.add(t)
-        for t in overlay_graph.triples((None, None, None)):
-            union_graph.add(t)
+        overlay_graphs = self._collect_overlay_graphs()
+        union_graph = union_view_for_shacl([data_graph, *overlay_graphs])
 
         conforms, shacl_report_graph, _ = validate(
             union_graph,
@@ -202,6 +198,7 @@ class EffectEngine:
                 shacl_report_graph=shacl_report_graph,
                 batch_id=batch_id,
                 edit_fingerprints=edit_fingerprints,
+                edit_descriptions=edit_descriptions,
                 seed=seed,
             )
             self._shacl_violations.extend(recs)
@@ -238,6 +235,7 @@ class EffectEngine:
         operation_id: str,
         batch_id: str,
         edit_fingerprints: list[str],
+        edit_descriptions: list[str],
         seed: Optional[int],
     ) -> None:
         locked = set(locked_iris or [])
@@ -250,6 +248,7 @@ class EffectEngine:
                 operation_id=operation_id,
                 batch_id=batch_id,
                 edit_fingerprints=edit_fingerprints,
+                edit_descriptions=edit_descriptions,
                 seed=seed,
             )
         creates_set = set(creates)
@@ -285,6 +284,7 @@ class EffectEngine:
                     operation_id=operation_id,
                     batch_id=batch_id,
                     edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
                     seed=seed,
                 )
 
@@ -299,9 +299,15 @@ class EffectEngine:
                         operation_id=operation_id,
                         batch_id=batch_id,
                         edit_fingerprints=edit_fingerprints,
+                        edit_descriptions=edit_descriptions,
                         seed=seed,
                     )
-            elif t in (UnitaryEditType.ADD_DATA_PROPERTY, UnitaryEditType.CHANGE_DATA_PROPERTY, UnitaryEditType.ANNIHILATE):
+            elif t in (
+                UnitaryEditType.ADD_DATA_PROPERTY,
+                UnitaryEditType.CHANGE_DATA_PROPERTY,
+                UnitaryEditType.REMOVE_DATA_PROPERTY,
+                UnitaryEditType.ANNIHILATE,
+            ):
                 if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
                     self._raise_mechanical(
                         f"Mechanical check failed: dangling subject {e.instance_1_iri}",
@@ -309,6 +315,7 @@ class EffectEngine:
                         operation_id=operation_id,
                         batch_id=batch_id,
                         edit_fingerprints=edit_fingerprints,
+                        edit_descriptions=edit_descriptions,
                         seed=seed,
                     )
                 _require_lock_if_runtime_tracked(e.instance_1_iri)
@@ -320,6 +327,7 @@ class EffectEngine:
                         operation_id=operation_id,
                         batch_id=batch_id,
                         edit_fingerprints=edit_fingerprints,
+                        edit_descriptions=edit_descriptions,
                         seed=seed,
                     )
                 if not (_exists(e.instance_2_iri) or e.instance_2_iri in creates_set):
@@ -329,6 +337,7 @@ class EffectEngine:
                         operation_id=operation_id,
                         batch_id=batch_id,
                         edit_fingerprints=edit_fingerprints,
+                        edit_descriptions=edit_descriptions,
                         seed=seed,
                     )
                 _require_lock_if_runtime_tracked(e.instance_1_iri)
@@ -342,6 +351,7 @@ class EffectEngine:
         operation_id: str,
         batch_id: str,
         edit_fingerprints: list[str],
+        edit_descriptions: list[str],
         seed: Optional[int],
     ) -> None:
         violation = SHACLViolationRecord(
@@ -352,6 +362,7 @@ class EffectEngine:
             disposition="aborted",
             batch_id=batch_id,
             edit_fingerprints=edit_fingerprints,
+            edit_descriptions=edit_descriptions,
             seed=seed,
             message=message,
         )
@@ -371,7 +382,11 @@ class EffectEngine:
                 affected_iris.add(edit.instance_2_iri)
             if edit.property_iri is None:
                 continue
-            if edit.type in (UnitaryEditType.ADD_DATA_PROPERTY, UnitaryEditType.CHANGE_DATA_PROPERTY):
+            if edit.type in (
+                UnitaryEditType.ADD_DATA_PROPERTY,
+                UnitaryEditType.CHANGE_DATA_PROPERTY,
+                UnitaryEditType.REMOVE_DATA_PROPERTY,
+            ):
                 data_prop = SimOntology.data_property_lookup[edit.property_iri]
                 field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
                 field_names_by_iri.setdefault(edit.instance_1_iri, set()).add(field_name)
@@ -475,6 +490,7 @@ class EffectEngine:
         edits = list(edits)
         batch_id = str(uuid4())
         fingerprints = [self._fingerprint_edit(e) for e in edits]
+        descriptions = [e.describe() for e in edits]
         snapshots = self._snapshot_objects(env=env, edits=edits)
 
         try:
@@ -485,6 +501,7 @@ class EffectEngine:
                 operation_id=operation_id,
                 batch_id=batch_id,
                 edit_fingerprints=fingerprints,
+                edit_descriptions=descriptions,
                 seed=seed,
             )
         except EngineMechanicalError as err:
@@ -521,6 +538,7 @@ class EffectEngine:
             operation_id=operation_id,
             batch_id=batch_id,
             edit_fingerprints=fingerprints,
+            edit_descriptions=descriptions,
             seed=seed,
         )
         new_violations = self._shacl_violations[before_len:]
@@ -529,12 +547,14 @@ class EffectEngine:
             return TransactionResult(
                 batch_id=batch_id,
                 edit_fingerprints=fingerprints,
+                edit_descriptions=descriptions,
                 committed=False,
                 violations=new_violations,
             )
         return TransactionResult(
             batch_id=batch_id,
             edit_fingerprints=fingerprints,
+            edit_descriptions=descriptions,
             committed=True,
             violations=new_violations,
         )
@@ -596,8 +616,8 @@ class EffectEngine:
             from rdflib import Graph
             return True, Graph(), ""
         data_graph = KnowledgeGraph.graph()
-        overlay = self._build_overlay_graph()
-        union = data_graph + overlay
+        overlay_graphs = self._collect_overlay_graphs()
+        union = union_view_for_shacl([data_graph, *overlay_graphs])
         return validate(
             union,
             shacl_graph=self.shapes_graph,

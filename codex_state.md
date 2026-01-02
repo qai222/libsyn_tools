@@ -39,15 +39,21 @@
 - Add docs/examples so new users can extend via Operations/Spawners without touching engine internals.
 
 ## Task checklist
-- [ ] T1 — Replace union/overlay materialization with graph “views” (ReadOnlyGraphAggregate helper)
-- [ ] T2 — Make `SPPTOverlayProvider` incremental (persistent graph, O(1) snapshot)
-- [ ] T3 — Add `operation.effects_dsl` (builder + macros emitting `UnitaryEdit`s)
-- [ ] T4 — Refactor a couple `operation_preset/*` to use the DSL (behavior-preserving)
-- [ ] T5 — Add human-readable edit/operation descriptions and thread into reports
-- [ ] T6 — Add docs + minimal example for extension (Path A)
-- [ ] T7 — (Optional but recommended) Add `RemoveDataProperty` primitive to complete edit set
+- [x] T1 — Replace union/overlay materialization with graph “views” (ReadOnlyGraphAggregate helper)
+- [x] T2 — Make `SPPTOverlayProvider` incremental (persistent graph, O(1) snapshot)
+- [x] T3 — Add `operation.effects_dsl` (builder + macros emitting `UnitaryEdit`s)
+- [x] T4 — Refactor a couple `operation_preset/*` to use the DSL (behavior-preserving)
+- [x] T5 — Add human-readable edit/operation descriptions and thread into reports
+- [x] T6 — Add docs + minimal example for extension (Path A)
+- [x] T7 — (Optional but recommended) Add `RemoveDataProperty` primitive to complete edit set
 
 ## Run log
 | Date (local) | Task | Summary | Tests |
 |---|---|---|---|
-|  |  |  |  |
+| 2026-01-02 06:27 | T1 | Added read-only union helpers and switched SHACL/queries to graph views without overlay materialization. | `PYTHONPATH=. pytest tests_sim` |
+| 2026-01-02 06:44 | T2 | Made SPPT overlay snapshots persistent and added incremental update test coverage. | `PYTHONPATH=. pytest tests_sim` |
+| 2026-01-02 06:47 | T3 | Added EffectsBuilder DSL and unit test coverage for edit ordering. | `PYTHONPATH=. pytest tests_sim` |
+| 2026-01-02 07:01 | T4 | Refactored drain/mix operation presets to use EffectsBuilder. | `PYTHONPATH=. pytest tests_sim` |
+| 2026-01-02 07:06 | T5 | Added edit/operation descriptions and threaded them into reports/violations. | `PYTHONPATH=. pytest tests_sim` |
+| 2026-01-02 07:15 | T6 | Added simulator extension docs and a minimal example script. | `PYTHONPATH=. pytest tests_sim` |
+| 2026-01-02 07:21 | T7 | Added RemoveDataProperty primitive and tests covering add/remove behavior. | `PYTHONPATH=. pytest tests_sim` |

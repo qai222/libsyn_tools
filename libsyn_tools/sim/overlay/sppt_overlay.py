@@ -55,6 +55,7 @@ class SPPTOverlayProvider:
 
     def __init__(self, callbacks) -> None:
         self._spans: Dict[str, _OpSpan] = {}
+        self._g = Graph()
         callbacks.on_operation_start.append(self._on_start)
         callbacks.on_operation_end.append(self._on_end)
 
@@ -73,37 +74,41 @@ class SPPTOverlayProvider:
         span.t1 = float(proc.env.now)
         if not span.participants and op.resources:
             span.participants = list(op.resources)
+        self._materialize_span(op.identifier, span)
+
+    def _materialize_span(self, op_id: str, span: _OpSpan) -> None:
+        proc_iri = LIB[f"Process/{op_id}"]
+        int_iri = LIB[f"Interval/{op_id}"]
+        self._g.remove((proc_iri, None, None))
+        self._g.remove((int_iri, None, None))
+
+        if span.t0 is None or span.t1 is None:
+            return
+
+        self._g.add((proc_iri, RDF.type, LIB.Process))
+        self._g.add((int_iri, RDF.type, LIB.TimeInterval))
+        self._g.add(
+            (
+                int_iri,
+                URIRef(Has_begin_time.predicate_iri),
+                Literal(span.t0, datatype=XSD.double),
+            )
+        )
+        self._g.add(
+            (
+                int_iri,
+                URIRef(Has_end_time.predicate_iri),
+                Literal(span.t1, datatype=XSD.double),
+            )
+        )
+        self._g.add((proc_iri, URIRef(Has_interval.predicate_iri), int_iri))
+        for p in span.participants:
+            self._g.add((proc_iri, URIRef(Has_participant.predicate_iri), LIB[p]))
 
     # ---- overlay snapshot ----
     def snapshot(self) -> Graph:
         """
-        Build an rdflib.Graph snapshot of SPPT events (Process + TimeInterval + links).
-        Keep this fast; called by EffectEngine during validation.
+        Return the current rdflib.Graph snapshot of SPPT events.
+        This is a persistent graph; callers must treat it as read-only.
         """
-        g = Graph()
-        for op_id, span in self._spans.items():
-            if span.t0 is None or span.t1 is None:
-                continue
-
-            # Process and Interval IRIs
-            proc_iri = LIB[f"Process/{op_id}"]
-            int_iri  = LIB[f"Interval/{op_id}"]
-
-            # Types
-            g.add((proc_iri, RDF.type, LIB.Process))
-            g.add((int_iri,  RDF.type, LIB.TimeInterval))
-
-            # Interval endpoints (use property IRIs from ontology)
-            g.add((int_iri,  URIRef(Has_begin_time.predicate_iri),
-                   Literal(span.t0, datatype=XSD.double)))
-            g.add((int_iri,  URIRef(Has_end_time.predicate_iri),
-                   Literal(span.t1, datatype=XSD.double)))
-
-            # Process ↔ Interval
-            g.add((proc_iri, URIRef(Has_interval.predicate_iri), int_iri))
-
-            # Participants (namespaced IRIs so tests and SHACL targets match)
-            for p in span.participants:
-                g.add((proc_iri, URIRef(Has_participant.predicate_iri), LIB[p]))
-
-        return g
+        return self._g
