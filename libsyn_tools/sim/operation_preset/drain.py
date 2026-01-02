@@ -50,7 +50,7 @@ class DrainExcess(Operation):
         surplus = current_v - self.target_volume
         if surplus <= _EPS:
             logger.info(f"{src.identifier} already ≤ target volume")
-            return edits  # nothing to do
+            return []
 
         # iterate POMs until surplus is satisfied
         poms = LabObject.get_directly_contained_individuals(src, PortionOfMaterial, only_present=True)
