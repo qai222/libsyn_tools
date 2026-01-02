@@ -1,62 +1,50 @@
-# agents.md — Codex operating instructions (Phase 5: productization + chemistry pack)
+# libsyn_tools.sim — Codex Agent Guide (Path A Refactor)
 
-## Mission (Phase 5)
-Turn libsyn_tools.sim into a *usable* and *friendly* digital-twin toolkit:
+## Mission (what “success” means)
+We are improving `libsyn_tools.sim` along **Path A**:
+- Keep the atomic `UnitaryEdit` primitives as the *only* low-level graph mutation mechanism.
+- Make the simulator stand out by being:
+  1) **fast enough** to run many steps (avoid “rebuild the world” costs),
+  2) **debuggable** (SHACL failures map to actionable context),
+  3) **pleasant to extend** at the *Operation* level (effects DSL/macros), not at the RDF-triple-edit level.
 
-- Canonical state is a KG
-- Correctness is enforced with SHACL contracts
-- Endogenous spawners create a closed-loop environment that can diagnose and repair failures
-- Phase 5 adds: **reports + UX + standard library ops + optional Chemistry Pack**
+## Non‑negotiables
+- ✅ All tests must pass: `PYTHONPATH=. pytest tests_sim`
+- ✅ No new third‑party dependencies.
+- ✅ Do not break public APIs unless the task explicitly says so (prefer additive changes).
+- ✅ Keep changes per task scoped and reviewable (avoid “mega refactors”).
 
-Phase 5 deliverables:
-1) A first-class RunReport API (human-friendly outputs): summary metrics + CSV exports + optional markdown.
-2) “Standard library” operations users will actually use (beyond transfer/drain): at minimum Wait/Hold and Mix/Combine.
-3) Optional Chemistry Pack (overlay(s) + helper SHACL shapes + optional endogenous drift model) that makes chemistry queryable (not just JSON bookkeeping).
-4) Examples/docs (5-minute quickstart scripts) and lightweight CLI entrypoint for running + producing a report.
+## Where to work
+Primary target modules:
+- `libsyn_tools/sim/effect_engine.py`
+- `libsyn_tools/sim/simulation.py`
+- `libsyn_tools/sim/overlay/sppt_overlay.py`
+- `libsyn_tools/sim/operation/*`
+- `libsyn_tools/sim/operation_preset/*`
+- `libsyn_tools/sim/report.py`
 
-Do NOT change Phase 1–4 semantics unless necessary. Avoid refactoring core engine logic.
-This phase is about usability and value, not architecture rewrites.
+## Working style
+- Prefer small helper functions over large rewrites.
+- Preserve existing behavior unless explicitly improving it (performance refactors must be behavior‑preserving).
+- Add/extend tests only when they reduce risk or lock in a new behavior.
 
----
+## Commands
+Run after each task:
+- `PYTHONPATH=. pytest tests_sim`
 
-## Repo constraints
-- Only this repo is available; no other repos.
-- tests_sim is the primary regression suite and must remain green:
-  `PYTHONPATH=. pytest tests_sim`
+Optional sanity checks (only if cheap):
+- `python -m compileall libsyn_tools`
 
----
+## Logging / Memory (critical)
+Codex does NOT reliably remember prior runs. Therefore:
+1) At the start of each run, read `codex_state.md`.
+2) At the end of each run:
+   - Update `codex_state.md`:
+     - Mark the task as completed (checkbox).
+     - Add a new entry to the Run Log table with date/time, summary, and test result.
+     - Note any follow-ups or surprises.
 
-## Required workflow (EVERY run)
-1) Read `codex_state.md` first.
-2) Execute exactly ONE Phase 5 prompt (PH5-0, PH5-1, ...).
-3) Run tests:
-   - Minimum: `PYTHONPATH=. pytest tests_sim`
-4) Update `codex_state.md`:
-   - what changed and why
-   - files touched
-   - tests run + results
-   - next prompt to execute
-
-If blocked, write the blocker + next-step hints in `codex_state.md` and stop.
-
----
-
-## Guardrails
-- Keep diffs small and reviewable.
-- Preserve backwards compatibility:
-  - Existing Simulation.export_* methods should keep working.
-  - New APIs should be additive (RunReport, new ops, optional packs).
-- Any Chemistry Pack must be OPTIONAL (not enabled by default) unless explicitly requested.
-- Examples must be deterministic, short, and not depend on internet access.
-
----
-
-## Likely files to touch
-- `libsyn_tools/sim/simulation.py` (new report entrypoints)
-- `libsyn_tools/sim/effect_engine.py` (read-only accessors; report helpers)
-- `libsyn_tools/sim/report.py` (new)
-- `libsyn_tools/sim/operation_preset/*` (new standard ops)
-- `libsyn_tools/sim/overlay/*` (chemistry overlay; optional)
-- `libsyn_tools/sim/cli.py` + `libsyn_tools/sim/__main__.py` (optional CLI)
-- `examples/*` or `docs/*`
-- `tests_sim/*` (new tests)
+## Definition of Done for each task
+- Code compiles.
+- Tests pass.
+- `codex_state.md` updated.
