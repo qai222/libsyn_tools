@@ -45,12 +45,20 @@ def _collect_participant_specs(operation: "Operation") -> dict[str, StrOrSelecto
     """
     Scan all fields that start with 'participant_' and build a mapping
     role → spec (str | Selector).
+
+    Note: participant_* fields may be Optional[...] in some Operation presets.
+    Any None-valued participant is ignored.
     """
-    return {
-        fname[len("participant_"):]: getattr(operation, fname)
-        for fname in operation.model_fields
-        if fname.startswith("participant_")
-    }
+    roles: dict[str, StrOrSelector] = {}
+    for fname in operation.model_fields:
+        if not fname.startswith("participant_"):
+            continue
+        role = fname[len("participant_"):]
+        spec = getattr(operation, fname)
+        if spec is None:
+            continue
+        roles[role] = spec
+    return roles
 
 
 def _write_participant_iris(operation: "Operation", resolved: dict[str, str]):
@@ -245,7 +253,7 @@ class Operation(ABC, BaseModel):
           will fail; we still release the lock (on the Resource instance we hold),
           but skip reinsertion (object is not present).
         """
-        if self.sim_state is not _OpState.RUNNING:
+        if self.sim_state not in (_OpState.RUNNING, _OpState.PREPARED):
             raise RuntimeError(f"{self.identifier}: post_act called in state {self.sim_state}")
 
         for req in self.locks:

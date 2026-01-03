@@ -85,9 +85,10 @@ class OperationProcess:
             self.add_event_log("OPERATION_ABORT", {"reason": str(err)})
             self.done_event.succeed()
         except simpy.Interrupt as interrupt:
-            edits = []
+            edits: list[AddDataProperty] = []
             reason_txt = f"{self.operation.identifier}:{interrupt.cause}"
-            # record interrupt on participants (only if literal IRIs)
+
+            # Record interrupt on participants (only literal IRIs)
             for participant_name in self.operation.model_fields:
                 if not participant_name.startswith("participant_"):
                     continue
@@ -101,12 +102,34 @@ class OperationProcess:
                         data_value=reason_txt,
                     )
                 )
-            if edits:
-                self.effect_engine.apply(edits, self.env, operation_id=self.operation.identifier,
-                                         locked_iris=self.operation.resources)
-            self.operation.post_act(self.env)
 
-            # NEW: lifecycle callback
+            if edits:
+                try:
+                    self.effect_engine.apply(
+                        edits,
+                        self.env,
+                        operation_id=self.operation.identifier,
+                        locked_iris=self.operation.resources,
+                    )
+                except (EngineMechanicalError, ContractViolationError) as err:
+                    # Don't let a logging/contract failure strand locks.
+                    logger.error(
+                        f"Interrupt side-effects failed for {self.operation.identifier}: {err}"
+                    )
+                    self.add_event_log("INTERRUPT_EFFECTS_ABORT", {"reason": str(err)})
+                except Exception as err:
+                    logger.exception(
+                        f"Unexpected exception while recording interrupt for {self.operation.identifier}: {err}"
+                    )
+                    self.add_event_log("INTERRUPT_EFFECTS_ERROR", {"reason": str(err)})
+
+            # Always release locks / return resources.
+            try:
+                self.operation.post_act(self.env)
+            except Exception as err:
+                logger.exception(f"post_act failed after interrupt for {self.operation.identifier}: {err}")
+
+            # lifecycle callback + event log
             self.callbacks.emit_operation_interrupt(self, str(interrupt.cause))
             self.add_event_log("OPERATION_INTERRUPT", {"reason": str(interrupt.cause)})
             self.done_event.succeed()

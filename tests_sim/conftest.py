@@ -95,4 +95,24 @@ def restore_opprocess_add_event_log() -> Iterator[None]:
                 delattr(_OP, flag)
             except Exception:
                 pass
+
+def _clear_all_object_lookups() -> None:
+    """Clear global TWA object lookups to keep tests isolated.
+
+    The TWA data model stores instances in per-class `object_lookup` dicts.
+    Many sim utilities iterate these lookups, so cross-test pollution can
+    create flaky tests.
+    """
+    cls_lookup = getattr(KnowledgeGraph, "class_lookup", None) or {}
+    for cls in cls_lookup.values():
+        obj_lookup = getattr(cls, "object_lookup", None)
+        if isinstance(obj_lookup, dict):
+            obj_lookup.clear()
+
+
+@pytest.fixture(autouse=True)
+def clean_kg_between_tests():
+    _clear_all_object_lookups()
+    yield
+    _clear_all_object_lookups()
 # ### THIS IS THE END OF CONTENT OF tests_sim/conftest.py ###
