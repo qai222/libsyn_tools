@@ -85,10 +85,9 @@ class OperationProcess:
             self.add_event_log("OPERATION_ABORT", {"reason": str(err)})
             self.done_event.succeed()
         except simpy.Interrupt as interrupt:
-            edits: list[AddDataProperty] = []
+            edits = []
             reason_txt = f"{self.operation.identifier}:{interrupt.cause}"
-
-            # Record interrupt on participants (only literal IRIs)
+            # record interrupt on participants (only if literal IRIs)
             for participant_name in self.operation.model_fields:
                 if not participant_name.startswith("participant_"):
                     continue
@@ -102,8 +101,11 @@ class OperationProcess:
                         data_value=reason_txt,
                     )
                 )
-
             if edits:
+                # Interrupt bookkeeping should never crash the simulation.
+                # If a policy marks interrupt events as forbidden (aborted),
+                # swallow the resulting ContractViolationError so locks are
+                # still released and the op can terminate cleanly.
                 try:
                     self.effect_engine.apply(
                         edits,
@@ -112,24 +114,10 @@ class OperationProcess:
                         locked_iris=self.operation.resources,
                     )
                 except (EngineMechanicalError, ContractViolationError) as err:
-                    # Don't let a logging/contract failure strand locks.
-                    logger.error(
-                        f"Interrupt side-effects failed for {self.operation.identifier}: {err}"
-                    )
-                    self.add_event_log("INTERRUPT_EFFECTS_ABORT", {"reason": str(err)})
-                except Exception as err:
-                    logger.exception(
-                        f"Unexpected exception while recording interrupt for {self.operation.identifier}: {err}"
-                    )
-                    self.add_event_log("INTERRUPT_EFFECTS_ERROR", {"reason": str(err)})
+                    logger.warning(f"Interrupt bookkeeping failed: {err}")
+            self.operation.post_act(self.env)
 
-            # Always release locks / return resources.
-            try:
-                self.operation.post_act(self.env)
-            except Exception as err:
-                logger.exception(f"post_act failed after interrupt for {self.operation.identifier}: {err}")
-
-            # lifecycle callback + event log
+            # NEW: lifecycle callback
             self.callbacks.emit_operation_interrupt(self, str(interrupt.cause))
             self.add_event_log("OPERATION_INTERRUPT", {"reason": str(interrupt.cause)})
             self.done_event.succeed()

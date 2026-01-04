@@ -7,34 +7,26 @@ from pydantic import Field
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim import MaterialContainer, PortionOfMaterial
-from libsyn_tools.sim.knowledge_graph import Is_directly_contained_by, LabObject
-from libsyn_tools.sim.operation.effects_dsl import EffectsBuilder
+from libsyn_tools.sim.knowledge_graph import (
+    Is_directly_contained_by, LabObject
+)
 from libsyn_tools.sim.operation.operation import Operation, StrOrSelector
+from libsyn_tools.sim.operation.effects_dsl import EffectsBuilder
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit
 
 _EPS = 1e-6
 
 
 class DrainExcess(Operation):
-    """Trim a container down to `target_volume` by moving the surplus into *destination*.
+    """
+    Trim a beaker down to `target_volume` by pouring the surplus
+    into *destination*.
 
     Parameters
     ----------
-    participant_source:
-        Container that is too full.
-    participant_destination:
-        Container that receives the surplus.
-    target_volume:
-        Volume **after** the operation (same units as Chemical.volume).
-
-    Notes
-    -----
-    The operation drains one PortionOfMaterial (POM) at a time until the target
-    volume is reached.
-
-    Important correctness detail:
-        If an entire POM is drained, we do *not* create a zero-volume residual POM
-        (``PortionOfMaterial.get_portion_by_volume(0)`` would raise).
+    participant_source : beaker that is too full
+    participant_destination : container that receives the surplus
+    target_volume : volume **after** the operation (same units as Chemical.volume)
     """
 
     participant_source: StrOrSelector
@@ -49,37 +41,37 @@ class DrainExcess(Operation):
 
         if not isinstance(src, MaterialContainer):
             raise RuntimeError("DrainExcess: source must be a MaterialContainer")
-        if not isinstance(dst, MaterialContainer):
-            raise RuntimeError("DrainExcess: destination must be a MaterialContainer")
 
         builder = EffectsBuilder()
         prop_iri = Is_directly_contained_by.predicate_iri
 
+        # how much must be taken out?
         current_v = src.directly_contained_pom_volume
         surplus = current_v - self.target_volume
         if surplus <= _EPS:
             logger.info(f"{src.identifier} already ≤ target volume")
             return []
 
+        # iterate POMs until surplus is satisfied
         poms = LabObject.get_directly_contained_individuals(src, PortionOfMaterial, only_present=True)
         for pom in poms:
             if surplus <= _EPS:
                 break
 
             take = min(pom.volume, surplus)
-            if take <= _EPS:
-                continue
-
             portion = pom.get_portion_by_volume(take)
-            residual_vol = pom.volume - take
-            residual = pom.get_portion_by_volume(residual_vol) if residual_vol > _EPS else None
+            # If we fully drain this POM, do not create a residual 0-volume portion.
+            residual = None
+            remaining = pom.volume - take
+            if remaining > _EPS:
+                residual = pom.get_portion_by_volume(remaining)
             surplus -= take
 
-            # remove original POM from the source
+            # remove original POM from the beaker
             builder.unlink(pom.identifier, prop_iri, src.identifier)
             builder.annihilate(pom.identifier)
 
-            # residual stays in source (skip if drained fully)
+            # residual stays in source
             if residual is not None:
                 builder.create(residual.identifier)
                 builder.link(residual.identifier, prop_iri, src.identifier)
@@ -88,8 +80,6 @@ class DrainExcess(Operation):
             builder.create(portion.identifier)
             builder.link(portion.identifier, prop_iri, dst.identifier)
 
-        logger.info(
-            f"DrainExcess: moved {current_v - self.target_volume:.3g} "
-            f"from {src.identifier} to {dst.identifier}"
-        )
+        logger.info(f"DrainExcess: moved {current_v - self.target_volume:.3g} "
+                    f"from {src.identifier} to {dst.identifier}")
         return builder.build()

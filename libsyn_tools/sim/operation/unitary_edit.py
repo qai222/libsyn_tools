@@ -44,7 +44,12 @@ class UnitaryEdit(BaseModel):
     property_iri: str | None = None
     data_value: Any | None = None
 
-    model_config = {"frozen": True}
+    # Not frozen: tests and debug tooling may monkeypatch `apply` on instances
+    # to simulate unexpected failures. The engine treats edits as immutable by
+    # convention, but allowing mutation here improves testability.
+    # Allow setting extra attributes on instances (e.g. monkeypatching `apply` in tests)
+    # while keeping edits conceptually immutable by convention.
+    model_config = {"frozen": False, "extra": "allow"}
 
     @abstractmethod
     def apply(self) -> None: ...

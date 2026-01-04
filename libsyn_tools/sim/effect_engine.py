@@ -49,8 +49,11 @@ class EngineMechanicalError(RuntimeError):
 
 class ContractViolationError(RuntimeError):
     def __init__(self, result: TransactionResult):
-        super().__init__("Transaction aborted due to SHACL contract violation", result)
+        # Important: SimPy re-raises exceptions by reconstructing them with
+        # `type(exc)(*exc.args)`. Keep args as a single element (result) so
+        # reconstruction calls `ContractViolationError(result)` and succeeds.
         self.result = result
+        super().__init__(result)
 
 
 @dataclass(frozen=True)
@@ -238,21 +241,8 @@ class EffectEngine:
         edit_descriptions: list[str],
         seed: Optional[int],
     ) -> None:
-        """Perform *fast* mechanical checks before applying a batch.
-
-        These checks are intended to fail early (and deterministically) when the
-        edit batch is malformed or cannot be safely applied.
-
-        Notes
-        -----
-        - This is *not* a SHACL/semantic validation; that happens after applying edits.
-        - Mechanical checks must never mutate the KG.
-        """
-
         locked = set(locked_iris or [])
         edits_list = list(edits)
-
-        # --- batch-level sanity -------------------------------------------------
         creates = [e.instance_1_iri for e in edits_list if e.type is UnitaryEditType.CREATE]
         if len(creates) != len(set(creates)):
             self._raise_mechanical(
@@ -266,20 +256,25 @@ class EffectEngine:
             )
         creates_set = set(creates)
 
-        def _get_obj(iri: Optional[str]):
-            if not iri:
-                return None
-            try:
-                return KnowledgeGraph.get_object_from_lookup(iri)
-            except Exception:
-                return None
-
         def _exists(iri: Optional[str]) -> bool:
-            return _get_obj(iri) is not None
+            if not iri:
+                return False
+            try:
+                obj = KnowledgeGraph.get_object_from_lookup(iri)
+            except Exception:
+                return False
+            return obj is not None
 
         def _is_runtime_tracked(iri: Optional[str]) -> bool:
-            obj = _get_obj(iri)
-            return bool(obj is not None and _needs_runtime_tracking(obj))
+            if not iri:
+                return False
+            try:
+                obj = KnowledgeGraph.get_object_from_lookup(iri)
+            except Exception:
+                return False
+            if obj is None:
+                return False
+            return _needs_runtime_tracking(obj)
 
         def _require_lock_if_runtime_tracked(iri: Optional[str]) -> None:
             if not iri or iri in creates_set:
@@ -296,67 +291,11 @@ class EffectEngine:
                     seed=seed,
                 )
 
-        def _require_data_property_iri(e: UnitaryEdit) -> None:
-            if not e.property_iri:
-                self._raise_mechanical(
-                    f"Mechanical check failed: missing property_iri on {e.type}",
-                    env_now=env_now,
-                    operation_id=operation_id,
-                    batch_id=batch_id,
-                    edit_fingerprints=edit_fingerprints,
-                    edit_descriptions=edit_descriptions,
-                    seed=seed,
-                )
-            if e.property_iri not in SimOntology.data_property_lookup:
-                self._raise_mechanical(
-                    f"Mechanical check failed: unknown data property IRI {e.property_iri}",
-                    env_now=env_now,
-                    operation_id=operation_id,
-                    batch_id=batch_id,
-                    edit_fingerprints=edit_fingerprints,
-                    edit_descriptions=edit_descriptions,
-                    seed=seed,
-                )
-
-        def _require_object_property_iri(e: UnitaryEdit) -> None:
-            if not e.property_iri:
-                self._raise_mechanical(
-                    f"Mechanical check failed: missing property_iri on {e.type}",
-                    env_now=env_now,
-                    operation_id=operation_id,
-                    batch_id=batch_id,
-                    edit_fingerprints=edit_fingerprints,
-                    edit_descriptions=edit_descriptions,
-                    seed=seed,
-                )
-            if e.property_iri not in SimOntology.object_property_lookup:
-                self._raise_mechanical(
-                    f"Mechanical check failed: unknown object property IRI {e.property_iri}",
-                    env_now=env_now,
-                    operation_id=operation_id,
-                    batch_id=batch_id,
-                    edit_fingerprints=edit_fingerprints,
-                    edit_descriptions=edit_descriptions,
-                    seed=seed,
-                )
-
-        # --- per-edit checks ----------------------------------------------------
         for e in edits_list:
             t = e.type
-
             if t is UnitaryEditType.CREATE:
-                subj = _get_obj(e.instance_1_iri)
-                if subj is None:
-                    self._raise_mechanical(
-                        f"Mechanical check failed: CREATE target not found in KG lookup: {e.instance_1_iri}",
-                        env_now=env_now,
-                        operation_id=operation_id,
-                        batch_id=batch_id,
-                        edit_fingerprints=edit_fingerprints,
-                        edit_descriptions=edit_descriptions,
-                        seed=seed,
-                    )
-                if getattr(subj, "is_present", {False}) == {True}:
+                subj = KnowledgeGraph.get_object_from_lookup(e.instance_1_iri)
+                if subj is not None and getattr(subj, "is_present", {False}) == {True}:
                     self._raise_mechanical(
                         f"Mechanical check failed: CREATE on present object {e.instance_1_iri}",
                         env_now=env_now,
@@ -366,29 +305,12 @@ class EffectEngine:
                         edit_descriptions=edit_descriptions,
                         seed=seed,
                     )
-                # (no lock required: object is not present yet, hence not acquirable)
-                continue
-
-            if t is UnitaryEditType.ANNIHILATE:
-                if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
-                    self._raise_mechanical(
-                        f"Mechanical check failed: dangling subject {e.instance_1_iri}",
-                        env_now=env_now,
-                        operation_id=operation_id,
-                        batch_id=batch_id,
-                        edit_fingerprints=edit_fingerprints,
-                        edit_descriptions=edit_descriptions,
-                        seed=seed,
-                    )
-                _require_lock_if_runtime_tracked(e.instance_1_iri)
-                continue
-
-            if t in (
+            elif t in (
                 UnitaryEditType.ADD_DATA_PROPERTY,
                 UnitaryEditType.CHANGE_DATA_PROPERTY,
                 UnitaryEditType.REMOVE_DATA_PROPERTY,
+                UnitaryEditType.ANNIHILATE,
             ):
-                _require_data_property_iri(e)
                 if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
                     self._raise_mechanical(
                         f"Mechanical check failed: dangling subject {e.instance_1_iri}",
@@ -400,10 +322,7 @@ class EffectEngine:
                         seed=seed,
                     )
                 _require_lock_if_runtime_tracked(e.instance_1_iri)
-                continue
-
-            if t in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY):
-                _require_object_property_iri(e)
+            elif t in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY):
                 if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
                     self._raise_mechanical(
                         f"Mechanical check failed: dangling subject {e.instance_1_iri}",
@@ -426,18 +345,6 @@ class EffectEngine:
                     )
                 _require_lock_if_runtime_tracked(e.instance_1_iri)
                 _require_lock_if_runtime_tracked(e.instance_2_iri)
-                continue
-
-            # Defensive: if a new edit type is introduced but not handled here.
-            self._raise_mechanical(
-                f"Mechanical check failed: unhandled edit type {t}",
-                env_now=env_now,
-                operation_id=operation_id,
-                batch_id=batch_id,
-                edit_fingerprints=edit_fingerprints,
-                edit_descriptions=edit_descriptions,
-                seed=seed,
-            )
 
     def _raise_mechanical(
         self,
@@ -576,25 +483,20 @@ class EffectEngine:
         locked_iris: Optional[Iterable[str]] = None,
         seed: Optional[int] = None,
     ) -> TransactionResult:
-        """Apply edits transactionally: precheck → apply → SHACL audit → commit/rollback.
+        """
+        Apply edits transactionally: precheck -> apply -> SHACL audit -> commit/rollback.
 
         Default behavior is audit-only (committed=True) unless a policy marks any
         SHACL violation with disposition="aborted", which triggers rollback and
         returns committed=False.
-
-        Correctness detail:
-            If an exception occurs while applying edits (e.g., invalid property IRI,
-            KeyError in a primitive, etc.), we roll back object state using snapshots
-            and raise an EngineMechanicalError rather than leaving the KG partially
-            mutated.
         """
-
         edits = list(edits)
         batch_id = str(uuid4())
         fingerprints = [self._fingerprint_edit(e) for e in edits]
         descriptions = [e.describe() for e in edits]
 
-        # 1) Mechanical precheck (no KG mutation)
+        # Mechanical precheck must run before we take snapshots so invalid
+        # edits (e.g., bad property_iri) cannot crash snapshotting.
         try:
             self._precheck_mechanical(
                 edits=edits,
@@ -613,22 +515,23 @@ class EffectEngine:
                     self.callbacks.emit_violation(rec)
             raise
 
-        # 2) Snapshot only after mechanical checks pass
         snapshots = self._snapshot_objects(env=env, edits=edits)
 
         before_len = len(self._shacl_violations)
         try:
-            # 3) Apply edits
             for edit in edits:
                 subj = KnowledgeGraph.get_object_from_lookup(edit.instance_1_iri)
-                if subj is None:
-                    raise RuntimeError(f"Unexpected None subject for {edit.instance_1_iri}")
+                obj2 = (
+                    KnowledgeGraph.get_object_from_lookup(edit.instance_2_iri)
+                    if edit.type in (
+                        UnitaryEditType.ADD_OBJECT_PROPERTY,
+                        UnitaryEditType.REMOVE_OBJECT_PROPERTY,
+                    )
+                    and edit.instance_2_iri
+                    else None
+                )
 
-                obj2 = None
-                if edit.type in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY) and edit.instance_2_iri:
-                    obj2 = KnowledgeGraph.get_object_from_lookup(edit.instance_2_iri)
-
-                # Ensure runtime artefacts exist before we touch them
+                # Ensure runtime tracking entries exist for touched runtime objects
                 self._register_if_new(subj, env)
                 if edit.type is not UnitaryEditType.CREATE and obj2 is not None:
                     self._register_if_new(obj2, env)
@@ -637,71 +540,58 @@ class EffectEngine:
                     f"Applying edit: {edit.type} – {subj.__class__.__name__}={edit.instance_1_iri}"
                 )
                 edit.apply()
-
-                # Update runtime history + FilterStores (if applicable)
                 self._log_and_sync(subj, edit, env)
                 self._log_and_sync(obj2, edit, env)
 
                 if edit.type is UnitaryEditType.CREATE:
-                    # object may become present; ensure FilterStores updated
                     self._register_if_new(subj, env)
                 elif edit.type is UnitaryEditType.ANNIHILATE:
                     self._unregister_object(subj, env)
-
-            # 4) Validate (SHACL)
-            self._run_shacl_validation(
-                env=env,
+        except Exception as exc:
+            # Unexpected exception during apply => rollback and surface as a mechanical error.
+            self._restore_objects(env=env, snapshots=snapshots)
+            rec = SHACLViolationRecord(
+                sim_time=float(env.now),
                 operation_id=operation_id,
+                origin="ENGINE",
+                severity="hard",
+                disposition="aborted",
                 batch_id=batch_id,
                 edit_fingerprints=fingerprints,
                 edit_descriptions=descriptions,
                 seed=seed,
+                message=f"Unexpected exception during apply: {type(exc).__name__}: {exc}",
             )
+            self._shacl_violations.append(rec)
+            if self.callbacks:
+                self.callbacks.emit_violation(rec)
+            raise EngineMechanicalError(str(exc), rec) from exc
 
-            # 5) Commit/rollback depending on policy disposition
-            new_violations = self._shacl_violations[before_len:]
-            if any(v.disposition == "aborted" for v in new_violations):
-                self._restore_objects(env=env, snapshots=snapshots)
-                return TransactionResult(
-                    batch_id=batch_id,
-                    edit_fingerprints=fingerprints,
-                    edit_descriptions=descriptions,
-                    committed=False,
-                    violations=new_violations,
-                )
-
+        self._run_shacl_validation(
+            env=env,
+            operation_id=operation_id,
+            batch_id=batch_id,
+            edit_fingerprints=fingerprints,
+            edit_descriptions=descriptions,
+            seed=seed,
+        )
+        new_violations = self._shacl_violations[before_len:]
+        if any(v.disposition == "aborted" for v in new_violations):
+            self._restore_objects(env=env, snapshots=snapshots)
             return TransactionResult(
                 batch_id=batch_id,
                 edit_fingerprints=fingerprints,
                 edit_descriptions=descriptions,
-                committed=True,
+                committed=False,
                 violations=new_violations,
             )
-
-        except Exception as exc:
-            # Roll back object state on *any* exception during apply/validate.
-            try:
-                self._restore_objects(env=env, snapshots=snapshots)
-            except Exception:
-                logger.exception("Failed to restore snapshots after exception; KG may be inconsistent")
-
-            # Convert into a deterministic mechanical error so the simulation can abort the operation cleanly.
-            try:
-                self._raise_mechanical(
-                    f"Engine error while applying edits: {type(exc).__name__}: {exc}",
-                    env_now=env.now,
-                    operation_id=operation_id,
-                    batch_id=batch_id,
-                    edit_fingerprints=fingerprints,
-                    edit_descriptions=descriptions,
-                    seed=seed,
-                )
-            except EngineMechanicalError as err:
-                self._shacl_violations.extend(err.violations)
-                if self.callbacks:
-                    for rec in err.violations:
-                        self.callbacks.emit_violation(rec)
-                raise
+        return TransactionResult(
+            batch_id=batch_id,
+            edit_fingerprints=fingerprints,
+            edit_descriptions=descriptions,
+            committed=True,
+            violations=new_violations,
+        )
 
     def apply(
         self,

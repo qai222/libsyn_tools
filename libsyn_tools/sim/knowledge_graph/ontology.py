@@ -260,8 +260,7 @@ class LabObject(Substance):
             )
         target_class = instance_class
         out: list[T_co] = []
-        lookup = getattr(target_class, "object_lookup", None) or {}
-        for inst in lookup.values():
+        for inst in target_class.object_lookup.values():
             if only_present and inst.is_present != {True}:
                 continue
             if container in inst.is_directly_contained_by:
@@ -274,8 +273,7 @@ class LabObject(Substance):
     @property
     def directly_contained_pom_volume(self) -> float:
         vol = 0.0
-        pom_lookup = getattr(PortionOfMaterial, "object_lookup", None) or {}
-        for pom in pom_lookup.values():
+        for pom in PortionOfMaterial.object_lookup.values():
             if self in pom.is_directly_contained_by and pom.is_present == {True}:
                 vol += pom.volume
         return vol
@@ -305,8 +303,7 @@ class LabObject(Substance):
         seen_ids: set[str] = set()
         while stack:
             k = stack.pop()
-            lookup = getattr(k, "object_lookup", None) or {}
-            for obj in lookup.values():
+            for obj in k.object_lookup.values():
                 if obj.instance_iri not in seen_ids:
                     seen_ids.add(obj.instance_iri)
                     yield obj

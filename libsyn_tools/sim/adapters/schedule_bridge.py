@@ -37,10 +37,7 @@ from twa.data_model.base_ontology import KnowledgeGraph
 from libsyn_tools.chem_schema import FunctionalModule
 from libsyn_tools.chem_schema import Operation as PlannedOperation
 from libsyn_tools.chem_schema import OperationNetwork
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from libsyn_tools.opt import SchedulerOutput
+from libsyn_tools.opt import SchedulerOutput
 from libsyn_tools.sim import Simulation
 from libsyn_tools.sim.knowledge_graph import LabObject
 from libsyn_tools.sim.operation.operation import Operation as SimOperation

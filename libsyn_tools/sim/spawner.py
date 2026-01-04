@@ -112,7 +112,9 @@ class KGInspectorSpawner(Spawner):
         for vr in g.subjects(RDF.type, SH.ValidationResult):
             shape_iri = str(g.value(vr, SH.sourceShape))
             focus_iri = identifier_from_iri(str(g.value(vr, SH.focusNode)))
-            logger.critical(f"DBG sourceShape = {shape_iri}")
+            # Debug logging for shape dispatch; keep at debug level to avoid
+            # polluting normal test/output runs.
+            logger.debug(f"sourceShape = {shape_iri}")
             factory = self.shape_dispatch.get(shape_iri)
             if factory is None:
                 continue
