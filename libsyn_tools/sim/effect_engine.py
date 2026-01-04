@@ -567,14 +567,39 @@ class EffectEngine:
                 self.callbacks.emit_violation(rec)
             raise EngineMechanicalError(str(exc), rec) from exc
 
-        self._run_shacl_validation(
-            env=env,
-            operation_id=operation_id,
-            batch_id=batch_id,
-            edit_fingerprints=fingerprints,
-            edit_descriptions=descriptions,
-            seed=seed,
-        )
+        try:
+            self._run_shacl_validation(
+                env=env,
+                operation_id=operation_id,
+                batch_id=batch_id,
+                edit_fingerprints=fingerprints,
+                edit_descriptions=descriptions,
+                seed=seed,
+            )
+        except SHACLValidationError:
+            # In raise_shacl mode we intentionally raise after validating;
+            # edits are already applied and are considered committed.
+            raise
+        except Exception as exc:
+            # SHACL engine crashed unexpectedly => rollback and surface as mechanical error.
+            self._restore_objects(env=env, snapshots=snapshots)
+            rec = SHACLViolationRecord(
+                sim_time=float(env.now),
+                operation_id=operation_id,
+                origin="ENGINE",
+                severity="hard",
+                disposition="aborted",
+                batch_id=batch_id,
+                edit_fingerprints=fingerprints,
+                edit_descriptions=descriptions,
+                seed=seed,
+                message=f"Unexpected exception during SHACL validation: {type(exc).__name__}: {exc}",
+            )
+            self._shacl_violations.append(rec)
+            if self.callbacks:
+                self.callbacks.emit_violation(rec)
+            raise EngineMechanicalError(str(exc), rec) from exc
+
         new_violations = self._shacl_violations[before_len:]
         if any(v.disposition == "aborted" for v in new_violations):
             self._restore_objects(env=env, snapshots=snapshots)
