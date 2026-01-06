@@ -191,6 +191,8 @@ class Operation(ABC, BaseModel):
     
             resolved: dict[str, str] = {}
             acquired: dict[str, simpy.events.Event] = {}  # iri → lock (for dedup)
+            resolve_proc: simpy.events.Process | None = None
+
     
             for role, spec in ordered_specs:
                 if isinstance(spec, (str, LiteralSelector)):
@@ -205,12 +207,14 @@ class Operation(ABC, BaseModel):
                         resolved[role] = obj.identifier
                         continue
                 if isinstance(spec, Selector):
-                    iri, req = yield env.process(spec.resolve(env))
+                    resolve_proc = env.process(spec.resolve(env))
+                    iri, req = yield resolve_proc
+                    resolve_proc = None
                 elif isinstance(spec, str):
                     # lock via LiteralSelector to keep path uniform
-                    iri, req = yield env.process(
-                        LiteralSelector(spec).resolve(env)
-                    )
+                    resolve_proc = env.process(LiteralSelector(spec).resolve(env))
+                    iri, req = yield resolve_proc
+                    resolve_proc = None
                 else:
                     raise TypeError(
                         f"Participant '{role}' has unsupported type {type(spec)}"
@@ -242,10 +246,19 @@ class Operation(ABC, BaseModel):
                     f"Duplicate CREATE IRIs detected in {self.identifier}: {created_iris}"
                 )
     
-        except simpy.Interrupt:
+        except simpy.Interrupt as intr:
             # pre_act() can be interrupted if the parent operation is cancelled while
             # blocked on selector resolution / lock acquisition. Swallow the interrupt
             # so the SimPy environment doesn't crash; the caller will perform cleanup.
+            # Ensure any in-flight selector resolution process is also cancelled;
+            # otherwise it may later acquire a lock/store item and strand it.
+            if resolve_proc is not None:
+                try:
+                    if getattr(resolve_proc, 'is_alive', False):
+                        resolve_proc.interrupt(getattr(intr, 'cause', None) or 'cancel')
+                except Exception:
+                    pass
+
             for req in list(self.locks):
                 try:
                     users = getattr(req.resource, "users", None)

@@ -102,26 +102,69 @@ class Selector(ABC):
         FIX – starvation: when a candidate fails under the lock we
         re-insert it at the **front** of the queue so its original
         ordering is preserved.
+
+        Cancellation/interrupt safety
+        -----------------------------
+        This generator can become "orphaned" if a parent pre_act() process is
+        interrupted while awaiting selector resolution. In that case we must
+        ensure we:
+          * release (or cancel) any in-flight lock request, and
+          * return any temporarily removed candidate back to the pool store,
+        and then exit *without* raising, so the SimPy environment does not crash.
         """
-        while True:
-            # 1) wait until a suitable candidate appears in the pool
-            obj: LabObject = yield store.get(filter=pred)  # blocking
-            rs = get_runtime_state(obj, env)
+        obj: LabObject | None = None
+        req: simpy.events.Event | None = None
 
-            # 2) request a *capacity-1* lock – blocks if already taken
-            req = rs.lock.request()
-            yield req
+        try:
+            while True:
+                # 1) wait until a suitable candidate appears in the pool
+                obj = yield store.get(filter=pred)  # blocking
+                rs = get_runtime_state(obj, env)
 
-            # 3) re-validate predicate under the lock; if it still
-            #    passes we are done, otherwise roll back and retry
-            if pred(obj):
-                return obj.identifier, req
+                # 2) request a *capacity-1* lock – blocks if already taken
+                req = rs.lock.request()
+                yield req
 
-            rs.lock.release(req)
-            # SimPy >= 4 lets us manipulate .items directly.
-            # insert(0, obj) keeps FIFO order; put(obj) would append().
-            store.items.insert(0, obj)
+                # 3) re-validate predicate under the lock; if it still
+                #    passes we are done, otherwise roll back and retry
+                if pred(obj):
+                    return obj.identifier, req
 
+                rs.lock.release(req)
+                req = None
+
+                # SimPy >= 4 lets us manipulate .items directly.
+                # insert(0, obj) keeps FIFO order; put(obj) would append().
+                store.items.insert(0, obj)
+                obj = None
+
+        except simpy.Interrupt:
+            # Best-effort rollback of any partial selection/lock attempt.
+            try:
+                if req is not None:
+                    resource = getattr(req, "resource", None)
+                    if resource is not None:
+                        users = getattr(resource, "users", None)
+                        queue = getattr(resource, "queue", None)
+
+                        if users is not None and req in users:
+                            resource.release(req)
+                        elif hasattr(req, "cancel"):
+                            # pending request, not granted yet
+                            req.cancel()
+                        elif queue is not None and req in queue:
+                            try:
+                                queue.remove(req)
+                            except ValueError:
+                                pass
+            finally:
+                if obj is not None:
+                    try:
+                        if hasattr(store, "items") and obj not in store.items:
+                            store.items.insert(0, obj)
+                    except Exception:
+                        pass
+            return
 
 class LiteralSelector(Selector):
     """Always returns the exact IRI given at construction."""
@@ -136,17 +179,50 @@ class LiteralSelector(Selector):
         if obj is None:
             obj = KnowledgeGraph.get_object_from_lookup(iri=identifier_from_iri(self._iri))
         obj: LabObject
-        pool_type = next(iter(obj.has_pool_type), None)
-        if pool_type is not None and obj.is_present == {True}:
-            store = FilterStoreRegistry.get_filter_store(pool_type, env)
-            yield store.get(filter=lambda candidate: candidate is obj)
-        rs = get_runtime_state(obj, env)
-        req = rs.lock.request()
-        yield req
-        return obj.identifier, req
 
-    # Human-readable representation, logged for provenance
-    def __str__(self) -> str:
+        store: simpy.FilterStore | None = None
+        removed_from_store = False
+        req: simpy.events.Event | None = None
+
+        try:
+            pool_type = next(iter(obj.has_pool_type), None)
+            if pool_type is not None and obj.is_present == {True}:
+                store = FilterStoreRegistry.get_filter_store(pool_type, env)
+                yield store.get(filter=lambda candidate: candidate is obj)
+                removed_from_store = True
+
+            rs = get_runtime_state(obj, env)
+            req = rs.lock.request()
+            yield req
+            return obj.identifier, req
+
+        except simpy.Interrupt:
+            # Roll back any partial reservation and exit cleanly so orphaned
+            # selector processes can't crash the environment.
+            if req is not None:
+                resource = getattr(req, "resource", None)
+                if resource is not None:
+                    users = getattr(resource, "users", None)
+                    queue = getattr(resource, "queue", None)
+                    if users is not None and req in users:
+                        resource.release(req)
+                    elif hasattr(req, "cancel"):
+                        req.cancel()
+                    elif queue is not None and req in queue:
+                        try:
+                            queue.remove(req)
+                        except ValueError:
+                            pass
+
+            if removed_from_store and store is not None:
+                try:
+                    if obj not in store.items:
+                        store.items.insert(0, obj)
+                except Exception:
+                    pass
+            return
+
+def __str__(self) -> str:
         return f'LiteralSelector("{self._iri}")'
 
 
