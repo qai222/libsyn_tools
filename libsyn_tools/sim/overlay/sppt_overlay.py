@@ -23,8 +23,9 @@ Design notes
 • No import of Simulation/OperationProcess to avoid circular deps; we depend only on
   attributes observed on the proc object: proc.env.now, proc.operation.identifier,
   proc.operation.resources.
-• Participants are emitted with the canonical lib: namespace, i.e., LIB[iri_string]
-  so they match test expectations and any code that builds LIB[...] IRIs.
+• Participants are emitted as canonical KG IRIs. The provider is robust to either
+  identifier-form strings (e.g. "Beaker_123") *or* canonical IRIs
+  (e.g. "https://libsyn-sim/kg/Beaker_123").
 """
 
 from dataclasses import dataclass, field
@@ -33,6 +34,7 @@ from typing import Dict, Optional, List, Any
 from rdflib import Graph, Namespace, URIRef, Literal
 from rdflib.namespace import RDF, XSD
 
+from libsyn_tools.sim.knowledge_graph import canonical_iri
 from libsyn_tools.sim.knowledge_graph.ontology import (
     Has_participant, Has_interval, Has_begin_time, Has_end_time
 )
@@ -103,7 +105,7 @@ class SPPTOverlayProvider:
         )
         self._g.add((proc_iri, URIRef(Has_interval.predicate_iri), int_iri))
         for p in span.participants:
-            self._g.add((proc_iri, URIRef(Has_participant.predicate_iri), LIB[p]))
+            self._g.add((proc_iri, URIRef(Has_participant.predicate_iri), canonical_iri(p)))
 
     # ---- overlay snapshot ----
     def snapshot(self) -> Graph:

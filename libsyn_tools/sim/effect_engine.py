@@ -256,6 +256,109 @@ class EffectEngine:
             )
         creates_set = set(creates)
 
+        # --- helper: validate property IRIs up-front so snapshotting cannot crash ---
+        _DATA_PROP_TYPES = {
+            UnitaryEditType.ADD_DATA_PROPERTY,
+            UnitaryEditType.CHANGE_DATA_PROPERTY,
+            UnitaryEditType.REMOVE_DATA_PROPERTY,
+        }
+        _OBJ_PROP_TYPES = {
+            UnitaryEditType.ADD_OBJECT_PROPERTY,
+            UnitaryEditType.REMOVE_OBJECT_PROPERTY,
+        }
+
+        def _field_name_from_prop_cls(prop_cls: type) -> str:
+            # Ontology classes are PascalCase; instance fields are camelCase with
+            # a lowercase first letter (e.g. Has_capacity -> has_capacity).
+            n = prop_cls.__name__
+            return n[0].lower() + n[1:]
+
+        def _require_data_property(edit: UnitaryEdit) -> None:
+            if not edit.property_iri:
+                self._raise_mechanical(
+                    f"Mechanical check failed: missing property_iri for {edit.type.value} on {edit.instance_1_iri}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
+            if edit.property_iri not in SimOntology.data_property_lookup:
+                self._raise_mechanical(
+                    f"Mechanical check failed: unknown data property {edit.property_iri!r}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
+            subj = KnowledgeGraph.get_object_from_lookup(edit.instance_1_iri)
+            if subj is None:
+                return
+            prop_cls = SimOntology.data_property_lookup[edit.property_iri]
+            field_name = _field_name_from_prop_cls(prop_cls)
+            if not hasattr(subj, field_name):
+                self._raise_mechanical(
+                    f"Mechanical check failed: subject {edit.instance_1_iri!r} ({subj.__class__.__name__}) "
+                    f"does not support data property {edit.property_iri}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
+
+        def _require_object_property(edit: UnitaryEdit) -> None:
+            if not edit.property_iri:
+                self._raise_mechanical(
+                    f"Mechanical check failed: missing property_iri for {edit.type.value} on {edit.instance_1_iri}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
+            if not edit.instance_2_iri:
+                self._raise_mechanical(
+                    f"Mechanical check failed: missing instance_2_iri for {edit.type.value} on {edit.instance_1_iri}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
+            if edit.property_iri not in SimOntology.object_property_lookup:
+                self._raise_mechanical(
+                    f"Mechanical check failed: unknown object property {edit.property_iri!r}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
+            subj = KnowledgeGraph.get_object_from_lookup(edit.instance_1_iri)
+            if subj is None:
+                return
+            prop_cls = SimOntology.object_property_lookup[edit.property_iri]
+            field_name = _field_name_from_prop_cls(prop_cls)
+            if not hasattr(subj, field_name):
+                self._raise_mechanical(
+                    f"Mechanical check failed: subject {edit.instance_1_iri!r} ({subj.__class__.__name__}) "
+                    f"does not support object property {edit.property_iri}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
+
         def _exists(iri: Optional[str]) -> bool:
             if not iri:
                 return False
@@ -295,6 +398,16 @@ class EffectEngine:
             t = e.type
             if t is UnitaryEditType.CREATE:
                 subj = KnowledgeGraph.get_object_from_lookup(e.instance_1_iri)
+                if subj is None:
+                    self._raise_mechanical(
+                        f"Mechanical check failed: CREATE on unknown object {e.instance_1_iri!r}",
+                        env_now=env_now,
+                        operation_id=operation_id,
+                        batch_id=batch_id,
+                        edit_fingerprints=edit_fingerprints,
+                        edit_descriptions=edit_descriptions,
+                        seed=seed,
+                    )
                 if subj is not None and getattr(subj, "is_present", {False}) == {True}:
                     self._raise_mechanical(
                         f"Mechanical check failed: CREATE on present object {e.instance_1_iri}",
@@ -311,6 +424,8 @@ class EffectEngine:
                 UnitaryEditType.REMOVE_DATA_PROPERTY,
                 UnitaryEditType.ANNIHILATE,
             ):
+                if t in _DATA_PROP_TYPES:
+                    _require_data_property(e)
                 if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
                     self._raise_mechanical(
                         f"Mechanical check failed: dangling subject {e.instance_1_iri}",
@@ -323,6 +438,7 @@ class EffectEngine:
                     )
                 _require_lock_if_runtime_tracked(e.instance_1_iri)
             elif t in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY):
+                _require_object_property(e)
                 if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
                     self._raise_mechanical(
                         f"Mechanical check failed: dangling subject {e.instance_1_iri}",
@@ -521,6 +637,10 @@ class EffectEngine:
         try:
             for edit in edits:
                 subj = KnowledgeGraph.get_object_from_lookup(edit.instance_1_iri)
+                if subj is None:
+                    raise RuntimeError(
+                        f"Unknown subject {edit.instance_1_iri!r} for edit {edit.type.value}"
+                    )
                 obj2 = (
                     KnowledgeGraph.get_object_from_lookup(edit.instance_2_iri)
                     if edit.type in (
@@ -530,6 +650,14 @@ class EffectEngine:
                     and edit.instance_2_iri
                     else None
                 )
+
+                if edit.type in (
+                    UnitaryEditType.ADD_OBJECT_PROPERTY,
+                    UnitaryEditType.REMOVE_OBJECT_PROPERTY,
+                ) and edit.instance_2_iri and obj2 is None:
+                    raise RuntimeError(
+                        f"Unknown object {edit.instance_2_iri!r} for edit {edit.type.value}"
+                    )
 
                 # Ensure runtime tracking entries exist for touched runtime objects
                 self._register_if_new(subj, env)

@@ -61,25 +61,50 @@ class TransferMaterialByPortionSize(Operation):
         logger.debug(f"get directly contained pom: {poms}")
 
         for pom in poms:
+            # Split the original POM into a transferred portion and (optionally)
+            # a residual portion. Avoid creating/creating+linking a zero-volume
+            # residual when portion_size == 1 (or numerically very close).
             transfer_pom = pom.get_portion(portion_size)
-            residual_pom = pom.get_portion(1 - portion_size)
+            residual_fraction = 1 - portion_size
+            residual_pom = None
+            if residual_fraction > _volume_eps:
+                residual_pom = pom.get_portion(residual_fraction)
 
-            edits += [
-                Annihilate(instance_1_iri=pom.identifier),
+            edits.append(Annihilate(instance_1_iri=pom.identifier))
 
-                Create(instance_1_iri=residual_pom.identifier),
-                AddObjectProperty(instance_1_iri=residual_pom.identifier, instance_2_iri=src_iri,
-                                  property_iri=prop_iri),
+            if residual_pom is not None:
+                edits.append(Create(instance_1_iri=residual_pom.identifier))
+                edits.append(
+                    AddObjectProperty(
+                        instance_1_iri=residual_pom.identifier,
+                        instance_2_iri=src_iri,
+                        property_iri=prop_iri,
+                    )
+                )
 
-                Create(instance_1_iri=transfer_pom.identifier),
-                AddObjectProperty(instance_1_iri=transfer_pom.identifier, instance_2_iri=dev_iri,
-                                  property_iri=prop_iri),
+            edits.append(Create(instance_1_iri=transfer_pom.identifier))
+            edits.append(
+                AddObjectProperty(
+                    instance_1_iri=transfer_pom.identifier,
+                    instance_2_iri=dev_iri,
+                    property_iri=prop_iri,
+                )
+            )
 
-                RemoveObjectProperty(instance_1_iri=transfer_pom.identifier, instance_2_iri=dev_iri,
-                                     property_iri=prop_iri),
-                AddObjectProperty(instance_1_iri=transfer_pom.identifier, instance_2_iri=dst_iri,
-                                  property_iri=prop_iri),
-            ]
+            edits.append(
+                RemoveObjectProperty(
+                    instance_1_iri=transfer_pom.identifier,
+                    instance_2_iri=dev_iri,
+                    property_iri=prop_iri,
+                )
+            )
+            edits.append(
+                AddObjectProperty(
+                    instance_1_iri=transfer_pom.identifier,
+                    instance_2_iri=dst_iri,
+                    property_iri=prop_iri,
+                )
+            )
         return edits
 
     def get_operation_effects(self) -> List[UnitaryEdit]:

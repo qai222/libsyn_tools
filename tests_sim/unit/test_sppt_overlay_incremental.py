@@ -67,4 +67,28 @@ def test_sppt_overlay_snapshot_is_incremental() -> None:
 
     assert (int_iri, URIRef(Has_end_time.predicate_iri), Literal(3.5, datatype=XSD.double)) not in g1
     assert (int_iri, URIRef(Has_end_time.predicate_iri), Literal(4.25, datatype=XSD.double)) in g1
+
+
+def test_sppt_overlay_accepts_canonical_resource_iris() -> None:
+    """Resources may already be canonical IRIs (e.g. objects created with
+    identifier="https://libsyn-sim/kg/..."), and the overlay should not double-prefix.
+    """
+
+    callbacks = LifecycleCallbacks()
+    provider = SPPTOverlayProvider(callbacks)
+
+    op = _FakeOp(
+        identifier="OP2",
+        resources=["https://libsyn-sim/kg/resA", "https://libsyn-sim/kg/resB"],
+    )
+    proc = _FakeProc(env=_FakeEnv(now=0.0), operation=op)
+
+    callbacks.emit_operation_start(proc)
+    proc.env.now = 1.0
+    callbacks.emit_operation_end(proc)
+
+    g = provider.snapshot()
+    proc_iri = LIB[f"Process/{op.identifier}"]
+    assert (proc_iri, URIRef(Has_participant.predicate_iri), LIB["resA"]) in g
+    assert (proc_iri, URIRef(Has_participant.predicate_iri), LIB["resB"]) in g
 # ### THIS IS THE END OF CONTENT OF tests_sim/unit/test_sppt_overlay_incremental.py ###

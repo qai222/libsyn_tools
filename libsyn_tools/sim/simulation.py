@@ -64,6 +64,9 @@ class OperationProcess:
 
         self.done_event = env.event()
 
+        # Track the in-flight pre_act SimPy process so interrupts can cancel it.
+        self._pre_act_process: Optional[simpy.events.Process] = None
+
     def sim_time(self, dt: float) -> float:
         return dt * self.speed_factor
 
@@ -81,10 +84,21 @@ class OperationProcess:
         try:
             yield from self._run_core()
         except (EngineMechanicalError, ContractViolationError) as err:
-            self.operation.post_act(self.env)
+            # Ensure we release locks even if the op never reached RUNNING.
+            self.operation.cleanup(self.env)
             self.add_event_log("OPERATION_ABORT", {"reason": str(err)})
             self.done_event.succeed()
         except simpy.Interrupt as interrupt:
+            # If we were interrupted while waiting on pre_act(), cancel the
+            # child process so it cannot continue acquiring locks in the
+            # background after we have cleaned up.
+            if self._pre_act_process is not None and not self._pre_act_process.triggered:
+                try:
+                    self._pre_act_process.interrupt(interrupt.cause)
+                except Exception:
+                    pass
+                self._pre_act_process = None
+
             edits = []
             reason_txt = f"{self.operation.identifier}:{interrupt.cause}"
             # record interrupt on participants (only if literal IRIs)
@@ -115,7 +129,8 @@ class OperationProcess:
                     )
                 except (EngineMechanicalError, ContractViolationError) as err:
                     logger.warning(f"Interrupt bookkeeping failed: {err}")
-            self.operation.post_act(self.env)
+            # Always release locks / finish the op cleanly.
+            self.operation.cleanup(self.env)
 
             # NEW: lifecycle callback
             self.callbacks.emit_operation_interrupt(self, str(interrupt.cause))
@@ -136,7 +151,9 @@ class OperationProcess:
             yield simpy.events.AllOf(self.env, precedent_events)
 
         # pre-act
-        yield self.operation.pre_act(self.env)
+        self._pre_act_process = self.operation.pre_act(self.env)
+        yield self._pre_act_process
+        self._pre_act_process = None
         self.operation._mark_running()
 
         # START

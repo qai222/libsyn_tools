@@ -183,64 +183,78 @@ class Operation(ABC, BaseModel):
         self.sim_state = _OpState.RUNNING
 
     def _pre_act_implementation(self, env: simpy.Environment) -> None:
-        participant_specs = _collect_participant_specs(self)
-
-        # deterministic ordering prevents dead-locks -------------------
-        ordered_specs = sorted(participant_specs.items(), key=lambda kv: str(kv[1]))
-
-        resolved: dict[str, str] = {}
-        acquired: dict[str, simpy.events.Event] = {}  # iri → lock (for dedup)
-
-        for role, spec in ordered_specs:
-            if isinstance(spec, (str, LiteralSelector)):
-                if isinstance(spec, LiteralSelector):
-                    literal_iri = spec._iri
+        try:
+            participant_specs = _collect_participant_specs(self)
+    
+            # deterministic ordering prevents dead-locks -------------------
+            ordered_specs = sorted(participant_specs.items(), key=lambda kv: str(kv[1]))
+    
+            resolved: dict[str, str] = {}
+            acquired: dict[str, simpy.events.Event] = {}  # iri → lock (for dedup)
+    
+            for role, spec in ordered_specs:
+                if isinstance(spec, (str, LiteralSelector)):
+                    if isinstance(spec, LiteralSelector):
+                        literal_iri = spec._iri
+                    else:
+                        literal_iri = spec
+                    obj = KnowledgeGraph.get_object_from_lookup(iri=literal_iri)
+                    if obj is None:
+                        obj = KnowledgeGraph.get_object_from_lookup(iri=identifier_from_iri(literal_iri))
+                    if obj is not None and obj.identifier in acquired:
+                        resolved[role] = obj.identifier
+                        continue
+                if isinstance(spec, Selector):
+                    iri, req = yield env.process(spec.resolve(env))
+                elif isinstance(spec, str):
+                    # lock via LiteralSelector to keep path uniform
+                    iri, req = yield env.process(
+                        LiteralSelector(spec).resolve(env)
+                    )
                 else:
-                    literal_iri = spec
-                obj = KnowledgeGraph.get_object_from_lookup(iri=literal_iri)
-                if obj is None:
-                    obj = KnowledgeGraph.get_object_from_lookup(iri=identifier_from_iri(literal_iri))
-                if obj is not None and obj.identifier in acquired:
-                    resolved[role] = obj.identifier
-                    continue
-            if isinstance(spec, Selector):
-                iri, req = yield env.process(spec.resolve(env))
-            elif isinstance(spec, str):
-                # lock via LiteralSelector to keep path uniform
-                iri, req = yield env.process(
-                    LiteralSelector(spec).resolve(env)
+                    raise TypeError(
+                        f"Participant '{role}' has unsupported type {type(spec)}"
+                    )
+    
+                if iri in acquired:
+                    req.resource.release(req)  # we already hold the lock
+                    req = acquired[iri]
+                else:
+                    acquired[iri] = req
+                    self.locks.append(req)
+    
+                resolved[role] = iri
+    
+            # overwrite participant_* fields with pure strings -------------
+            self.resolved_resources = resolved  # remember bindings
+            _write_participant_iris(self, resolved)
+    
+            # also expose them via resources[] for backward compatibility
+            self.resources = list(resolved.values())
+    
+            # build list of graph edits now that everything is bound -------
+            self.operation_effects = self.get_operation_effects()
+    
+            created_iris = [e.instance_1_iri for e in self.operation_effects
+                            if e.type is UnitaryEditType.CREATE]
+            if len(created_iris) != len(set(created_iris)):
+                raise RuntimeError(
+                    f"Duplicate CREATE IRIs detected in {self.identifier}: {created_iris}"
                 )
-            else:
-                raise TypeError(
-                    f"Participant '{role}' has unsupported type {type(spec)}"
-                )
-
-            if iri in acquired:
-                req.resource.release(req)  # we already hold the lock
-                req = acquired[iri]
-            else:
-                acquired[iri] = req
-                self.locks.append(req)
-
-            resolved[role] = iri
-
-        # overwrite participant_* fields with pure strings -------------
-        self.resolved_resources = resolved  # remember bindings
-        _write_participant_iris(self, resolved)
-
-        # also expose them via resources[] for backward compatibility
-        self.resources = list(resolved.values())
-
-        # build list of graph edits now that everything is bound -------
-        self.operation_effects = self.get_operation_effects()
-
-        created_iris = [e.instance_1_iri for e in self.operation_effects
-                        if e.type is UnitaryEditType.CREATE]
-        if len(created_iris) != len(set(created_iris)):
-            raise RuntimeError(
-                f"Duplicate CREATE IRIs detected in {self.identifier}: {created_iris}"
-            )
-
+    
+        except simpy.Interrupt:
+            # pre_act() can be interrupted if the parent operation is cancelled while
+            # blocked on selector resolution / lock acquisition. Swallow the interrupt
+            # so the SimPy environment doesn't crash; the caller will perform cleanup.
+            for req in list(self.locks):
+                try:
+                    users = getattr(req.resource, "users", None)
+                    if users is not None and req in users:
+                        req.resource.release(req)
+                except Exception:
+                    pass
+            self.locks.clear()
+            return
     def post_act(self, env: simpy.Environment):
         """
         Release all held locks and reinsert surviving objects into their FilterStores.
@@ -261,6 +275,47 @@ class Operation(ABC, BaseModel):
                 obj = get_object_for_resource(req.resource)
             except KeyError:
                 # Resource no longer registered (likely ANNIHILATE). We can still release the lock below.
+                pass
+
+            # Always release the SimPy lock we hold
+            req.resource.release(req)
+
+            # Reinsert only if we successfully mapped and the object is still present
+            if obj is not None and getattr(obj, "is_present", {False}) == {True}:
+                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+
+        self.locks.clear()
+        self.sim_state = _OpState.FINISHED
+
+    def cleanup(self, env: simpy.Environment) -> None:
+        """Best-effort cleanup for abort/interrupt paths.
+
+        Normal executions should call :meth:`post_act` (which enforces that the
+        operation reached the RUNNING state). However, interruptions can occur
+        while the operation is still waiting to start (scheduled start time,
+        precedents) or while it is preparing (PREPARED) and holding some locks.
+
+        This helper:
+        - If RUNNING: delegates to ``post_act``.
+        - If PREPARED/NEW: releases any acquired locks and attempts to reinsert
+          surviving objects into their FilterStores.
+        - If FINISHED: no-op.
+        """
+
+        if self.sim_state is _OpState.FINISHED:
+            return
+        if self.sim_state is _OpState.RUNNING:
+            # Use the strict/normal post_act path.
+            self.post_act(env)
+            return
+
+        # NEW or PREPARED: release any locks we may have acquired so far.
+        for req in self.locks:
+            obj = None
+            try:
+                obj = get_object_for_resource(req.resource)
+            except KeyError:
+                # Resource no longer registered (e.g., annihilated) or mapping missing.
                 pass
 
             # Always release the SimPy lock we hold
