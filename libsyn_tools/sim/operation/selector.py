@@ -114,11 +114,14 @@ class Selector(ABC):
         """
         obj: LabObject | None = None
         req: simpy.events.Event | None = None
+        get_ev: simpy.events.Event | None = None
 
         try:
             while True:
                 # 1) wait until a suitable candidate appears in the pool
-                obj = yield store.get(filter=pred)  # blocking
+                get_ev = store.get(filter=pred)  # blocking
+                obj = yield get_ev
+                get_ev = None
                 rs = get_runtime_state(obj, env)
 
                 # 2) request a *capacity-1* lock – blocks if already taken
@@ -140,6 +143,15 @@ class Selector(ABC):
 
         except simpy.Interrupt:
             # Best-effort rollback of any partial selection/lock attempt.
+            # IMPORTANT: If we were interrupted while blocked on `store.get(...)`,
+            # that get event remains queued unless we cancel it. If not cancelled,
+            # the next `store.put(obj)` will satisfy the stale get and "steal"
+            # the object out of the pool, leaving store.items empty.
+            try:
+                if get_ev is not None and not getattr(get_ev, "triggered", True) and hasattr(get_ev, "cancel"):
+                    get_ev.cancel()
+            except Exception:
+                pass
             try:
                 if req is not None:
                     resource = getattr(req, "resource", None)
@@ -181,6 +193,7 @@ class LiteralSelector(Selector):
         obj: LabObject
 
         store: simpy.FilterStore | None = None
+        get_ev: simpy.events.Event | None = None
         removed_from_store = False
         req: simpy.events.Event | None = None
 
@@ -188,7 +201,9 @@ class LiteralSelector(Selector):
             pool_type = next(iter(obj.has_pool_type), None)
             if pool_type is not None and obj.is_present == {True}:
                 store = FilterStoreRegistry.get_filter_store(pool_type, env)
-                yield store.get(filter=lambda candidate: candidate is obj)
+                get_ev = store.get(filter=lambda candidate: candidate is obj)
+                yield get_ev
+                get_ev = None
                 removed_from_store = True
 
             rs = get_runtime_state(obj, env)
@@ -197,6 +212,13 @@ class LiteralSelector(Selector):
             return obj.identifier, req
 
         except simpy.Interrupt:
+            # If interrupted while blocked on store.get(...), cancel the pending get
+            # so a future store.put(obj) doesn't get consumed by a stale request.
+            try:
+                if get_ev is not None and not getattr(get_ev, "triggered", True) and hasattr(get_ev, "cancel"):
+                    get_ev.cancel()
+            except Exception:
+                pass
             # Roll back any partial reservation and exit cleanly so orphaned
             # selector processes can't crash the environment.
             if req is not None:
@@ -222,8 +244,8 @@ class LiteralSelector(Selector):
                     pass
             return
 
-def __str__(self) -> str:
-        return f'LiteralSelector("{self._iri}")'
+    def __str__(self) -> str:
+            return f'LiteralSelector("{self._iri}")'
 
 
 class RuntimeSelector(Selector):
@@ -240,9 +262,11 @@ class RuntimeSelector(Selector):
             self, env: simpy.Environment
     ) -> Generator[simpy.events.Event, None, Tuple[str, simpy.events.Event]]:
         store = FilterStoreRegistry.get_filter_store(self.pool_type, env)
-        iri, req = yield from self._atomic_get_and_lock(env, store, self._predicate)
-
-        return iri, req
+        result = yield from self._atomic_get_and_lock(env, store, self._predicate)
+        if result is None:
+            # selector was cancelled/interrupt-defused
+            return
+        return result
 
 
 class AttributeSelector(RuntimeSelector):
@@ -308,12 +332,14 @@ class KgQuerySelector(Selector):
             raise RuntimeError(f"KgQuerySelector query returned no candidates: {self.sparql}")
 
         store = FilterStoreRegistry.get_filter_store(self.pool_type, env)
-        iri, req = yield from self._atomic_get_and_lock(
+        result = yield from self._atomic_get_and_lock(
             env,
             store,
             lambda obj: identifier_from_iri(obj.identifier) in candidates,
         )
-        return iri, req
+        if result is None:
+            return
+        return result  # iri, req
 
     def __str__(self) -> str:
         return f"KgQuerySelector(pool={self.pool_type}, var={self.var})"

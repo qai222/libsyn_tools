@@ -254,8 +254,9 @@ class Operation(ABC, BaseModel):
             # otherwise it may later acquire a lock/store item and strand it.
             if resolve_proc is not None:
                 try:
-                    if getattr(resolve_proc, 'is_alive', False):
-                        resolve_proc.interrupt(getattr(intr, 'cause', None) or 'cancel')
+                    # SimPy Process has `.triggered` once it is done; no `is_alive`.
+                    if not getattr(resolve_proc, "triggered", True):
+                        resolve_proc.interrupt(getattr(intr, "cause", None) or "cancel")
                 except Exception:
                     pass
 
