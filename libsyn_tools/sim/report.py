@@ -46,7 +46,7 @@ class RunReport:
         lines.append("## Operation Counts")
         lines.append("")
         op_counts = self.summary.get("operation_counts", {})
-        for key in ("start", "end", "abort"):
+        for key in ("start", "end", "abort", "interrupt", "in_progress"):
             lines.append(f"- {key}: {op_counts.get(key, 0)}")
         lines.append("")
 

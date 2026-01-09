@@ -1,6 +1,7 @@
 # ### THIS IS THE START OF CONTENT OF tests_sim/sim/test_spawn_and_serialization.py ###
 from __future__ import annotations
 
+import pytest
 from rdflib import Graph
 from twa.data_model.base_ontology import KnowledgeGraph
 
@@ -55,6 +56,18 @@ def test_spawn_operation_midrun(tmp_path):
 
     types = [r.event_type for r in sim.history_log if r.operation_id == "SPN"]
     assert "OPERATION_START" in types and "OPERATION_END" in types
+
+
+def test_spawn_operation_detects_precedent_cycle():
+    op_a = CalOp(identifier="A")
+    sim = Simulation([op_a])
+    op_a.required_precedents.append("B")
+
+    op_b = CalOp(identifier="B")
+    op_b.required_precedents.append("A")
+
+    with pytest.raises(ValueError, match="Precedent cycle detected"):
+        sim.spawn_operation(op_b, start_immediately=False)
 
 
 def test_multi_resource_serialization_is_deterministic():

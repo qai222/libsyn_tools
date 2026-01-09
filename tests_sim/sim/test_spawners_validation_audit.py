@@ -3,8 +3,8 @@ from __future__ import annotations
 from uuid import uuid4
 
 from pydantic import Field
-from rdflib import Graph, Namespace
-from rdflib.namespace import SH, XSD
+from rdflib import Graph, Namespace, BNode, URIRef
+from rdflib.namespace import SH, XSD, RDF
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
@@ -121,3 +121,29 @@ def test_validation_audit_policy_enforcer_skips_missing_precedent():
         if r.event_type == "OPERATION_END" and r.operation_id.startswith("remediate-")
     ]
     assert spawned
+
+
+def test_validation_audit_skips_invalid_focus_nodes():
+    sim = Simulation([])
+    audit = ValidationAuditSpawner(inspect_interval=1.0)
+
+    records = []
+
+    def _capture(record):
+        records.append(record)
+
+    sim.callbacks.on_violation.append(_capture)
+
+    report = Graph()
+    vr_blank = URIRef("urn:vr:blank")
+    vr_unknown = URIRef("urn:vr:unknown")
+    report.add((vr_blank, RDF.type, SH.ValidationResult))
+    report.add((vr_blank, SH.sourceShape, URIRef("urn:shape:blank")))
+    report.add((vr_blank, SH.focusNode, BNode()))
+    report.add((vr_unknown, RDF.type, SH.ValidationResult))
+    report.add((vr_unknown, SH.sourceShape, URIRef("urn:shape:unknown")))
+    report.add((vr_unknown, SH.focusNode, URIRef("urn:missing:focus")))
+
+    audit._emit_violation_records(sim, report)
+
+    assert records == []

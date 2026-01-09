@@ -39,8 +39,22 @@ class DrainExcess(Operation):
         src = KnowledgeGraph.get_object_from_lookup(self.participant_source)
         dst = KnowledgeGraph.get_object_from_lookup(self.participant_destination)
 
+        if src is None:
+            raise RuntimeError(
+                f"DrainExcess {self.identifier}: source {self.participant_source!r} not found"
+            )
+        if dst is None:
+            raise RuntimeError(
+                f"DrainExcess {self.identifier}: destination {self.participant_destination!r} not found"
+            )
         if not isinstance(src, MaterialContainer):
-            raise RuntimeError("DrainExcess: source must be a MaterialContainer")
+            raise RuntimeError(
+                f"DrainExcess {self.identifier}: source must be a MaterialContainer"
+            )
+        if not isinstance(dst, MaterialContainer):
+            raise RuntimeError(
+                f"DrainExcess {self.identifier}: destination must be a MaterialContainer"
+            )
 
         builder = EffectsBuilder()
         prop_iri = Is_directly_contained_by.predicate_iri

@@ -14,7 +14,8 @@ from libsyn_tools.sim.knowledge_graph import (
     PortionOfMaterial,
     Is_directly_contained_by,
 )
-from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty
+from libsyn_tools.sim.operation.operation import Operation
+from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty, UnitaryEdit
 from libsyn_tools.sim.operation_preset.transfer import TransferMaterialByVolume
 from libsyn_tools.sim.remediation import make_drain_to_capacity
 from libsyn_tools.sim.spawner import PolicyEnforcerSpawner
@@ -98,3 +99,46 @@ def test_policy_enforcer_spawns_drain_on_committed_violation():
     assert destination.directly_contained_pom_volume <= destination.capacity + _EPS
     spawned = [r for r in sim.history_log if r.event_type == "OPERATION_END" and r.operation_id.startswith("drain-")]
     assert len(spawned) >= 1
+
+
+class _NoOp(Operation):
+    def get_operation_effects(self) -> list[UnitaryEdit]:
+        return []
+
+
+def test_policy_enforcer_dedupe_includes_focus():
+    shape_iri = "urn:shape:dedupe"
+
+    def _factory(record: SHACLViolationRecord):
+        if record.focus_iri is None:
+            return None
+        return _NoOp(identifier=f"remediate-{record.focus_iri}")
+
+    sim = Simulation([])
+    spawner = PolicyEnforcerSpawner(shape_dispatch={shape_iri: _factory}, dedupe=True)
+    spawner.attach(sim)
+
+    rec_a = SHACLViolationRecord(
+        sim_time=0.0,
+        operation_id="op-1",
+        origin="SHACL",
+        severity="soft",
+        disposition="committed",
+        shape_iri=shape_iri,
+        focus_iri="focus-a",
+    )
+    rec_b = SHACLViolationRecord(
+        sim_time=0.0,
+        operation_id="op-1",
+        origin="SHACL",
+        severity="soft",
+        disposition="committed",
+        shape_iri=shape_iri,
+        focus_iri="focus-b",
+    )
+
+    sim.callbacks.emit_violation(rec_a)
+    sim.callbacks.emit_violation(rec_b)
+
+    spawned = [op_id for op_id in sim.operation_registry if op_id.startswith("remediate-")]
+    assert sorted(spawned) == ["remediate-focus-a", "remediate-focus-b"]

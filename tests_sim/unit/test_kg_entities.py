@@ -38,6 +38,20 @@ def test_pom_volume_and_split_mix():
     assert abs(mix.volume - pom.volume) < 1e-9
 
 
+def test_pom_mix_sums_identical_chemicals():
+    pom_a = PortionOfMaterial()
+    pom_b = PortionOfMaterial()
+    pom_a.add_chemical(_chem(4.0, 1.0))
+    pom_b.add_chemical(_chem(4.0, 1.0))
+
+    mixed = pom_a.mix_with(pom_b)
+    assert abs(mixed.volume - 8.0) < 1e-9
+
+    p25 = mixed.get_portion(0.25)
+    p75 = mixed.get_portion(0.75)
+    assert abs(p25.volume + p75.volume - mixed.volume) < 1e-9
+
+
 def test_pom_get_portion_by_volume_zero_volume_raises() -> None:
     pom = PortionOfMaterial()
     with pytest.raises(ValueError):
@@ -59,8 +73,8 @@ def test_container_capacity_property_and_direct_volume(env):
     # Accessing capacity with nothing set should raise
     try:
         _ = c.capacity
-        assert False, "expected AttributeError when no capacity set"
-    except AttributeError:
+        assert False, "expected ValueError when no capacity set"
+    except ValueError:
         pass
 
     c.has_capacity.add(50.0)

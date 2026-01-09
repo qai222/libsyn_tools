@@ -51,7 +51,7 @@ class FilterStoreRegistry:
         if obj.is_present != {True}:
             return
         rs = get_runtime_state(obj, env)
-        if rs.lock.count > 0 or rs.lock.queue:
+        if rs.lock.count > 0 or len(rs.lock.queue) > 0:
             return
         store = cls.get_filter_store(pool_type, env)
         if obj not in store.items:
@@ -64,6 +64,9 @@ class FilterStoreRegistry:
             return
         ctx = get_runtime_context(env)
         store = ctx.filter_stores.get(pool_type)
+        # Direct removal is safe here: we only use this when an object must be
+        # made unavailable (e.g., unregister/rollback), and any pending get
+        # requests should keep waiting until a future put occurs.
         if store and obj in store.items:
             store.items.remove(obj)
 
@@ -136,9 +139,7 @@ class Selector(ABC):
                 rs.lock.release(req)
                 req = None
 
-                # Reinsert candidate to wake waiters; avoid duplicates.
-                if obj not in store.items:
-                    store.put(obj)
+                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
                 obj = None
 
         except simpy.Interrupt:
@@ -171,11 +172,7 @@ class Selector(ABC):
                                 pass
             finally:
                 if obj is not None:
-                    try:
-                        if hasattr(store, "items") and obj not in store.items:
-                            store.put(obj)
-                    except Exception:
-                        pass
+                    FilterStoreRegistry.put_obj_into_filter_store(obj, env)
             return
 
 class LiteralSelector(Selector):
@@ -240,12 +237,8 @@ class LiteralSelector(Selector):
                         except ValueError:
                             pass
 
-            if removed_from_store and store is not None:
-                try:
-                    if obj not in store.items:
-                        store.put(obj)
-                except Exception:
-                    pass
+            if removed_from_store:
+                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
             return
 
     def __str__(self) -> str:

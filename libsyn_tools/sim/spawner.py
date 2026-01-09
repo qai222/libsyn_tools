@@ -22,9 +22,11 @@ from typing import Optional, Callable, Any, Dict, Tuple, Set
 from loguru import logger
 from pydantic import BaseModel, Field, PrivateAttr
 from rdflib.namespace import SH, RDF
+from rdflib.term import URIRef
 
 from .simulation import Simulation, Operation, OperationProcess
 from .knowledge_graph import identifier_from_iri
+from .effect_engine import KnowledgeGraph
 from .effect_shacl import SHACLViolationRecord, _iter_validation_results, _first
 
 
@@ -117,8 +119,27 @@ class KGInspectorSpawner(Spawner):
                     "Skipping SHACL violation with missing sourceShape/focusNode",
                 )
                 continue
+            if not isinstance(shape_node, URIRef):
+                logger.debug(
+                    "Skipping SHACL violation with non-IRI sourceShape",
+                )
+                continue
+            if not isinstance(focus_node, URIRef):
+                logger.debug(
+                    "Skipping SHACL violation with non-IRI focusNode",
+                )
+                continue
             shape_iri = str(shape_node)
             focus_iri = identifier_from_iri(str(focus_node))
+            focus_obj = KnowledgeGraph.get_object_from_lookup(focus_iri)
+            if focus_obj is None:
+                focus_obj = KnowledgeGraph.get_object_from_lookup(str(focus_node))
+            if focus_obj is None:
+                logger.debug(
+                    "Skipping SHACL violation with unknown focusNode",
+                )
+                continue
+            focus_iri = focus_obj.identifier
             # Debug logging for shape dispatch; keep at debug level to avoid
             # polluting normal test/output runs.
             logger.debug(f"sourceShape = {shape_iri}")
@@ -209,7 +230,7 @@ class PolicyEnforcerSpawner(Spawner):
     dispositions: Tuple[str, ...] = ("committed", "aborted")
     dedupe: bool = True
     _seen_violation_ids: Set[str] = PrivateAttr(default_factory=set)
-    _seen_op_shapes: Set[Tuple[str, str]] = PrivateAttr(default_factory=set)
+    _seen_op_shapes: Set[Tuple[str, str, Optional[str]]] = PrivateAttr(default_factory=set)
 
     def _should_skip(self, record: SHACLViolationRecord) -> bool:
         if record.origin not in self.origins:
@@ -222,7 +243,7 @@ class PolicyEnforcerSpawner(Spawner):
             return False
         if record.violation_id in self._seen_violation_ids:
             return True
-        op_shape = (record.operation_id, record.shape_iri)
+        op_shape = (record.operation_id, record.shape_iri, record.focus_iri)
         if op_shape in self._seen_op_shapes:
             return True
         return False
@@ -232,7 +253,7 @@ class PolicyEnforcerSpawner(Spawner):
             return
         self._seen_violation_ids.add(record.violation_id)
         if record.shape_iri is not None:
-            self._seen_op_shapes.add((record.operation_id, record.shape_iri))
+            self._seen_op_shapes.add((record.operation_id, record.shape_iri, record.focus_iri))
 
     def _on_attach(self, sim: Simulation) -> None:
         def _on_violation(record: SHACLViolationRecord):
@@ -276,7 +297,34 @@ class ValidationAuditSpawner(Spawner):
 
     def _emit_violation_records(self, sim: Simulation, report) -> None:
         for vr in _iter_validation_results(report):
-            shape_iri = _first(report, vr, SH.sourceShape)
+            shape_node = report.value(vr, SH.sourceShape)
+            focus_node = report.value(vr, SH.focusNode)
+            if shape_node is None or focus_node is None:
+                logger.debug(
+                    "Skipping SHACL validation result with missing sourceShape/focusNode",
+                )
+                continue
+            if not isinstance(shape_node, URIRef):
+                logger.debug(
+                    "Skipping SHACL validation result with non-IRI sourceShape",
+                )
+                continue
+            if not isinstance(focus_node, URIRef):
+                logger.debug(
+                    "Skipping SHACL validation result with non-IRI focusNode",
+                )
+                continue
+            focus_iri = identifier_from_iri(str(focus_node))
+            focus_obj = KnowledgeGraph.get_object_from_lookup(focus_iri)
+            if focus_obj is None:
+                focus_obj = KnowledgeGraph.get_object_from_lookup(str(focus_node))
+            if focus_obj is None:
+                logger.debug(
+                    "Skipping SHACL validation result with unknown focusNode",
+                )
+                continue
+            focus_iri = focus_obj.identifier
+            shape_iri = str(shape_node)
             policy = sim.effect_engine.policy.rule_for_shape(shape_iri) if sim.effect_engine.policy else None
             rec = SHACLViolationRecord(
                 sim_time=sim.env.now,
@@ -285,7 +333,7 @@ class ValidationAuditSpawner(Spawner):
                 severity=policy.severity if policy else "soft",
                 disposition=policy.disposition if policy else "committed",
                 shape_iri=shape_iri,
-                focus_iri=_first(report, vr, SH.focusNode),
+                focus_iri=focus_iri,
                 message=_first(report, vr, SH.resultMessage),
                 report_graph_ttl=report.serialize(format="turtle"),
             )

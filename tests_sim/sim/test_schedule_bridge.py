@@ -164,3 +164,23 @@ def test_schedule_bridge_reuses_module_identifier_form():
 
     existing = KnowledgeGraph.get_object_from_lookup(module.identifier)
     assert existing is module
+    assert canonical_iri not in LabObject.object_lookup
+
+
+def test_schedule_bridge_normalizes_module_ids_for_ops():
+    module = LabObject(identifier="module_norm")
+    module.has_pool_type.add("MODULE")
+    KnowledgeGraph.get_object_from_lookup(module.identifier)
+    Create(instance_1_iri=module.identifier).apply()
+
+    canonical_iri = f"https://libsyn-sim/kg/{module.identifier}"
+    planned = Operation(identifier="op_mod", type=OperationType.TransferLiquid)
+    schedule = SchedulerOutput(
+        start_times={"op_mod": 0.0},
+        end_times={"op_mod": 1.0},
+        assignments={"op_mod": canonical_iri},
+    )
+
+    sim = compile_schedule_to_simulation([planned], schedule)
+
+    assert sim.operations[0].participant_module == module.identifier

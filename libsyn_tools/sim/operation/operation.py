@@ -5,7 +5,7 @@ from enum import StrEnum, auto
 from typing import Any, Optional, Union
 
 import simpy
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from simpy.resources.resource import Request
 
 from libsyn_tools.sim.operation.runtime import get_object_for_resource
@@ -172,6 +172,8 @@ class Operation(ABC, BaseModel):
         * compute action_effects
         Returns a SimPy Event so the scheduler can `yield` on it.
         """
+        if self.temporal_cost is not None and self.temporal_cost < 0:
+            raise ValueError(f"{self.identifier}: temporal_cost must be >= 0")
         if self.sim_state is not _OpState.NEW:
             raise RuntimeError(f"{self.identifier}: pre_act called in state {self.sim_state}")
         self.sim_state = _OpState.PREPARED
@@ -182,12 +184,34 @@ class Operation(ABC, BaseModel):
             raise RuntimeError(f"{self.identifier}: run() without successful pre_act")
         self.sim_state = _OpState.RUNNING
 
+    def _release_all_locks(self, env: simpy.Environment) -> None:
+        for req in self.locks:
+            obj = None
+            try:
+                obj = get_object_for_resource(req.resource)
+            except KeyError:
+                pass
+
+            req.resource.release(req)
+
+            if obj is not None and getattr(obj, "is_present", {False}) == {True}:
+                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+        self.locks.clear()
+
     def _pre_act_implementation(self, env: simpy.Environment) -> None:
         try:
             participant_specs = _collect_participant_specs(self)
     
             # deterministic ordering prevents dead-locks -------------------
-            ordered_specs = sorted(participant_specs.items(), key=lambda kv: str(kv[1]))
+            def _ordering_key(role: str, spec: StrOrSelector):
+                if isinstance(spec, LiteralSelector):
+                    return ("literal", identifier_from_iri(spec._iri))
+                if isinstance(spec, str):
+                    return ("literal", identifier_from_iri(spec))
+                pool_type = getattr(spec, "pool_type", "")
+                return (pool_type, spec.__class__.__name__, role)
+
+            ordered_specs = sorted(participant_specs.items(), key=lambda kv: _ordering_key(kv[0], kv[1]))
     
             resolved: dict[str, str] = {}
             acquired: dict[str, simpy.events.Event] = {}  # iri → lock (for dedup)
@@ -208,18 +232,22 @@ class Operation(ABC, BaseModel):
                         continue
                 if isinstance(spec, Selector):
                     resolve_proc = env.process(spec.resolve(env))
-                    iri, req = yield resolve_proc
+                    result = yield resolve_proc
                     resolve_proc = None
                 elif isinstance(spec, str):
                     # lock via LiteralSelector to keep path uniform
                     resolve_proc = env.process(LiteralSelector(spec).resolve(env))
-                    iri, req = yield resolve_proc
+                    result = yield resolve_proc
                     resolve_proc = None
                 else:
                     raise TypeError(
                         f"Participant '{role}' has unsupported type {type(spec)}"
                     )
-    
+
+                if result is None:
+                    raise RuntimeError(f"{self.identifier}: selector resolution aborted for {role}")
+                iri, req = result
+
                 if iri in acquired:
                     req.resource.release(req)  # we already hold the lock
                     req = acquired[iri]
@@ -260,14 +288,10 @@ class Operation(ABC, BaseModel):
                 except Exception:
                     pass
 
-            for req in list(self.locks):
-                try:
-                    users = getattr(req.resource, "users", None)
-                    if users is not None and req in users:
-                        req.resource.release(req)
-                except Exception:
-                    pass
-            self.locks.clear()
+            self._release_all_locks(env)
+            raise
+        except Exception:
+            self._release_all_locks(env)
             raise
     def post_act(self, env: simpy.Environment):
         """
@@ -298,6 +322,12 @@ class Operation(ABC, BaseModel):
             if obj is not None and getattr(obj, "is_present", {False}) == {True}:
                 FilterStoreRegistry.put_obj_into_filter_store(obj, env)
 
+        # Fallback reinsertion for cases where resource reverse lookup failed.
+        for iri in self.resources:
+            obj = KnowledgeGraph.get_object_from_lookup(iri)
+            if obj is not None and getattr(obj, "is_present", {False}) == {True}:
+                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+
         self.locks.clear()
         self.sim_state = _OpState.FINISHED
 
@@ -324,23 +354,17 @@ class Operation(ABC, BaseModel):
             return
 
         # NEW or PREPARED: release any locks we may have acquired so far.
-        for req in self.locks:
-            obj = None
-            try:
-                obj = get_object_for_resource(req.resource)
-            except KeyError:
-                # Resource no longer registered (e.g., annihilated) or mapping missing.
-                pass
-
-            # Always release the SimPy lock we hold
-            req.resource.release(req)
-
-            # Reinsert only if we successfully mapped and the object is still present
-            if obj is not None and getattr(obj, "is_present", {False}) == {True}:
-                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
-
-        self.locks.clear()
+        self._release_all_locks(env)
         self.sim_state = _OpState.FINISHED
+
+    @field_validator("temporal_cost")
+    @classmethod
+    def _validate_temporal_cost(cls, value: Optional[float]) -> Optional[float]:
+        if value is None:
+            return value
+        if value < 0:
+            raise ValueError("temporal_cost must be >= 0")
+        return value
 
     class Config:
         arbitrary_types_allowed = True

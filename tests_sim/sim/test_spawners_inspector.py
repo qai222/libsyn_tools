@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from rdflib import Graph, Namespace
+from rdflib import Graph, Namespace, BNode, URIRef
 from rdflib.namespace import RDF, SH, XSD
 from twa.data_model.base_ontology import KnowledgeGraph
 
@@ -204,6 +204,29 @@ def test_inspector_skips_missing_focus_or_shape():
     report.add((vr_no_focus, SH.sourceShape, missing_focus["Shape"]))
     report.add((vr_no_shape, RDF.type, SH.ValidationResult))
     report.add((vr_no_shape, SH.focusNode, missing_shape["Focus"]))
+
+    spawner._spawn_for_violations(sim, report)
+
+    spawned = [op_id for op_id in sim.operation_registry if op_id == "noop"]
+    assert spawned == []
+
+
+def test_inspector_skips_blank_node_focus():
+    class _NoOp(Operation):
+        def get_operation_effects(self):
+            return []
+
+    sim = Simulation([])
+    spawner = KGInspectorSpawner(
+        shape_dispatch={SHAPE_IRI: lambda _focus: _NoOp(identifier="noop")},
+        inspect_interval=0.0,
+    )
+
+    report = Graph()
+    vr = Namespace("urn:missing:focus:")["vr-blank"]
+    report.add((vr, RDF.type, SH.ValidationResult))
+    report.add((vr, SH.sourceShape, URIRef(SHAPE_IRI)))
+    report.add((vr, SH.focusNode, BNode()))
 
     spawner._spawn_for_violations(sim, report)
 

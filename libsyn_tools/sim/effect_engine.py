@@ -70,6 +70,7 @@ class _ObjectSnapshot:
     is_present: set
     fields: dict[str, set]
     runtime_registered: bool
+    runtime_resource: simpy.Resource | None
     runtime_cache_present: bool
     runtime_in_filter_store: bool
     pool_type: str | None
@@ -544,12 +545,14 @@ class EffectEngine:
             for name in field_names_by_iri.get(iri, set()):
                 fields[name] = set(getattr(obj, name))
             runtime_registered = False
+            runtime_resource: simpy.Resource | None = None
             runtime_cache_present = False
             runtime_in_filter_store = False
             pool_type = None
             if _needs_runtime_tracking(obj):
                 pool_type = next(iter(obj.has_pool_type), None)
-                runtime_registered = obj.instance_iri in ctx.resource_map
+                runtime_resource = ctx.resource_map.get(obj.instance_iri)
+                runtime_registered = runtime_resource is not None
                 runtime_cache_present = obj.instance_iri in ctx.runtime_cache
                 if pool_type:
                     store = ctx.filter_stores.get(pool_type)
@@ -558,6 +561,7 @@ class EffectEngine:
                 is_present=set(obj.is_present),
                 fields=fields,
                 runtime_registered=runtime_registered,
+                runtime_resource=runtime_resource,
                 runtime_cache_present=runtime_cache_present,
                 runtime_in_filter_store=runtime_in_filter_store,
                 pool_type=pool_type,
@@ -584,7 +588,10 @@ class EffectEngine:
 
             if snap.runtime_registered:
                 if obj.instance_iri not in ctx.resource_map:
-                    ctx.resource_map[obj.instance_iri] = simpy.Resource(env, capacity=1)
+                    if snap.runtime_resource is not None:
+                        ctx.resource_map[obj.instance_iri] = snap.runtime_resource
+                    else:
+                        ctx.resource_map[obj.instance_iri] = simpy.Resource(env, capacity=1)
             else:
                 ctx.resource_map.pop(obj.instance_iri, None)
 
@@ -598,14 +605,10 @@ class EffectEngine:
                 setattr(obj, "_runtime", None)
 
             if snap.pool_type:
-                store = ctx.filter_stores.get(snap.pool_type)
                 if snap.runtime_in_filter_store:
-                    if store is None:
-                        store = FilterStoreRegistry.get_filter_store(snap.pool_type, env)
-                    if obj not in store.items:
-                        store.put(obj)
-                elif store and obj in store.items:
-                    store.items.remove(obj)
+                    FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+                else:
+                    FilterStoreRegistry.remove_obj_from_filter_store(obj, env)
 
     def prepare(self, action: Operation) -> List[UnitaryEdit]:
         return action.operation_effects.copy()

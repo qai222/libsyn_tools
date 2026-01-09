@@ -13,7 +13,13 @@ from pydantic import BaseModel
 from rdflib import Graph, ConjunctiveGraph
 from tqdm import tqdm
 
-from .effect_engine import EffectEngine, KnowledgeGraph, EngineMechanicalError, ContractViolationError
+from .effect_engine import (
+    EffectEngine,
+    KnowledgeGraph,
+    EngineMechanicalError,
+    ContractViolationError,
+    SHACLValidationError,
+)
 from .overlay import SPPTOverlayProvider, CurrentVolumeOverlayProvider
 from .knowledge_graph import LabObject, Has_interrupt_events
 from .lifecycle import LifecycleCallbacks
@@ -80,15 +86,28 @@ class OperationProcess:
             )
         )
 
+    def _safe_cleanup(self) -> None:
+        try:
+            self.operation.cleanup(self.env)
+        except Exception as err:
+            logger.warning(
+                f"{self.operation.identifier}: cleanup failed after abort/interrupt: {err}"
+            )
+
+    def _finish_abort(self, *, reason: str, error: Exception | None = None) -> None:
+        self._safe_cleanup()
+        data = {"reason": reason}
+        if error is not None:
+            data["error_type"] = type(error).__name__
+            data["error"] = str(error)
+        self.add_event_log("OPERATION_ABORT", data)
+        if not self.done_event.triggered:
+            self.done_event.succeed()
+        self.callbacks.emit_operation_end(self)
+
     def run(self):
         try:
             yield from self._run_core()
-        except (EngineMechanicalError, ContractViolationError) as err:
-            # Ensure we release locks even if the op never reached RUNNING.
-            self.operation.cleanup(self.env)
-            self.add_event_log("OPERATION_ABORT", {"reason": str(err)})
-            self.callbacks.emit_operation_end(self)
-            self.done_event.succeed()
         except simpy.Interrupt as interrupt:
             # If we were interrupted while waiting on pre_act(), cancel the
             # child process so it cannot continue acquiring locks in the
@@ -132,13 +151,20 @@ class OperationProcess:
                 except (EngineMechanicalError, ContractViolationError) as err:
                     logger.warning(f"Interrupt bookkeeping failed: {err}")
             # Always release locks / finish the op cleanly.
-            self.operation.cleanup(self.env)
+            self._safe_cleanup()
 
-            # NEW: lifecycle callback
-            self.callbacks.emit_operation_interrupt(self, str(interrupt.cause))
             self.add_event_log("OPERATION_INTERRUPT", {"reason": str(interrupt.cause)})
+            self.callbacks.emit_operation_interrupt(self, str(interrupt.cause))
+            if not self.done_event.triggered:
+                self.done_event.succeed()
             self.callbacks.emit_operation_end(self)
-            self.done_event.succeed()
+        except SHACLValidationError:
+            self._safe_cleanup()
+            raise
+        except (EngineMechanicalError, ContractViolationError) as err:
+            self._finish_abort(reason=str(err), error=err)
+        except Exception as err:
+            self._finish_abort(reason="unexpected exception", error=err)
 
     def _run_core(self):
         # scheduled start gate
@@ -186,9 +212,10 @@ class OperationProcess:
 
         # FINISH
         self.operation.post_act(self.env)
-        self.done_event.succeed()
-        self.callbacks.emit_operation_end(self)
         self.add_event_log("OPERATION_END")
+        if not self.done_event.triggered:
+            self.done_event.succeed()
+        self.callbacks.emit_operation_end(self)
         logger.debug(f"[t={self.env.now:.2f}] Finished {self.operation.identifier}")
 
 
@@ -230,8 +257,10 @@ class Simulation:
         else:
             shapes_graph = Graph().parse(str(shacl_shapes), format="turtle")
 
+        self.history_log: List[OperationEventRecord] = []
+
         # NEW: lifecycle callbacks (shared among engine + processes)
-        self.callbacks = LifecycleCallbacks()
+        self.callbacks = LifecycleCallbacks(history_logger=self._log_history_event)
 
         self.effect_engine = EffectEngine(
             shapes_graph=shapes_graph,
@@ -246,7 +275,6 @@ class Simulation:
 
         self.operation_registry: Dict[str, OperationProcess] = {}
         self.dependents: Dict[str, List[str]] = defaultdict(list)
-        self.history_log: List[OperationEventRecord] = []
 
         self._validate_precedents(self.operations)
         self._build_dependency_map()
@@ -322,6 +350,16 @@ class Simulation:
                 callbacks=self.callbacks,  # NEW
             )
 
+    def _log_history_event(self, operation_id: str, timestamp: float, event_type: str, data: dict) -> None:
+        self.history_log.append(
+            OperationEventRecord(
+                operation_id=operation_id,
+                timestamp=timestamp,
+                event_type=event_type,
+                operation_data=data,
+            )
+        )
+
     def run(self, until: float | None = None) -> None:
         """Start all processes and block until done or until time limit."""
         for proc in self.operation_registry.values():
@@ -381,7 +419,8 @@ class Simulation:
         if precedents:
             op.required_precedents.extend(precedents)
 
-        self._validate_precedents([op], set(self.operation_registry))
+        existing_ops = [proc.operation for proc in self.operation_registry.values()]
+        self._validate_precedents(existing_ops + [op])
         proc = OperationProcess(
             env=self.env,
             operation=op,
@@ -439,7 +478,10 @@ class Simulation:
             "start": sum(1 for r in self.history_log if r.event_type == "OPERATION_START"),
             "end": sum(1 for r in self.history_log if r.event_type == "OPERATION_END"),
             "abort": sum(1 for r in self.history_log if r.event_type == "OPERATION_ABORT"),
+            "interrupt": sum(1 for r in self.history_log if r.event_type == "OPERATION_INTERRUPT"),
         }
+        terminal_count = op_counts["end"] + op_counts["abort"] + op_counts["interrupt"]
+        op_counts["in_progress"] = max(op_counts["start"] - terminal_count, 0)
 
         violation_counts = {
             "by_origin": {},

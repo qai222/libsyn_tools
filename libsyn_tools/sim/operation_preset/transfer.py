@@ -70,11 +70,16 @@ class TransferMaterialByPortionSize(Operation):
             if residual_fraction > _volume_eps:
                 residual_pom = pom.get_portion(residual_fraction)
 
-            if src in pom.is_directly_contained_by:
+            src_instance_iri = getattr(src, "instance_iri", src.identifier)
+            unlink_targets = {src.identifier, src_instance_iri}
+            link_present = src in pom.is_directly_contained_by or any(
+                target in pom.is_directly_contained_by for target in unlink_targets
+            )
+            if link_present:
                 edits.append(
                     RemoveObjectProperty(
                         instance_1_iri=pom.identifier,
-                        instance_2_iri=src_iri,
+                        instance_2_iri=src.identifier,
                         property_iri=prop_iri,
                     )
                 )

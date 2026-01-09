@@ -3,10 +3,13 @@ from __future__ import annotations
 from typing import Iterable
 
 import pytest
+from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
 from libsyn_tools.sim import Simulation
 from libsyn_tools.sim.knowledge_graph import LabObject, MaterialContainer, PortionOfMaterial
+from libsyn_tools.sim.operation.runtime import get_runtime_state
+from libsyn_tools.sim.operation.unitary_edit import Create
 from libsyn_tools.sim.operation_preset.drain import DrainExcess
 
 
@@ -63,3 +66,29 @@ def test_drain_excess_handles_full_pom_drain_and_optional_device() -> None:
     for container in (src, dst):
         for pom in _direct_poms(container):
             assert pom.volume > 1e-6
+
+
+def test_drain_excess_rejects_non_container_destination() -> None:
+    src = _make_container(capacity=100.0)
+    dst = LabObject()
+    dst.is_present = {True}
+    KnowledgeGraph.get_object_from_lookup(dst.identifier)
+    Create(instance_1_iri=dst.identifier).apply()
+
+    op = DrainExcess(
+        participant_source=src.identifier,
+        participant_destination=dst.identifier,
+        target_volume=1.0,
+    )
+
+    sim = Simulation([op])
+    sim.run()
+    aborts = [record for record in sim.history_log if record.event_type == "OPERATION_ABORT"]
+    assert aborts
+    assert "destination must be a MaterialContainer" in aborts[0].operation_data.get("error", "")
+
+    for obj in (src, dst):
+        rs = get_runtime_state(obj, sim.env)
+        assert rs.lock.count == 0
+        assert not rs.lock.users
+        assert not rs.lock.queue

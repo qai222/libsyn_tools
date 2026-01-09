@@ -22,7 +22,9 @@ def make_drain_to_capacity(focus_iri: str, waste_iri: str) -> DrainExcess:
     capacity = getattr(focus, "capacity", None)
     if capacity is None:
         raise RuntimeError(f"{focus.identifier} has no capacity set")
-    target_volume = max(capacity - _EPS, _EPS)
+    if capacity <= _EPS:
+        raise ValueError(f"{focus.identifier} has non-positive capacity {capacity}")
+    target_volume = min(max(capacity - _EPS, _EPS), capacity)
     return DrainExcess(
         participant_source=focus.identifier,
         participant_destination=waste.identifier,

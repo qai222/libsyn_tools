@@ -47,6 +47,8 @@ def test_transfer_portion_size_one_moves_all_and_leaves_no_residual() -> None:
 
     # Source should have no present POMs after a full transfer.
     assert LabObject.get_directly_contained_individuals(src, PortionOfMaterial, only_present=True) == []
+    assert pom.is_present == {False}
+    assert src not in pom.is_directly_contained_by
 
     # Destination should have exactly one present POM with the full original volume.
     dst_poms = LabObject.get_directly_contained_individuals(dst, PortionOfMaterial, only_present=True)

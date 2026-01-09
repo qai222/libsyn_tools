@@ -39,7 +39,7 @@ from libsyn_tools.chem_schema import Operation as PlannedOperation
 from libsyn_tools.chem_schema import OperationNetwork
 from libsyn_tools.opt import SchedulerOutput
 from libsyn_tools.sim import Simulation
-from libsyn_tools.sim.knowledge_graph import LabObject, identifier_from_iri
+from libsyn_tools.sim.knowledge_graph import LabObject, canonical_iri, identifier_from_iri
 from libsyn_tools.sim.operation.operation import Operation as SimOperation
 from libsyn_tools.sim.operation.operation import StrOrSelector
 from libsyn_tools.sim.operation.unitary_edit import Create, UnitaryEdit
@@ -63,9 +63,11 @@ def _iter_planned_operations(
 
 
 def _ensure_modules_present(module_ids: Iterable[str]) -> None:
-    for module_id in module_ids:
-        normalized_id = identifier_from_iri(module_id)
+    normalized_ids = {identifier_from_iri(module_id) for module_id in module_ids}
+    for normalized_id in normalized_ids:
         existing = KnowledgeGraph.get_object_from_lookup(normalized_id)
+        if existing is None:
+            existing = KnowledgeGraph.get_object_from_lookup(str(canonical_iri(normalized_id)))
         if existing is None:
             module = LabObject(identifier=normalized_id)
             module.has_pool_type.add("MODULE")
@@ -75,6 +77,10 @@ def _ensure_modules_present(module_ids: Iterable[str]) -> None:
                 Create(instance_1_iri=existing.identifier).apply()
             if "MODULE" not in existing.has_pool_type:
                 existing.has_pool_type.add("MODULE")
+
+
+def _normalize_module_id(module_id: str) -> str:
+    return identifier_from_iri(module_id)
 
 
 def compile_schedule_to_simulation(
@@ -91,9 +97,9 @@ def compile_schedule_to_simulation(
     planned_list = _iter_planned_operations(planned_ops)
     planned_lookup = {op.identifier: op for op in planned_list}
 
-    module_ids = set(schedule.assignments.values())
+    module_ids = {_normalize_module_id(module_id) for module_id in schedule.assignments.values()}
     if functional_modules is not None:
-        module_ids.update(m.identifier for m in functional_modules)
+        module_ids.update(_normalize_module_id(m.identifier) for m in functional_modules)
     _ensure_modules_present(module_ids)
 
     operations: list[ExecuteScheduledTask] = []
@@ -111,7 +117,7 @@ def compile_schedule_to_simulation(
         if duration < 0:
             raise ValueError(f"Negative duration for scheduled operation {op_id}: {duration}")
 
-        module_id = schedule.assignments[op_id]
+        module_id = _normalize_module_id(schedule.assignments[op_id])
         if op_translator is not None:
             sim_op = op_translator(planned, module_id)
         else:

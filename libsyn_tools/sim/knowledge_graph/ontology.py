@@ -192,6 +192,33 @@ class PortionOfMaterial(Substance):
     has_ingredient: Has_ingredient[str] = Field(default_factory=set)
     is_directly_contained_by: Is_directly_contained_by["LabObject"] = Field(default_factory=set)
 
+    @staticmethod
+    def _ingredient_key(chemical: Chemical) -> str:
+        data = chemical.model_dump()
+        data.pop("identifier", None)
+        data.pop("mass", None)
+        return json.dumps(data, sort_keys=True)
+
+    @classmethod
+    def _merge_chemicals(cls, chemicals: list[Chemical]) -> list[Chemical]:
+        merged: dict[str, Chemical] = {}
+        for chemical in chemicals:
+            if chemical.mass is None:
+                raise ValueError(f"Chemical {chemical!r} lacks a `mass` value")
+            if chemical.density is None:
+                raise ValueError(f"Chemical {chemical!r} lacks a `density` value")
+            key = cls._ingredient_key(chemical)
+            if key in merged:
+                merged[key] = merged[key] + chemical
+            else:
+                merged[key] = chemical
+        return list(merged.values())
+
+    def _set_ingredients(self, chemicals: list[Chemical]) -> None:
+        self.has_ingredient = {
+            json.dumps(chemical.model_dump(), sort_keys=True) for chemical in chemicals
+        }
+
     @property
     def volume(self) -> float:
         v = 0.0
@@ -202,7 +229,9 @@ class PortionOfMaterial(Substance):
         return v
 
     def add_chemical(self, chemical: Chemical) -> None:
-        self.has_ingredient.add(json.dumps(chemical.model_dump()))
+        chemicals = self.get_ingredients()
+        chemicals.append(chemical)
+        self._set_ingredients(self._merge_chemicals(chemicals))
 
     def get_portion_by_volume(self, volume: float) -> "PortionOfMaterial":
         if self.volume <= 0:
@@ -226,11 +255,12 @@ class PortionOfMaterial(Substance):
         new_pom = PortionOfMaterial()
         for chemical in self.get_ingredients():
             new_chemical = chemical.split([portion_size, 1 - portion_size])[0]
-            new_pom.has_ingredient.add(json.dumps(new_chemical.model_dump()))
+            new_pom.has_ingredient.add(json.dumps(new_chemical.model_dump(), sort_keys=True))
         return new_pom
 
     def get_ingredients(self) -> list[Chemical]:
-        return [Chemical(**json.loads(s)) for s in self.has_ingredient]
+        chemicals = [Chemical(**json.loads(s)) for s in self.has_ingredient]
+        return self._merge_chemicals(chemicals)
 
     def mix_with(self, other: "PortionOfMaterial") -> "PortionOfMaterial":
         """
@@ -240,8 +270,7 @@ class PortionOfMaterial(Substance):
         """
         new_pom = PortionOfMaterial()
         chemicals = self.get_ingredients() + other.get_ingredients()
-        for chemical in chemicals:
-            new_pom.has_ingredient.add(json.dumps(chemical.model_dump()))
+        new_pom._set_ingredients(self._merge_chemicals(chemicals))
         return new_pom
 
 
@@ -331,7 +360,7 @@ class MaterialContainer(LabObject):
     def capacity(self) -> float:
         cap = next(iter(self.has_capacity), None)
         if cap is None:
-            raise AttributeError(f"{self.identifier} has no `has_capacity` set")
+            raise ValueError(f"{self.identifier} has no `has_capacity` set")
         return float(cap)
 
 
