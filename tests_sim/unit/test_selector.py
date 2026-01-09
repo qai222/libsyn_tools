@@ -149,4 +149,31 @@ def test_effect_engine_sync_skips_locked_objects(env: simpy.Environment):
     rs.lock.release(req)
     FilterStoreRegistry.put_obj_into_filter_store(obj, env)
     assert obj in store.items
+
+
+def test_filter_store_rejects_queueing_locks(env: simpy.Environment) -> None:
+    pool = "POOL_QUEUE_LOCK"
+    obj = _make_pool_obj(pool)
+    KnowledgeGraph.get_object_from_lookup(obj.identifier)
+    Create(instance_1_iri=obj.identifier).apply()
+    eng = EffectEngine()
+    eng._register_if_new(obj, env)
+
+    store = FilterStoreRegistry.get_filter_store(pool, env)
+    assert obj in store.items
+    store.items.remove(obj)
+
+    rs = get_runtime_state(obj, env)
+    req1 = rs.lock.request()
+    req2 = rs.lock.request()
+    env.run(until=req1)
+    rs.lock.release(req1)
+
+    assert rs.lock.count == 0
+    assert rs.lock.queue
+
+    FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+    assert obj not in store.items
+
+    req2.cancel()
 # ### THIS IS THE END OF CONTENT OF tests_sim/unit/test_selector.py ###

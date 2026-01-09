@@ -4,7 +4,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from rdflib import Graph, Namespace
-from rdflib.namespace import SH, XSD
+from rdflib.namespace import RDF, SH, XSD
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
@@ -14,6 +14,7 @@ from libsyn_tools.sim.knowledge_graph  import (
     PortionOfMaterial,
     Is_directly_contained_by,
 )
+from libsyn_tools.sim.operation.operation import Operation
 from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty
 from libsyn_tools.sim.operation_preset.transfer import TransferMaterialByPortionSize
 from libsyn_tools.sim.overlay.current_volume_overlay import CurrentVolumeOverlayProvider
@@ -180,4 +181,32 @@ def test_inspector_polling_interval_spawns_after_dt():
     fix_starts = [r.timestamp for r in sim.history_log if
                   r.event_type == "OPERATION_START" and r.operation_id.startswith("fix-")]
     assert fix_starts and min(fix_starts) >= 3.0
+
+
+def test_inspector_skips_missing_focus_or_shape():
+    class _NoOp(Operation):
+        def get_operation_effects(self):
+            return []
+
+    sim = Simulation([])
+    spawner = KGInspectorSpawner(
+        shape_dispatch={SHAPE_IRI: lambda _focus: _NoOp(identifier="noop")},
+        inspect_interval=0.0,
+    )
+
+    report = Graph()
+    missing_focus = Namespace("urn:missing:focus:")
+    missing_shape = Namespace("urn:missing:shape:")
+    vr_no_focus = missing_focus["vr1"]
+    vr_no_shape = missing_shape["vr2"]
+
+    report.add((vr_no_focus, RDF.type, SH.ValidationResult))
+    report.add((vr_no_focus, SH.sourceShape, missing_focus["Shape"]))
+    report.add((vr_no_shape, RDF.type, SH.ValidationResult))
+    report.add((vr_no_shape, SH.focusNode, missing_shape["Focus"]))
+
+    spawner._spawn_for_violations(sim, report)
+
+    spawned = [op_id for op_id in sim.operation_registry if op_id == "noop"]
+    assert spawned == []
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_spawners_inspector.py ###

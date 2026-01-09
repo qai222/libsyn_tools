@@ -1,6 +1,7 @@
 # ### THIS IS THE START OF CONTENT OF tests_sim/unit/test_kg_entities.py ###
 from __future__ import annotations
 
+import pytest
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
@@ -35,6 +36,22 @@ def test_pom_volume_and_split_mix():
     # Mix back equals original total (composition-level test is optional here)
     mix = p25.mix_with(p75)
     assert abs(mix.volume - pom.volume) < 1e-9
+
+
+def test_pom_get_portion_by_volume_zero_volume_raises() -> None:
+    pom = PortionOfMaterial()
+    with pytest.raises(ValueError):
+        pom.get_portion_by_volume(1.0)
+
+
+def test_pom_get_portion_rejects_invalid_size() -> None:
+    pom = PortionOfMaterial()
+    pom.add_chemical(_chem(5.0, 1.0))
+
+    with pytest.raises(ValueError):
+        pom.get_portion(0.0)
+    with pytest.raises(ValueError):
+        pom.get_portion(1.1)
 
 
 def test_container_capacity_property_and_direct_volume(env):

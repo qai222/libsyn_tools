@@ -205,13 +205,24 @@ class PortionOfMaterial(Substance):
         self.has_ingredient.add(json.dumps(chemical.model_dump()))
 
     def get_portion_by_volume(self, volume: float) -> "PortionOfMaterial":
-        assert 0 < volume <= self.volume + 1e-9
+        if self.volume <= 0:
+            raise ValueError("cannot split portion of material with non-positive volume")
+        if volume <= 0 or volume > self.volume + 1e-9:
+            raise ValueError(
+                f"volume must be in the range (0, {self.volume + 1e-9:.9g}]"
+            )
         portion_size = volume / self.volume
         return self.get_portion(portion_size)
 
     def get_portion(self, portion_size: float) -> "PortionOfMaterial":
-        assert 0 <= portion_size <= 1, f"cannot expand a portion of material: {portion_size}"
-        assert len(self.has_ingredient), "the portion of material has no ingredient"
+        if self.volume <= 0:
+            raise ValueError("cannot split portion of material with non-positive volume")
+        if portion_size <= 0 or portion_size > 1:
+            raise ValueError(
+                f"portion_size must be in the range (0, 1] (got {portion_size})"
+            )
+        if not len(self.has_ingredient):
+            raise ValueError("the portion of material has no ingredient")
         new_pom = PortionOfMaterial()
         for chemical in self.get_ingredients():
             new_chemical = chemical.split([portion_size, 1 - portion_size])[0]

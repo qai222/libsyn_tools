@@ -248,8 +248,8 @@ class Operation(ABC, BaseModel):
     
         except simpy.Interrupt as intr:
             # pre_act() can be interrupted if the parent operation is cancelled while
-            # blocked on selector resolution / lock acquisition. Swallow the interrupt
-            # so the SimPy environment doesn't crash; the caller will perform cleanup.
+            # blocked on selector resolution / lock acquisition. Clean up and
+            # propagate so callers can abort safely.
             # Ensure any in-flight selector resolution process is also cancelled;
             # otherwise it may later acquire a lock/store item and strand it.
             if resolve_proc is not None:
@@ -268,7 +268,7 @@ class Operation(ABC, BaseModel):
                 except Exception:
                     pass
             self.locks.clear()
-            return
+            raise
     def post_act(self, env: simpy.Environment):
         """
         Release all held locks and reinsert surviving objects into their FilterStores.

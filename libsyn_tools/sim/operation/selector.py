@@ -51,7 +51,7 @@ class FilterStoreRegistry:
         if obj.is_present != {True}:
             return
         rs = get_runtime_state(obj, env)
-        if rs.lock.count > 0:
+        if rs.lock.count > 0 or rs.lock.queue:
             return
         store = cls.get_filter_store(pool_type, env)
         if obj not in store.items:

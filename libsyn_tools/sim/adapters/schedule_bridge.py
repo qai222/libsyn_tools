@@ -39,7 +39,7 @@ from libsyn_tools.chem_schema import Operation as PlannedOperation
 from libsyn_tools.chem_schema import OperationNetwork
 from libsyn_tools.opt import SchedulerOutput
 from libsyn_tools.sim import Simulation
-from libsyn_tools.sim.knowledge_graph import LabObject
+from libsyn_tools.sim.knowledge_graph import LabObject, identifier_from_iri
 from libsyn_tools.sim.operation.operation import Operation as SimOperation
 from libsyn_tools.sim.operation.operation import StrOrSelector
 from libsyn_tools.sim.operation.unitary_edit import Create, UnitaryEdit
@@ -64,9 +64,10 @@ def _iter_planned_operations(
 
 def _ensure_modules_present(module_ids: Iterable[str]) -> None:
     for module_id in module_ids:
-        existing = KnowledgeGraph.get_object_from_lookup(module_id)
+        normalized_id = identifier_from_iri(module_id)
+        existing = KnowledgeGraph.get_object_from_lookup(normalized_id)
         if existing is None:
-            module = LabObject(identifier=module_id)
+            module = LabObject(identifier=normalized_id)
             module.has_pool_type.add("MODULE")
             Create(instance_1_iri=module.identifier).apply()
         else:

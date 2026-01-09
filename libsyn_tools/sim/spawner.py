@@ -110,8 +110,15 @@ class KGInspectorSpawner(Spawner):
     def _spawn_for_violations(self, sim: Simulation, report) -> None:
         g = report
         for vr in g.subjects(RDF.type, SH.ValidationResult):
-            shape_iri = str(g.value(vr, SH.sourceShape))
-            focus_iri = identifier_from_iri(str(g.value(vr, SH.focusNode)))
+            shape_node = g.value(vr, SH.sourceShape)
+            focus_node = g.value(vr, SH.focusNode)
+            if shape_node is None or focus_node is None:
+                logger.debug(
+                    "Skipping SHACL violation with missing sourceShape/focusNode",
+                )
+                continue
+            shape_iri = str(shape_node)
+            focus_iri = identifier_from_iri(str(focus_node))
             # Debug logging for shape dispatch; keep at debug level to avoid
             # polluting normal test/output runs.
             logger.debug(f"sourceShape = {shape_iri}")

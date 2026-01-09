@@ -96,6 +96,7 @@ class OperationProcess:
             if self._pre_act_process is not None and not self._pre_act_process.triggered:
                 try:
                     self._pre_act_process.interrupt(interrupt.cause)
+                    self._pre_act_process.defused = True
                 except Exception:
                     pass
                 self._pre_act_process = None
@@ -266,6 +267,34 @@ class Simulation:
                         f"Operation {op.identifier!r} requires precedent {pred!r} "
                         "which is not registered."
                     )
+        graph: dict[str, list[str]] = {
+            op.identifier: [pred for pred in op.required_precedents if pred in available_ids]
+            for op in operations
+            if op.identifier in available_ids
+        }
+        visiting: set[str] = set()
+        visited: set[str] = set()
+        stack: list[str] = []
+
+        def _visit(node: str) -> None:
+            if node in visited:
+                return
+            if node in visiting:
+                cycle_start = stack.index(node)
+                cycle = stack[cycle_start:] + [node]
+                raise ValueError(
+                    f"Precedent cycle detected: {' -> '.join(cycle)}"
+                )
+            visiting.add(node)
+            stack.append(node)
+            for neighbor in graph.get(node, []):
+                _visit(neighbor)
+            stack.pop()
+            visiting.remove(node)
+            visited.add(node)
+
+        for node in graph:
+            _visit(node)
 
     def _build_dependency_map(self) -> None:
         for op in self.operations:

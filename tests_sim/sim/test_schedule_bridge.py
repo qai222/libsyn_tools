@@ -5,8 +5,12 @@ from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical, Operation, OperationType
 from libsyn_tools.opt import SchedulerOutput
-from libsyn_tools.sim.adapters.schedule_bridge import compile_schedule_to_simulation
+from libsyn_tools.sim.adapters.schedule_bridge import (
+    _ensure_modules_present,
+    compile_schedule_to_simulation,
+)
 from libsyn_tools.sim.knowledge_graph import (
+    LabObject,
     MaterialContainer,
     PortionOfMaterial,
     Is_directly_contained_by,
@@ -147,3 +151,16 @@ def test_schedule_bridge_translator_custom_operation_mutates_kg():
 
     assert source.directly_contained_pom_volume == pytest.approx(1.0)
     assert destination.directly_contained_pom_volume == pytest.approx(1.0)
+
+
+def test_schedule_bridge_reuses_module_identifier_form():
+    module = LabObject(identifier="module_ident")
+    module.has_pool_type.add("MODULE")
+    KnowledgeGraph.get_object_from_lookup(module.identifier)
+    Create(instance_1_iri=module.identifier).apply()
+
+    canonical_iri = f"https://libsyn-sim/kg/{module.identifier}"
+    _ensure_modules_present([canonical_iri])
+
+    existing = KnowledgeGraph.get_object_from_lookup(module.identifier)
+    assert existing is module

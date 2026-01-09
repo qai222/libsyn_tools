@@ -66,12 +66,13 @@ def test_transfer_by_volume_edits_shape(env: simpy.Environment):
     )
     edits = op.get_operation_effects()
 
-    # For a single POM, expected sequence is 7 edits:
-    # 1 Annihilate original, 2 Create residual + 3 add->src,
-    # 4 Create transfer + 5 add->dev + 6 remove->dev + 7 add->dst
-    assert len(edits) == 7
+    # For a single POM, expected sequence is 8 edits:
+    # 1 remove src link, 2 annihilate original, 3 create residual + 4 add->src,
+    # 5 create transfer + 6 add->dev + 7 remove->dev + 8 add->dst
+    assert len(edits) == 8
     types = [e.type for e in edits]
-    assert types[0] is UnitaryEditType.ANNIHILATE
+    assert types[0] is UnitaryEditType.REMOVE_OBJECT_PROPERTY
+    assert types[1] is UnitaryEditType.ANNIHILATE
     assert types[-1] is UnitaryEditType.ADD_OBJECT_PROPERTY
 
 
