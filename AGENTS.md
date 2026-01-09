@@ -1,54 +1,41 @@
-# Codex Agent Guide — libsyn_tools (focus: sim module)
+# Codex Agent Guide — libsyn_tools (sim module correctness)
 
-## Scope
-You are working **only** in this repository. Do not assume access to other repos or internal packages.
-Primary focus is `libsyn_tools/sim/**` and `tests_sim/**`.
+## Mission
+Harden correctness of `libsyn_tools/sim/**` with small, robust fixes and targeted regression tests in `tests_sim/**`.
+Avoid overengineering. Prefer fail-fast validation and consistent semantics.
 
-## First step every run
-1) Read `codex_state.md` to understand:
-   - what has been done,
-   - what remains,
-   - any decisions/constraints.
-2) Run the simulator test suite to establish a baseline:
+## Mandatory workflow for every run
+1) Read `codex_state.md` (repo state + task log + decisions).
+2) Run baseline:
    - `pytest -q tests_sim`
+   If failing, fix baseline before new work.
+3) Implement the next task (from the task list) with:
+   - minimal code changes,
+   - clear error messages,
+   - at least one regression test.
+4) Run:
+   - `pytest -q tests_sim`
+5) Update `codex_state.md`:
+   - mark task DONE,
+   - list files changed,
+   - summarize behavior change and tests added.
 
-If baseline fails, stop and fix baseline before starting new tasks.
+## Constraints
+- You can only modify this repo. No external repos.
+- Keep changes narrowly scoped and backwards compatible unless task says otherwise.
+- Don’t use Python `assert` for runtime validation. Use explicit exceptions.
 
-## Repo layout (expected)
-- `libsyn_tools/sim/` — simulator implementation
-- `tests_sim/` — simulator tests (all currently pass)
+## Simulator invariants to preserve
+- Selection + locking should not strand locks or “steal” pool items after interrupt.
+- Presence (`is_present`) is availability; avoid mutating or selecting non-present objects unless explicitly intended.
+- Precedents should be validated early; cycles must fail fast.
+- SHACL remediation spawners must never fabricate invalid IDs.
 
-## Coding principles for this repo
-- Prefer **small, isolated changes** with targeted tests.
-- Add tests that reproduce the bug/crash first (or at least in the same change).
-- Preserve backwards compatibility unless a task explicitly changes semantics.
-- Avoid direct mutation of SimPy internals unless absolutely necessary (e.g. `store.items.append/insert`).
-- Ensure interrupts/cancellation paths do not:
-  - crash the SimPy environment,
-  - strand locks,
-  - “steal” pool objects via stale `store.get()` events.
-
-## Test strategy
-- For each correctness fix, add a regression test under `tests_sim/`.
-- Keep tests deterministic: use unique pool types per test to avoid cross-test leakage.
-- Use short timeouts and minimal simulation steps.
-- After each task:
-  - Run `pytest -q tests_sim`
-  - Ensure any new tests are stable across multiple runs if possible.
-
-## Documentation & logging
-- After completing each task, update `codex_state.md`:
-  - Mark the task as done
-  - Summarize changes (files, key logic)
-  - Note any new decisions or follow-up items
-
-## Style & safety
-- Keep error messages actionable (include operation id, object id, precedent id, etc.).
-- Prefer raising a domain error (e.g. `EngineMechanicalError`, `ContractViolationError`, or `ValueError`) over letting `KeyError/AttributeError` leak.
-- If you introduce new event types or callback behaviors, add tests and document them in `codex_state.md`.
+## Testing guidance
+- Prefer unique pool_type strings in tests to avoid cross-test leakage.
+- Use small env timeouts and deterministic sequences.
+- When validating deadlocks/cycles: raise early errors, don’t rely on env stalling.
 
 ## Commands
-- Run all sim tests:
-  - `pytest -q tests_sim`
-- Run a single test:
-  - `pytest -q tests_sim/path/to/test_file.py::test_name`
+- Full sim tests: `pytest -q tests_sim`
+- Single test: `pytest -q tests_sim/path/to/test_file.py::test_name`
