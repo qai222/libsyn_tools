@@ -379,6 +379,23 @@ class EffectEngine:
                 return False
             return _needs_runtime_tracking(obj)
 
+        def _require_present(iri: Optional[str], role: str) -> None:
+            if not iri or iri in creates_set:
+                return
+            obj = KnowledgeGraph.get_object_from_lookup(iri)
+            if obj is None:
+                return
+            if getattr(obj, "is_present", {False}) != {True}:
+                self._raise_mechanical(
+                    f"Mechanical check failed: non-present {role} {iri!r}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
+
         def _require_lock_if_runtime_tracked(iri: Optional[str]) -> None:
             if not iri or iri in creates_set:
                 return
@@ -436,6 +453,7 @@ class EffectEngine:
                         edit_descriptions=edit_descriptions,
                         seed=seed,
                     )
+                _require_present(e.instance_1_iri, "subject")
                 _require_lock_if_runtime_tracked(e.instance_1_iri)
             elif t in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY):
                 _require_object_property(e)
@@ -449,6 +467,7 @@ class EffectEngine:
                         edit_descriptions=edit_descriptions,
                         seed=seed,
                     )
+                _require_present(e.instance_1_iri, "subject")
                 if not (_exists(e.instance_2_iri) or e.instance_2_iri in creates_set):
                     self._raise_mechanical(
                         f"Mechanical check failed: dangling object {e.instance_2_iri}",
@@ -459,6 +478,7 @@ class EffectEngine:
                         edit_descriptions=edit_descriptions,
                         seed=seed,
                     )
+                _require_present(e.instance_2_iri, "object")
                 _require_lock_if_runtime_tracked(e.instance_1_iri)
                 _require_lock_if_runtime_tracked(e.instance_2_iri)
 
@@ -583,7 +603,7 @@ class EffectEngine:
                     if store is None:
                         store = FilterStoreRegistry.get_filter_store(snap.pool_type, env)
                     if obj not in store.items:
-                        store.items.append(obj)
+                        store.put(obj)
                 elif store and obj in store.items:
                     store.items.remove(obj)
 

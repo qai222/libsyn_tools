@@ -106,6 +106,7 @@ class BadWrite(Operation):
 def test_coverage_check_blocks_unlocked_endpoint(env: simpy.Environment):
     src = LabObject()
     dst = LabObject()
+    src.is_present = {True}
     KnowledgeGraph.get_object_from_lookup(src.identifier)
     KnowledgeGraph.get_object_from_lookup(dst.identifier)
 

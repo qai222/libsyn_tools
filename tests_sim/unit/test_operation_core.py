@@ -44,6 +44,7 @@ class _OpDualBind(Operation):
 
 def test_pre_act_lifecycle_and_resources(env: simpy.Environment):
     obj = LabObject()
+    obj.is_present = {True}
     KnowledgeGraph.get_object_from_lookup(obj.identifier)
     # Register resource like Simulation._build_resources()
     EffectEngine()._register_if_new(obj, env)
@@ -60,6 +61,7 @@ def test_pre_act_lifecycle_and_resources(env: simpy.Environment):
 
 def test_pre_act_duplicate_create_detected(env: simpy.Environment):
     obj = LabObject()
+    obj.is_present = {True}
     KnowledgeGraph.get_object_from_lookup(obj.identifier)
     EffectEngine()._register_if_new(obj, env)
 

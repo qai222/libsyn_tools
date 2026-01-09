@@ -21,6 +21,7 @@ class CreateOnly(Operation):
 def test_filterstore_contains_object_after_create():
     o = LabObject()
     o.has_pool_type.add("VIAL")
+    o.is_present = {True}
     KnowledgeGraph.get_object_from_lookup(o.identifier)
 
     op = CreateOnly(identifier="C", participant_obj=o.identifier)

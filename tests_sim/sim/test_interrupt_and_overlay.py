@@ -32,6 +32,7 @@ class LongOp(Operation):
 def test_interrupt_writes_reason_and_no_end(env: simpy.Environment):
     dev = LabObject()
     dev.has_pool_type.add("DEV")
+    dev.is_present = {True}
     KnowledgeGraph.get_object_from_lookup(dev.identifier)
 
     op = LongOp(

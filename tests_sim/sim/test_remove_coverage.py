@@ -34,6 +34,7 @@ class BadRemove(Operation):
 def test_remove_object_property_requires_lock_coverage():
     a = LabObject()
     b = LabObject()
+    a.is_present = {True}
     KnowledgeGraph.get_object_from_lookup(a.identifier)
     KnowledgeGraph.get_object_from_lookup(b.identifier)
 

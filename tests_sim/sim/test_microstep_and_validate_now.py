@@ -27,6 +27,7 @@ class InstantOp(Operation):
 
 def test_apply_happens_in_single_microstep_timestamp_equal():
     obj = LabObject()
+    obj.is_present = {True}
     KnowledgeGraph.get_object_from_lookup(obj.identifier)
 
     op = InstantOp(identifier="I", participant_obj=obj.identifier, temporal_cost=0.0)

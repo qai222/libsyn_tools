@@ -136,9 +136,9 @@ class Selector(ABC):
                 rs.lock.release(req)
                 req = None
 
-                # SimPy >= 4 lets us manipulate .items directly.
-                # insert(0, obj) keeps FIFO order; put(obj) would append().
-                store.items.insert(0, obj)
+                # Reinsert candidate to wake waiters; avoid duplicates.
+                if obj not in store.items:
+                    store.put(obj)
                 obj = None
 
         except simpy.Interrupt:
@@ -173,7 +173,7 @@ class Selector(ABC):
                 if obj is not None:
                     try:
                         if hasattr(store, "items") and obj not in store.items:
-                            store.items.insert(0, obj)
+                            store.put(obj)
                     except Exception:
                         pass
             return
@@ -190,6 +190,10 @@ class LiteralSelector(Selector):
         obj = KnowledgeGraph.get_object_from_lookup(iri=self._iri)
         if obj is None:
             obj = KnowledgeGraph.get_object_from_lookup(iri=identifier_from_iri(self._iri))
+        if obj is None:
+            raise ValueError(f"LiteralSelector could not resolve IRI {self._iri!r}")
+        if getattr(obj, "is_present", {False}) != {True}:
+            raise ValueError(f"LiteralSelector cannot select non-present IRI {self._iri!r}")
         obj: LabObject
 
         store: simpy.FilterStore | None = None
@@ -239,7 +243,7 @@ class LiteralSelector(Selector):
             if removed_from_store and store is not None:
                 try:
                     if obj not in store.items:
-                        store.items.insert(0, obj)
+                        store.put(obj)
                 except Exception:
                     pass
             return

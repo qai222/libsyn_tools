@@ -28,6 +28,7 @@ def test_filterstore_normalization_create_then_annihilate():
     # Object with a pool type should appear in FilterStore after CREATE, and be removed after ANNIHILATE.
     o = LabObject()
     o.has_pool_type.add("VIAL")
+    o.is_present = {True}
     KnowledgeGraph.get_object_from_lookup(o.identifier)
 
     op1 = CreateObj(identifier="C", participant_obj=o.identifier, temporal_cost=0.0)

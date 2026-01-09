@@ -17,10 +17,9 @@ class NoOp(Operation):
         return []
 
 
-def test_missing_precedent_id_raises_keyerror():
+def test_missing_precedent_id_fails_early():
     # One op that claims a nonexistent precedent
-    op = NoOp(identifier="B", required_precedents=["does-not-exist"])
-    sim = Simulation([op])
-    with pytest.raises(KeyError):
-        sim.run()
+    op = NoOp(identifier="B", required_precedents=["DOES_NOT_EXIST"])
+    with pytest.raises(ValueError, match=r"DOES_NOT_EXIST"):
+        Simulation([op])
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_missing_precedent.py ###

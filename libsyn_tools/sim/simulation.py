@@ -87,6 +87,7 @@ class OperationProcess:
             # Ensure we release locks even if the op never reached RUNNING.
             self.operation.cleanup(self.env)
             self.add_event_log("OPERATION_ABORT", {"reason": str(err)})
+            self.callbacks.emit_operation_end(self)
             self.done_event.succeed()
         except simpy.Interrupt as interrupt:
             # If we were interrupted while waiting on pre_act(), cancel the
@@ -135,6 +136,7 @@ class OperationProcess:
             # NEW: lifecycle callback
             self.callbacks.emit_operation_interrupt(self, str(interrupt.cause))
             self.add_event_log("OPERATION_INTERRUPT", {"reason": str(interrupt.cause)})
+            self.callbacks.emit_operation_end(self)
             self.done_event.succeed()
 
     def _run_core(self):
@@ -216,6 +218,8 @@ class Simulation:
         self.rng = random.Random(random_seed)
 
         self.operations = operations
+        if simulation_speed_factor <= 0:
+            raise ValueError("simulation_speed_factor must be > 0")
         self.speed_factor = simulation_speed_factor
 
         if shacl_shapes is None:
@@ -243,9 +247,25 @@ class Simulation:
         self.dependents: Dict[str, List[str]] = defaultdict(list)
         self.history_log: List[OperationEventRecord] = []
 
+        self._validate_precedents(self.operations)
         self._build_dependency_map()
         self._build_resources()
         self._build_processes()
+
+    @staticmethod
+    def _validate_precedents(
+            operations: List[Operation],
+            available_ids: set[str] | None = None,
+    ) -> None:
+        if available_ids is None:
+            available_ids = {op.identifier for op in operations}
+        for op in operations:
+            for pred in op.required_precedents:
+                if pred not in available_ids:
+                    raise ValueError(
+                        f"Operation {op.identifier!r} requires precedent {pred!r} "
+                        "which is not registered."
+                    )
 
     def _build_dependency_map(self) -> None:
         for op in self.operations:
@@ -332,6 +352,7 @@ class Simulation:
         if precedents:
             op.required_precedents.extend(precedents)
 
+        self._validate_precedents([op], set(self.operation_registry))
         proc = OperationProcess(
             env=self.env,
             operation=op,
@@ -361,6 +382,10 @@ class Simulation:
 
     def build_report(self, include_ttl: bool = False) -> RunReport:
         event_log_df = pd.DataFrame.from_records([r.model_dump() for r in self.history_log])
+        if event_log_df.empty:
+            event_log_df = pd.DataFrame(
+                columns=["operation_id", "timestamp", "event_type", "operation_data"]
+            )
         effects_by_op = {
             op_id: proc.operation.describe_effects()
             for op_id, proc in self.operation_registry.items()

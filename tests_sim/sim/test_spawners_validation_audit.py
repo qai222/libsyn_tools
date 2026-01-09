@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
+from pydantic import Field
 from rdflib import Graph, Namespace
 from rdflib.namespace import SH, XSD
 from twa.data_model.base_ontology import KnowledgeGraph
@@ -11,8 +14,10 @@ from libsyn_tools.sim.knowledge_graph import (
     PortionOfMaterial,
     Is_directly_contained_by,
 )
-from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty
-from libsyn_tools.sim.spawner import ValidationAuditSpawner
+from libsyn_tools.sim.operation.operation import Operation
+from libsyn_tools.sim.operation.selector import FilterStoreRegistry
+from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty, UnitaryEdit
+from libsyn_tools.sim.spawner import ValidationAuditSpawner, PolicyEnforcerSpawner
 
 
 def _capacity_overflow_shape() -> tuple[Graph, str]:
@@ -70,3 +75,49 @@ def test_validation_audit_emits_violation_on_poll():
 
     assert any(r.shape_iri == shape_iri for r in records)
     assert any(r.operation_id == "VALIDATION_AUDIT" for r in records)
+
+
+class _AuditRemediation(Operation):
+    participant_container: str = Field(...)
+
+    def get_operation_effects(self) -> list[UnitaryEdit]:
+        return []
+
+
+def test_validation_audit_policy_enforcer_skips_missing_precedent():
+    shape_graph, shape_iri = _capacity_overflow_shape()
+    base = "https://libsyn-sim/kg/"
+
+    container = MaterialContainer(identifier=f"{base}audit-policy-dest")
+    container.has_capacity.add(1.0)
+    pom = PortionOfMaterial(identifier=f"{base}audit-policy-pom")
+    pom.add_chemical(Chemical(mass=1.2, density=1.0))
+    for obj in (container, pom):
+        KnowledgeGraph.get_object_from_lookup(obj.identifier)
+        Create(instance_1_iri=obj.identifier).apply()
+    AddObjectProperty(
+        instance_1_iri=pom.identifier,
+        instance_2_iri=container.identifier,
+        property_iri=Is_directly_contained_by.predicate_iri,
+    ).apply()
+
+    def _remediation_factory(record):
+        if record.focus_iri is None or record.operation_id != "VALIDATION_AUDIT":
+            return None
+        return _AuditRemediation(
+            identifier=f"remediate-{uuid4().hex[:6]}",
+            participant_container=record.focus_iri,
+        )
+
+    sim = Simulation([], shacl_shapes=shape_graph)
+    FilterStoreRegistry.put_obj_into_filter_store(container, sim.env)
+    ValidationAuditSpawner(inspect_interval=1.0).attach(sim)
+    PolicyEnforcerSpawner(shape_dispatch={shape_iri: _remediation_factory}).attach(sim)
+
+    sim.run(until=1.1)
+
+    spawned = [
+        r for r in sim.history_log
+        if r.event_type == "OPERATION_END" and r.operation_id.startswith("remediate-")
+    ]
+    assert spawned

@@ -186,7 +186,9 @@ class RemoveObjectProperty(UnitaryEdit):
         obj = KnowledgeGraph.get_object_from_lookup(self.instance_2_iri)
         obj_prop = SimOntology.object_property_lookup[self.property_iri]
         field_name = obj_prop.__name__[0].lower() + obj_prop.__name__[1:]
-        getattr(subj, field_name).remove(obj)
+        existing_values = getattr(subj, field_name)
+        if obj in existing_values:
+            existing_values.remove(obj)
 
 
 # update exported symbols so `from ... import *` keeps working

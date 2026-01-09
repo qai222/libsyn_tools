@@ -239,7 +239,10 @@ class PolicyEnforcerSpawner(Spawner):
                 return
             op.remediation = True
             self._mark_seen(record)
-            sim.spawn_operation(op, precedents=[record.operation_id])
+            precedents = None
+            if record.operation_id in sim.operation_registry:
+                precedents = [record.operation_id]
+            sim.spawn_operation(op, precedents=precedents)
 
         sim.callbacks.on_violation.append(_on_violation)
         self._on_violation = _on_violation

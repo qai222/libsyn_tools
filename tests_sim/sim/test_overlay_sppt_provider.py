@@ -11,6 +11,8 @@ from libsyn_tools.sim.knowledge_graph  import (
     MaterialContainer, PortionOfMaterial, Is_directly_contained_by
 )
 from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty
+from libsyn_tools.sim.operation.operation import Operation
+from libsyn_tools.sim.operation.unitary_edit import RemoveObjectProperty, UnitaryEdit
 from libsyn_tools.sim.operation_preset.transfer import TransferMaterialByPortionSize
 from libsyn_tools.sim.overlay.sppt_overlay import SPPTOverlayProvider
 
@@ -65,4 +67,41 @@ def test_sppt_overlay_emits_process_interval_and_participants():
     assert (proc_iri, LIB.has_participant, LIB[src.identifier]) in g
     assert (proc_iri, LIB.has_participant, LIB[dst.identifier]) in g
     assert (proc_iri, LIB.has_participant, LIB[dev.identifier]) in g
+
+
+class BadRemove(Operation):
+    participant_src: str
+    bad_dst: str
+
+    def get_operation_effects(self) -> list[UnitaryEdit]:
+        return [
+            RemoveObjectProperty(
+                instance_1_iri=self.participant_src,
+                instance_2_iri=self.bad_dst,
+                property_iri=Is_directly_contained_by.predicate_iri,
+            )
+        ]
+
+
+def test_sppt_overlay_closes_interval_on_abort():
+    src = MaterialContainer()
+    KnowledgeGraph.get_object_from_lookup(src.identifier)
+    Create(instance_1_iri=src.identifier).apply()
+
+    op = BadRemove(
+        identifier="abort-op",
+        participant_src=src.identifier,
+        bad_dst="missing-dst",
+    )
+
+    sim = Simulation([op])
+    provider = SPPTOverlayProvider(sim.callbacks)
+    sim.effect_engine.register_overlay_provider(provider.snapshot)
+
+    sim.run()
+
+    g = provider.snapshot()
+    int_iri = LIB[f"Interval/{op.identifier}"]
+    assert (int_iri, LIB.has_begin_time, None) in g
+    assert (int_iri, LIB.has_end_time, None) in g
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_overlay_sppt_provider.py ###

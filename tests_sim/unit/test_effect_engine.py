@@ -10,6 +10,7 @@ from libsyn_tools.chem_schema import Chemical
 from libsyn_tools.sim.effect_engine import EffectEngine, EngineMechanicalError
 from libsyn_tools.sim.policy import PolicyBundle, PolicyRule
 from libsyn_tools.sim.knowledge_graph   import (
+    Has_interrupt_events,
     MaterialContainer,
     PortionOfMaterial,
     Is_directly_contained_by,
@@ -18,6 +19,8 @@ from libsyn_tools.sim.operation.unitary_edit import (
     Create,
     AddObjectProperty,
     AddDataProperty,
+    Annihilate,
+    ChangeDataProperty,
 )
 from libsyn_tools.sim.overlay.current_volume_overlay import CurrentVolumeOverlayProvider
 from libsyn_tools.sim.operation_preset.transfer import TransferMaterialByPortionSize
@@ -140,6 +143,26 @@ def test_mechanical_abort_dangling_subject(env: simpy.Environment):
         assert False, "Expected mechanical pre-check to catch dangling subject"
     except EngineMechanicalError as e:
         assert "dangling subject" in str(e)
+
+
+def test_mechanical_abort_change_on_non_present(env: simpy.Environment):
+    eng = EffectEngine()
+    obj = MaterialContainer()
+    KnowledgeGraph.get_object_from_lookup(obj.identifier)
+
+    eng.apply([Create(instance_1_iri=obj.identifier)], env, operation_id="init", locked_iris=[obj.identifier])
+    eng.apply([Annihilate(instance_1_iri=obj.identifier)], env, operation_id="kill", locked_iris=[obj.identifier])
+
+    edit = ChangeDataProperty(
+        instance_1_iri=obj.identifier,
+        property_iri=Has_interrupt_events.predicate_iri,
+        data_value="after",
+    )
+    try:
+        eng.apply([edit], env, operation_id="mutate", locked_iris=[obj.identifier])
+        assert False, "Expected mechanical pre-check to abort on non-present object"
+    except EngineMechanicalError as e:
+        assert "non-present subject" in str(e)
 
 
 def test_apply_addobjectproperty_and_overlay_shacl(env: simpy.Environment):

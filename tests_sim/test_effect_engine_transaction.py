@@ -53,8 +53,8 @@ def test_missing_property_iri_is_mechanical_error() -> None:
     assert c.has_capacity == {10.0}
 
 
-def test_apply_tx_rolls_back_on_apply_exception() -> None:
-    """A mid-batch apply error should not leave partially mutated KG state."""
+def test_apply_tx_allows_idempotent_remove() -> None:
+    """Removing a missing relation should be a no-op while other edits commit."""
 
     env = simpy.Environment()
     engine = EffectEngine(shapes_graph=None)
@@ -74,10 +74,10 @@ def test_apply_tx_rolls_back_on_apply_exception() -> None:
         ),
     ]
 
-    with pytest.raises(EngineMechanicalError):
-        engine.apply_tx(edits=edits, env=env, operation_id="op", locked_iris=[a.identifier, b.identifier])
+    result = engine.apply_tx(edits=edits, env=env, operation_id="op", locked_iris=[a.identifier, b.identifier])
+    assert result.committed is True
 
-    # The first edit should have been rolled back.
-    assert a.has_capacity == {10.0}
+    # The first edit should have been committed.
+    assert a.has_capacity == {5.0}
     # Containment should remain unchanged.
     assert a in pom.is_directly_contained_by
