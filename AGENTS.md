@@ -1,41 +1,44 @@
-# Codex Agent Guide — libsyn_tools (sim module correctness)
+# Codex Agent Guide — libsyn_tools (sim correctness)
 
-## Mission
-Harden correctness of `libsyn_tools/sim/**` with small, robust fixes and targeted regression tests in `tests_sim/**`.
-Avoid overengineering. Prefer fail-fast validation and consistent semantics.
+## Scope
+Work only in this repository. Focus on:
+- `libsyn_tools/sim/**`
+- `tests_sim/**`
 
-## Mandatory workflow for every run
-1) Read `codex_state.md` (repo state + task log + decisions).
-2) Run baseline:
+Do not assume access to external repos.
+
+## Mandatory steps every run
+1) Read `codex_state.md` (current state + decisions + task log).
+2) Run baseline tests:
    - `pytest -q tests_sim`
-   If failing, fix baseline before new work.
-3) Implement the next task (from the task list) with:
-   - minimal code changes,
-   - clear error messages,
-   - at least one regression test.
-4) Run:
+   If baseline fails, stop and fix baseline first.
+3) Implement the next task in the task list (below).
+4) Add/extend regression tests in `tests_sim/`.
+5) Run:
    - `pytest -q tests_sim`
-5) Update `codex_state.md`:
-   - mark task DONE,
-   - list files changed,
-   - summarize behavior change and tests added.
+6) Update `codex_state.md` with:
+   - task status (DONE),
+   - files changed,
+   - tests added/updated,
+   - any behavior/semantics decisions.
 
-## Constraints
-- You can only modify this repo. No external repos.
-- Keep changes narrowly scoped and backwards compatible unless task says otherwise.
-- Don’t use Python `assert` for runtime validation. Use explicit exceptions.
+## Design constraints / invariants
+- Never strand locks or pool items after interrupt/abort/exception.
+- Presence (`is_present`) is availability. Do not select or mutate non-present objects unless explicitly creating them.
+- Precedent dependency graphs must fail fast if invalid (missing IDs or cycles).
+- Spawners must not fabricate invalid focus IDs (no "None", no blank nodes, no missing KG objects).
+- Avoid Python `assert` for runtime validation; use explicit exceptions.
 
-## Simulator invariants to preserve
-- Selection + locking should not strand locks or “steal” pool items after interrupt.
-- Presence (`is_present`) is availability; avoid mutating or selecting non-present objects unless explicitly intended.
-- Precedents should be validated early; cycles must fail fast.
-- SHACL remediation spawners must never fabricate invalid IDs.
+## Error handling policy
+- Prefer domain errors with descriptive messages (include operation id, object id, precedent id, shape id).
+- Unexpected exceptions inside operations should not deadlock the sim; always run cleanup.
 
 ## Testing guidance
-- Prefer unique pool_type strings in tests to avoid cross-test leakage.
-- Use small env timeouts and deterministic sequences.
-- When validating deadlocks/cycles: raise early errors, don’t rely on env stalling.
+- Use unique pool types per test to avoid cross-test contamination.
+- Prefer deterministic small simulations and short timeouts.
+- For concurrency/interrupt tests, explicitly schedule interrupts and insertions.
+- Add one regression test per bug class.
 
-## Commands
-- Full sim tests: `pytest -q tests_sim`
-- Single test: `pytest -q tests_sim/path/to/test_file.py::test_name`
+## Useful commands
+- All sim tests: `pytest -q tests_sim`
+- Single test: `pytest -q tests_sim/test_file.py::test_name`
