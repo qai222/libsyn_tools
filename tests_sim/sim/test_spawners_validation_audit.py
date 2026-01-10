@@ -147,3 +147,27 @@ def test_validation_audit_skips_invalid_focus_nodes():
     audit._emit_violation_records(sim, report)
 
     assert records == []
+
+
+def test_validation_audit_blank_focus_does_not_spawn_remediation():
+    class _NoOp(Operation):
+        def get_operation_effects(self) -> list[UnitaryEdit]:
+            return []
+
+    sim = Simulation([])
+    audit = ValidationAuditSpawner(inspect_interval=1.0)
+
+    def _factory(record):
+        return _NoOp(identifier="noop")
+
+    PolicyEnforcerSpawner(shape_dispatch={"urn:shape:blank": _factory}).attach(sim)
+
+    report = Graph()
+    vr_blank = URIRef("urn:vr:blank-remediate")
+    report.add((vr_blank, RDF.type, SH.ValidationResult))
+    report.add((vr_blank, SH.sourceShape, URIRef("urn:shape:blank")))
+    report.add((vr_blank, SH.focusNode, BNode()))
+
+    audit._emit_violation_records(sim, report)
+
+    assert sim.operation_registry == {}

@@ -9,7 +9,7 @@ from libsyn_tools.sim.effect_engine import EffectEngine
 from libsyn_tools.sim.knowledge_graph   import LabObject
 from libsyn_tools.sim.operation.operation import Operation, _OpState
 from libsyn_tools.sim.operation.selector import AttributeSelector, FilterStoreRegistry
-from libsyn_tools.sim.operation.runtime import get_runtime_state
+from libsyn_tools.sim.operation.runtime import get_runtime_context, get_runtime_state
 from libsyn_tools.sim.operation.unitary_edit import Create, UnitaryEdit
 
 
@@ -102,4 +102,21 @@ def test_pre_act_dedupes_duplicate_participants(env: simpy.Environment):
     assert rs.lock.count == 0
     store = FilterStoreRegistry.get_filter_store("VIAL", env)
     assert obj in store.items
+
+
+def test_release_all_locks_handles_missing_reverse_mapping(env: simpy.Environment) -> None:
+    obj = LabObject()
+    obj.is_present = {True}
+    KnowledgeGraph.get_object_from_lookup(obj.identifier)
+    EffectEngine()._register_if_new(obj, env)
+
+    op = _OpCreateOnce(participant_obj=obj.identifier)
+    env.run(op.pre_act(env))
+
+    ctx = get_runtime_context(env, create=False)
+    ctx.resource_map.pop(obj.identifier, None)
+
+    op._release_all_locks(env)
+    rs = get_runtime_state(obj, env)
+    assert rs.lock.count == 0
 # ### THIS IS THE END OF CONTENT OF tests_sim/unit/test_operation_core.py ###

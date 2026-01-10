@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import simpy
+import pytest
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim.effect_engine import EffectEngine
@@ -9,6 +10,7 @@ from libsyn_tools.sim.knowledge_graph   import LabObject, Has_interrupt_events
 from libsyn_tools.sim.operation.runtime import get_runtime_context, get_runtime_state
 from libsyn_tools.sim.operation.selector import (
     AttributeSelector,
+    HistorySelector,
     LiteralSelector,
     FilterStoreRegistry,
 )
@@ -176,4 +178,79 @@ def test_filter_store_rejects_queueing_locks(env: simpy.Environment) -> None:
     assert obj not in store.items
 
     req2.cancel()
+
+
+def test_literal_selector_heals_missing_store_entry(env: simpy.Environment) -> None:
+    pool = "POOL_LITERAL_HEAL"
+    obj = _make_pool_obj(pool)
+    KnowledgeGraph.get_object_from_lookup(obj.identifier)
+    Create(instance_1_iri=obj.identifier).apply()
+    eng = EffectEngine()
+    eng._register_if_new(obj, env)
+
+    store = FilterStoreRegistry.get_filter_store(pool, env)
+    store.items.remove(obj)
+
+    sel = LiteralSelector(obj.identifier)
+    proc = env.process(sel.resolve(env))
+    env.run(proc)
+    iri, req = proc.value
+
+    assert iri == obj.identifier
+    rs = get_runtime_state(obj, env)
+    rs.lock.release(req)
+    FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+    assert obj in store.items
+
+
+def test_history_selector_accepts_env_predicate(env: simpy.Environment) -> None:
+    pool = "POOL_HISTORY_ENV"
+    obj = _make_pool_obj(pool)
+    KnowledgeGraph.get_object_from_lookup(obj.identifier)
+    Create(instance_1_iri=obj.identifier).apply()
+    eng = EffectEngine()
+    eng._register_if_new(obj, env)
+
+    def pred(candidate: LabObject, sim_env: simpy.Environment) -> bool:
+        assert sim_env is env
+        _ = get_runtime_state(candidate, sim_env)
+        return True
+
+    sel = HistorySelector(pool_type=pool, predicate=pred)
+    proc = env.process(sel.resolve(env))
+    env.run(proc)
+    iri, req = proc.value
+
+    assert iri == obj.identifier
+    rs = get_runtime_state(obj, env)
+    rs.lock.release(req)
+    FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+    assert obj in FilterStoreRegistry.get_filter_store(pool, env).items
+
+
+def test_predicate_exception_returns_object_to_pool(env: simpy.Environment) -> None:
+    pool = "POOL_PRED_RAISE"
+    obj = _make_pool_obj(pool)
+    KnowledgeGraph.get_object_from_lookup(obj.identifier)
+    Create(instance_1_iri=obj.identifier).apply()
+    eng = EffectEngine()
+    eng._register_if_new(obj, env)
+
+    calls = {"count": 0}
+
+    def pred(candidate: LabObject) -> bool:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return True
+        raise RuntimeError("predicate boom")
+
+    sel = AttributeSelector(pool_type=pool, predicate=pred)
+    proc = env.process(sel.resolve(env))
+    with pytest.raises(RuntimeError):
+        env.run(proc)
+
+    rs = get_runtime_state(obj, env)
+    assert rs.lock.count == 0
+    store = FilterStoreRegistry.get_filter_store(pool, env)
+    assert obj in store.items
 # ### THIS IS THE END OF CONTENT OF tests_sim/unit/test_selector.py ###

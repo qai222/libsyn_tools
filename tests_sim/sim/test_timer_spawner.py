@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import simpy
+import pytest
 from pydantic import Field
 
 from libsyn_tools.sim import Simulation
@@ -45,4 +46,15 @@ def test_timer_spawns_scaled_by_speed_factor():
     sim.run(until=20.1)
     end_count = sum(1 for r in sim.history_log if r.event_type == "OPERATION_END")
     assert end_count == 3
+
+
+def test_timer_requires_until_for_unbounded_run():
+    sim = Simulation.compile_actions()
+    TimerSpawner(
+        op_factory=lambda s: Calibrate(),
+        interval=5.0,
+    ).attach(sim)
+
+    with pytest.raises(ValueError):
+        sim.run()
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_timer_spawner.py ###

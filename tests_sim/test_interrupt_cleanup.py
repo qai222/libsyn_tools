@@ -69,3 +69,27 @@ def test_interrupt_does_not_strand_resource_locks() -> None:
 
     # Should have recorded an interrupt in history.
     assert any(e.event_type == "OPERATION_INTERRUPT" for e in sim.history_log)
+
+
+def test_interrupt_bookkeeping_exception_does_not_crash(monkeypatch) -> None:
+    c = MaterialContainer()
+    c.is_present = {True}
+
+    op = LongWaitOp(participant_resource=c.identifier, temporal_cost=1.0)
+    sim = Simulation([op])
+    proc = sim.operation_registry[op.identifier]
+
+    def boom_apply(*args, **kwargs):
+        raise RuntimeError("bookkeeping boom")
+
+    monkeypatch.setattr(sim.effect_engine, "apply", boom_apply)
+
+    def interrupter(env: simpy.Environment) -> simpy.events.Event:
+        yield env.timeout(0.1)
+        proc.simpy_process.interrupt("boom")
+
+    sim.env.process(interrupter(sim.env))
+    sim.run()
+
+    assert proc.done_event.triggered
+    assert any(e.event_type == "OPERATION_INTERRUPT" for e in sim.history_log)

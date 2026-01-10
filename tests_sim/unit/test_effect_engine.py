@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import simpy
+import pytest
 from rdflib import Graph, Namespace
 from rdflib.namespace import SH, XSD
 from twa.data_model.base_ontology import KnowledgeGraph
@@ -14,6 +15,7 @@ from libsyn_tools.sim.knowledge_graph   import (
     MaterialContainer,
     PortionOfMaterial,
     Is_directly_contained_by,
+    canonical_iri,
 )
 from libsyn_tools.sim.operation.unitary_edit import (
     Create,
@@ -129,6 +131,21 @@ def test_mechanical_abort_create_on_present(env: simpy.Environment):
         assert "CREATE on present object" in str(e)
 
 
+def test_apply_accepts_canonical_iri(env: simpy.Environment) -> None:
+    eng = EffectEngine()
+    c = _make_container_present()
+    KnowledgeGraph.get_object_from_lookup(c.identifier)
+
+    eng.apply(
+        [Create(instance_1_iri=str(canonical_iri(c.identifier)))],
+        env,
+        operation_id="canonical-create",
+        locked_iris=[],
+    )
+
+    assert c.is_present == {True}
+
+
 def test_mechanical_abort_dangling_subject(env: simpy.Environment):
     eng = EffectEngine()
     fake = "LabObject_FAKE"
@@ -165,6 +182,23 @@ def test_mechanical_abort_change_on_non_present(env: simpy.Environment):
         assert "non-present subject" in str(e)
 
 
+def test_snapshot_pool_type_error_becomes_mechanical(env: simpy.Environment) -> None:
+    eng = EffectEngine()
+    c = _make_container_present()
+    c.has_pool_type.update({"POOL_A", "POOL_B"})
+    KnowledgeGraph.get_object_from_lookup(c.identifier)
+
+    with pytest.raises(EngineMechanicalError) as excinfo:
+        eng.apply(
+            [Create(instance_1_iri=c.identifier)],
+            env,
+            operation_id="bad-pool-type",
+            locked_iris=[],
+        )
+
+    assert "has_pool_type" in str(excinfo.value)
+
+
 def test_apply_addobjectproperty_and_overlay_shacl(env: simpy.Environment):
     # Engine with shape + explicit currentVolume overlay provider
     eng = EffectEngine(shapes_graph=_minimal_overflow_shape())
@@ -189,6 +223,20 @@ def test_apply_addobjectproperty_and_overlay_shacl(env: simpy.Environment):
 
     conforms, report, _ = eng.validate_now()
     assert not conforms
+
+
+def test_overlay_provider_strictness() -> None:
+    def bad_provider() -> Graph:
+        raise RuntimeError("overlay boom")
+
+    eng = EffectEngine()
+    eng.register_overlay_provider(bad_provider)
+    eng.build_query_graph()
+
+    strict_eng = EffectEngine(strict_overlays=True)
+    strict_eng.register_overlay_provider(bad_provider)
+    with pytest.raises(EngineMechanicalError):
+        strict_eng.build_query_graph()
 
 
 def test_shacl_policy_applied_to_violation(env: simpy.Environment):

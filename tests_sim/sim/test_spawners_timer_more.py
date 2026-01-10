@@ -60,4 +60,21 @@ def test_timer_determinism_same_seed_same_log(tmp_path):
     log2 = [(r.event_type, r.timestamp) for r in sim2.history_log]
 
     assert log1 == log2
+
+
+def test_timer_factory_error_does_not_crash():
+    sim = Simulation.compile_actions()
+    calls = {"count": 0}
+
+    def _factory(_sim: Simulation) -> Ping:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise RuntimeError("boom")
+        return Ping()
+
+    TimerSpawner(op_factory=_factory, interval=1.0).attach(sim)
+
+    sim.run(until=3.1)
+
+    assert _count_end_any(sim) >= 2
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_spawners_timer_more.py ###

@@ -15,7 +15,7 @@ from rdflib import Graph, Literal, URIRef, Namespace, ConjunctiveGraph
 from rdflib.namespace import XSD, SH
 from twa.data_model.base_ontology import KnowledgeGraph
 
-from libsyn_tools.sim.knowledge_graph import BaseClass, MaterialContainer, SimOntology
+from libsyn_tools.sim.knowledge_graph import BaseClass, MaterialContainer, SimOntology, identifier_from_iri
 from libsyn_tools.sim.operation import Operation, UnitaryEdit, UnitaryEditType, FilterStoreRegistry, get_runtime_state
 from libsyn_tools.sim.operation.runtime import get_runtime_context, _needs_runtime_tracking
 from libsyn_tools.sim.validation import require_singleton
@@ -90,6 +90,7 @@ class EffectEngine:
         inference: str = "owlrl",
         callbacks: LifecycleCallbacks | None = None,
         policy: PolicyBundle | None = None,
+        strict_overlays: bool = False,
     ):
         self.shapes_graph = shapes_graph
         self.inference = inference
@@ -97,10 +98,31 @@ class EffectEngine:
         self.raise_shacl = raise_shacl
         self.callbacks = callbacks
         self.policy = policy
+        self.strict_overlays = strict_overlays
 
         # registered overlay providers → functions that return an rdflib.Graph
         self._overlay_providers: list[Callable[[], Graph]] = []
 
+    @staticmethod
+    def _lookup_obj(iri: Optional[str]) -> BaseClass | None:
+        if not iri:
+            return None
+        obj = KnowledgeGraph.get_object_from_lookup(iri)
+        if obj is not None:
+            return obj
+        normalized = identifier_from_iri(iri)
+        if normalized != iri:
+            return KnowledgeGraph.get_object_from_lookup(normalized)
+        return None
+
+    @classmethod
+    def _normalize_instance_iri(cls, iri: Optional[str]) -> Optional[str]:
+        if iri is None:
+            return None
+        obj = cls._lookup_obj(iri)
+        if obj is not None:
+            return obj.identifier
+        return identifier_from_iri(iri)
 
     # --- overlay provider registry ---
     def register_overlay_provider(self, provider: Callable[[], Graph]) -> None:
@@ -124,6 +146,10 @@ class EffectEngine:
                     graphs.append(pg)
             except Exception as e:
                 logger.error(f"Overlay provider failed: {e!r}")
+                if self.strict_overlays:
+                    raise EngineMechanicalError(
+                        f"Overlay provider failed: {type(e).__name__}: {e}"
+                    ) from e
         return graphs
 
     def build_query_graph(self) -> Graph:
@@ -245,7 +271,11 @@ class EffectEngine:
     ) -> None:
         locked = set(locked_iris or [])
         edits_list = list(edits)
-        creates = [e.instance_1_iri for e in edits_list if e.type is UnitaryEditType.CREATE]
+        creates = [
+            identifier_from_iri(e.instance_1_iri)
+            for e in edits_list
+            if e.type is UnitaryEditType.CREATE
+        ]
         if len(creates) != len(set(creates)):
             self._raise_mechanical(
                 f"Mechanical check failed: duplicate CREATE in batch: {creates}",
@@ -296,7 +326,7 @@ class EffectEngine:
                     edit_descriptions=edit_descriptions,
                     seed=seed,
                 )
-            subj = KnowledgeGraph.get_object_from_lookup(edit.instance_1_iri)
+            subj = self._lookup_obj(edit.instance_1_iri)
             if subj is None:
                 return
             prop_cls = SimOntology.data_property_lookup[edit.property_iri]
@@ -344,7 +374,7 @@ class EffectEngine:
                     edit_descriptions=edit_descriptions,
                     seed=seed,
                 )
-            subj = KnowledgeGraph.get_object_from_lookup(edit.instance_1_iri)
+            subj = self._lookup_obj(edit.instance_1_iri)
             if subj is None:
                 return
             prop_cls = SimOntology.object_property_lookup[edit.property_iri]
@@ -365,7 +395,7 @@ class EffectEngine:
             if not iri:
                 return False
             try:
-                obj = KnowledgeGraph.get_object_from_lookup(iri)
+                obj = self._lookup_obj(iri)
             except Exception:
                 return False
             return obj is not None
@@ -374,7 +404,7 @@ class EffectEngine:
             if not iri:
                 return False
             try:
-                obj = KnowledgeGraph.get_object_from_lookup(iri)
+                obj = self._lookup_obj(iri)
             except Exception:
                 return False
             if obj is None:
@@ -382,9 +412,9 @@ class EffectEngine:
             return _needs_runtime_tracking(obj)
 
         def _require_present(iri: Optional[str], role: str) -> None:
-            if not iri or iri in creates_set:
+            if not iri or identifier_from_iri(iri) in creates_set:
                 return
-            obj = KnowledgeGraph.get_object_from_lookup(iri)
+            obj = self._lookup_obj(iri)
             if obj is None:
                 return
             if getattr(obj, "is_present", {False}) != {True}:
@@ -399,7 +429,7 @@ class EffectEngine:
                 )
 
         def _require_lock_if_runtime_tracked(iri: Optional[str]) -> None:
-            if not iri or iri in creates_set:
+            if not iri or identifier_from_iri(iri) in creates_set:
                 return
             if _is_runtime_tracked(iri) and iri not in locked:
                 self._raise_mechanical(
@@ -416,7 +446,7 @@ class EffectEngine:
         for e in edits_list:
             t = e.type
             if t is UnitaryEditType.CREATE:
-                subj = KnowledgeGraph.get_object_from_lookup(e.instance_1_iri)
+                subj = self._lookup_obj(e.instance_1_iri)
                 if subj is None:
                     self._raise_mechanical(
                         f"Mechanical check failed: CREATE on unknown object {e.instance_1_iri!r}",
@@ -445,7 +475,7 @@ class EffectEngine:
             ):
                 if t in _DATA_PROP_TYPES:
                     _require_data_property(e)
-                if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
+                if not (_exists(e.instance_1_iri) or identifier_from_iri(e.instance_1_iri) in creates_set):
                     self._raise_mechanical(
                         f"Mechanical check failed: dangling subject {e.instance_1_iri}",
                         env_now=env_now,
@@ -459,7 +489,7 @@ class EffectEngine:
                 _require_lock_if_runtime_tracked(e.instance_1_iri)
             elif t in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY):
                 _require_object_property(e)
-                if not (_exists(e.instance_1_iri) or e.instance_1_iri in creates_set):
+                if not (_exists(e.instance_1_iri) or identifier_from_iri(e.instance_1_iri) in creates_set):
                     self._raise_mechanical(
                         f"Mechanical check failed: dangling subject {e.instance_1_iri}",
                         env_now=env_now,
@@ -470,7 +500,7 @@ class EffectEngine:
                         seed=seed,
                     )
                 _require_present(e.instance_1_iri, "subject")
-                if not (_exists(e.instance_2_iri) or e.instance_2_iri in creates_set):
+                if not (_exists(e.instance_2_iri) or identifier_from_iri(e.instance_2_iri) in creates_set):
                     self._raise_mechanical(
                         f"Mechanical check failed: dangling object {e.instance_2_iri}",
                         env_now=env_now,
@@ -518,9 +548,14 @@ class EffectEngine:
         field_names_by_iri: dict[str, set[str]] = {}
         affected_iris: set[str] = set()
         for edit in edits:
-            affected_iris.add(edit.instance_1_iri)
+            iri1 = self._normalize_instance_iri(edit.instance_1_iri)
+            if iri1 is None:
+                continue
+            affected_iris.add(iri1)
             if edit.instance_2_iri:
-                affected_iris.add(edit.instance_2_iri)
+                iri2 = self._normalize_instance_iri(edit.instance_2_iri)
+                if iri2 is not None:
+                    affected_iris.add(iri2)
             if edit.property_iri is None:
                 continue
             if edit.type in (
@@ -530,16 +565,16 @@ class EffectEngine:
             ):
                 data_prop = SimOntology.data_property_lookup[edit.property_iri]
                 field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
-                field_names_by_iri.setdefault(edit.instance_1_iri, set()).add(field_name)
+                field_names_by_iri.setdefault(iri1, set()).add(field_name)
             elif edit.type in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY):
                 obj_prop = SimOntology.object_property_lookup[edit.property_iri]
                 field_name = obj_prop.__name__[0].lower() + obj_prop.__name__[1:]
-                field_names_by_iri.setdefault(edit.instance_1_iri, set()).add(field_name)
+                field_names_by_iri.setdefault(iri1, set()).add(field_name)
 
         ctx = get_runtime_context(env)
         snapshots: dict[str, _ObjectSnapshot] = {}
         for iri in affected_iris:
-            obj = KnowledgeGraph.get_object_from_lookup(iri)
+            obj = self._lookup_obj(iri)
             if obj is None:
                 continue
             fields: dict[str, set] = {}
@@ -656,18 +691,31 @@ class EffectEngine:
                     self.callbacks.emit_violation(rec)
             raise
 
-        snapshots = self._snapshot_objects(env=env, edits=edits)
+        try:
+            snapshots = self._snapshot_objects(env=env, edits=edits)
+        except ValueError as exc:
+            self._raise_mechanical(
+                f"Mechanical check failed: {exc}",
+                env_now=env.now,
+                operation_id=operation_id,
+                batch_id=batch_id,
+                edit_fingerprints=fingerprints,
+                edit_descriptions=descriptions,
+                seed=seed,
+            )
 
         before_len = len(self._shacl_violations)
         try:
             for edit in edits:
-                subj = KnowledgeGraph.get_object_from_lookup(edit.instance_1_iri)
+                subj = self._lookup_obj(edit.instance_1_iri)
                 if subj is None:
                     raise RuntimeError(
                         f"Unknown subject {edit.instance_1_iri!r} for edit {edit.type.value}"
                     )
+                if edit.instance_1_iri != subj.identifier:
+                    edit.instance_1_iri = subj.identifier
                 obj2 = (
-                    KnowledgeGraph.get_object_from_lookup(edit.instance_2_iri)
+                    self._lookup_obj(edit.instance_2_iri)
                     if edit.type in (
                         UnitaryEditType.ADD_OBJECT_PROPERTY,
                         UnitaryEditType.REMOVE_OBJECT_PROPERTY,
@@ -675,6 +723,8 @@ class EffectEngine:
                     and edit.instance_2_iri
                     else None
                 )
+                if obj2 is not None and edit.instance_2_iri != obj2.identifier:
+                    edit.instance_2_iri = obj2.identifier
 
                 if edit.type in (
                     UnitaryEditType.ADD_OBJECT_PROPERTY,

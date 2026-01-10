@@ -149,8 +149,11 @@ class OperationProcess:
                         operation_id=self.operation.identifier,
                         locked_iris=self.operation.resources,
                     )
-                except (EngineMechanicalError, ContractViolationError) as err:
-                    logger.warning(f"Interrupt bookkeeping failed: {err}")
+                except Exception as err:
+                    try:
+                        logger.warning(f"Interrupt bookkeeping failed: {err}")
+                    except Exception:
+                        pass
             # Always release locks / finish the op cleanly.
             self._safe_cleanup()
 
@@ -168,56 +171,60 @@ class OperationProcess:
             self._finish_abort(reason="unexpected exception", error=err)
 
     def _run_core(self):
-        # scheduled start gate
-        if self.operation.scheduled_start_time is not None:
-            base_now = self.env.now / self.speed_factor
-            delay_base = self.operation.scheduled_start_time - base_now
-            if delay_base > 0:
-                yield self.env.timeout(self.sim_time(delay_base))
+        try:
+            # scheduled start gate
+            if self.operation.scheduled_start_time is not None:
+                base_now = self.env.now / self.speed_factor
+                delay_base = self.operation.scheduled_start_time - base_now
+                if delay_base > 0:
+                    yield self.env.timeout(self.sim_time(delay_base))
 
-        # wait for precedents
-        precedent_events = [self.operation_registry[pid].done_event for pid in self.operation.required_precedents]
-        if precedent_events:
-            yield simpy.events.AllOf(self.env, precedent_events)
+            # wait for precedents
+            precedent_events = [self.operation_registry[pid].done_event for pid in self.operation.required_precedents]
+            if precedent_events:
+                yield simpy.events.AllOf(self.env, precedent_events)
 
-        # pre-act
-        self._pre_act_process = self.operation.pre_act(self.env)
-        yield self._pre_act_process
-        self._pre_act_process = None
-        self.operation._mark_running()
+            # pre-act
+            self._pre_act_process = self.operation.pre_act(self.env)
+            yield self._pre_act_process
+            self._pre_act_process = None
+            self.operation._mark_running()
 
-        # START
-        self.callbacks.emit_operation_start(self)
-        self.add_event_log("OPERATION_START")
-        logger.debug(f"[t={self.env.now:.2f}] Start {self.operation.__class__.__name__}={self.operation.identifier}")
+            # START
+            self.callbacks.emit_operation_start(self)
+            self.add_event_log("OPERATION_START")
+            logger.debug(f"[t={self.env.now:.2f}] Start {self.operation.__class__.__name__}={self.operation.identifier}")
 
-        # intrinsic duration
-        if self.operation.temporal_cost:
-            yield self.env.timeout(self.sim_time(self.operation.temporal_cost))
+            # intrinsic duration
+            if self.operation.temporal_cost:
+                yield self.env.timeout(self.sim_time(self.operation.temporal_cost))
 
-        # apply edits (mechanical checks + SHACL audit)
-        staged = self.effect_engine.prepare(self.operation)
-        self.effect_engine.apply(
-            staged,
-            self.env,
-            operation_id=self.operation.identifier,
-            locked_iris=self.operation.resources,
-        )
+            # apply edits (mechanical checks + SHACL audit)
+            staged = self.effect_engine.prepare(self.operation)
+            self.effect_engine.apply(
+                staged,
+                self.env,
+                operation_id=self.operation.identifier,
+                locked_iris=self.operation.resources,
+            )
 
-        # provenance: remember which ops touched each runtime-tracked object
-        # Guard against ANNIHILATE ⇒ resource removed; skip non-present objects
-        for iri in self.operation.resources:
-            obj = KnowledgeGraph.get_object_from_lookup(iri)
-            if _needs_runtime_tracking(obj) and getattr(obj, "is_present", {False}) == {True}:
-                get_runtime_state(obj, self.env).recent_operations.append(self.operation)
+            # provenance: remember which ops touched each runtime-tracked object
+            # Guard against ANNIHILATE ⇒ resource removed; skip non-present objects
+            for iri in self.operation.resources:
+                obj = KnowledgeGraph.get_object_from_lookup(iri)
+                if _needs_runtime_tracking(obj) and getattr(obj, "is_present", {False}) == {True}:
+                    get_runtime_state(obj, self.env).recent_operations.append(self.operation)
 
-        # FINISH
-        self.operation.post_act(self.env)
-        self.add_event_log("OPERATION_END")
-        if not self.done_event.triggered:
-            self.done_event.succeed()
-        self.callbacks.emit_operation_end(self)
-        logger.debug(f"[t={self.env.now:.2f}] Finished {self.operation.identifier}")
+            # FINISH
+            self.operation.post_act(self.env)
+            self.add_event_log("OPERATION_END")
+            if not self.done_event.triggered:
+                self.done_event.succeed()
+            self.callbacks.emit_operation_end(self)
+            logger.debug(f"[t={self.env.now:.2f}] Finished {self.operation.identifier}")
+        except Exception:
+            self._safe_cleanup()
+            raise
 
 
 class Simulation:
@@ -276,6 +283,7 @@ class Simulation:
 
         self.operation_registry: Dict[str, OperationProcess] = {}
         self.dependents: Dict[str, List[str]] = defaultdict(list)
+        self._spawners: list[object] = []
 
         self._validate_precedents(self.operations)
         self._build_dependency_map()
@@ -361,6 +369,21 @@ class Simulation:
             )
         )
 
+    def _register_spawner(self, spawner: object) -> None:
+        if spawner not in self._spawners:
+            self._spawners.append(spawner)
+
+    def _attached_spawners(self) -> list[object]:
+        attached: list[object] = []
+        for spawner in self._spawners:
+            sim_ref = getattr(spawner, "_sim_ref", None)
+            if sim_ref is None:
+                continue
+            sim = sim_ref()
+            if sim is self:
+                attached.append(spawner)
+        return attached
+
     def run(self, until: float | None = None) -> None:
         """Start all processes and block until done or until time limit."""
         for proc in self.operation_registry.values():
@@ -375,11 +398,25 @@ class Simulation:
         self.callbacks.on_operation_end.append(_bar_on_end)
 
         logger.info("Simulation start")
-        self.env.run(until=until)
-        logger.info(f"Simulation end @ t = {self.env.now}")
-
-        self.callbacks.on_operation_end.remove(_bar_on_end)
-        bar.close()
+        try:
+            if until is None:
+                for spawner in self._attached_spawners():
+                    if spawner.__class__.__name__ == "TimerSpawner":
+                        raise ValueError("Simulation.run(until=None) requires an explicit until when TimerSpawner is attached")
+            self.env.run(until=until)
+            logger.info(f"Simulation end @ t = {self.env.now}")
+        finally:
+            if _bar_on_end in self.callbacks.on_operation_end:
+                self.callbacks.on_operation_end.remove(_bar_on_end)
+            bar.close()
+            for spawner in list(self._attached_spawners()):
+                try:
+                    if hasattr(spawner, "detach"):
+                        spawner.detach()
+                    else:
+                        spawner._detach_safe(self)
+                except Exception:
+                    pass
 
     def export_event_log(self, filename: FilePath) -> None:
         df_log = pd.DataFrame.from_records([r.model_dump() for r in self.history_log])

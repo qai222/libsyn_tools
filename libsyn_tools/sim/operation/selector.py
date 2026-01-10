@@ -62,8 +62,18 @@ class FilterStoreRegistry:
         if rs.lock.count > 0 or len(rs.lock.queue) > 0:
             return
         store = cls.get_filter_store(pool_type, env)
-        if obj not in store.items:
-            store.put(obj)
+        if obj in store.items:
+            deduped: list[LabObject] = []
+            seen = False
+            for item in store.items:
+                if item is obj:
+                    if seen:
+                        continue
+                    seen = True
+                deduped.append(item)
+            store.items[:] = deduped
+            return
+        store.put(obj)
 
     @classmethod
     def remove_obj_from_filter_store(cls, obj: LabObject, env: simpy.Environment):
@@ -127,6 +137,32 @@ class Selector(ABC):
         req: simpy.events.Event | None = None
         get_ev: simpy.events.Event | None = None
 
+        def _cleanup_selection() -> None:
+            try:
+                if get_ev is not None and not getattr(get_ev, "triggered", True) and hasattr(get_ev, "cancel"):
+                    get_ev.cancel()
+            except Exception:
+                pass
+            try:
+                if req is not None:
+                    resource = getattr(req, "resource", None)
+                    if resource is not None:
+                        users = getattr(resource, "users", None)
+                        queue = getattr(resource, "queue", None)
+
+                        if users is not None and req in users:
+                            resource.release(req)
+                        elif hasattr(req, "cancel"):
+                            req.cancel()
+                        elif queue is not None and req in queue:
+                            try:
+                                queue.remove(req)
+                            except ValueError:
+                                pass
+            finally:
+                if obj is not None:
+                    FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+
         try:
             while True:
                 # 1) wait until a suitable candidate appears in the pool
@@ -151,37 +187,11 @@ class Selector(ABC):
                 obj = None
 
         except simpy.Interrupt:
-            # Best-effort rollback of any partial selection/lock attempt.
-            # IMPORTANT: If we were interrupted while blocked on `store.get(...)`,
-            # that get event remains queued unless we cancel it. If not cancelled,
-            # the next `store.put(obj)` will satisfy the stale get and "steal"
-            # the object out of the pool, leaving store.items empty.
-            try:
-                if get_ev is not None and not getattr(get_ev, "triggered", True) and hasattr(get_ev, "cancel"):
-                    get_ev.cancel()
-            except Exception:
-                pass
-            try:
-                if req is not None:
-                    resource = getattr(req, "resource", None)
-                    if resource is not None:
-                        users = getattr(resource, "users", None)
-                        queue = getattr(resource, "queue", None)
-
-                        if users is not None and req in users:
-                            resource.release(req)
-                        elif hasattr(req, "cancel"):
-                            # pending request, not granted yet
-                            req.cancel()
-                        elif queue is not None and req in queue:
-                            try:
-                                queue.remove(req)
-                            except ValueError:
-                                pass
-            finally:
-                if obj is not None:
-                    FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+            _cleanup_selection()
             return
+        except Exception:
+            _cleanup_selection()
+            raise
 
 class LiteralSelector(Selector):
     """Always returns the exact IRI given at construction."""
@@ -211,6 +221,7 @@ class LiteralSelector(Selector):
             if obj.has_pool_type:
                 pool_type = require_singleton(obj.has_pool_type, "has_pool_type", obj.identifier)
             if pool_type is not None and obj.is_present == {True}:
+                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
                 store = FilterStoreRegistry.get_filter_store(pool_type, env)
                 get_ev = store.get(filter=lambda candidate: candidate is obj)
                 yield get_ev
@@ -250,6 +261,29 @@ class LiteralSelector(Selector):
             if removed_from_store:
                 FilterStoreRegistry.put_obj_into_filter_store(obj, env)
             return
+        except Exception:
+            try:
+                if get_ev is not None and not getattr(get_ev, "triggered", True) and hasattr(get_ev, "cancel"):
+                    get_ev.cancel()
+            except Exception:
+                pass
+            if req is not None:
+                resource = getattr(req, "resource", None)
+                if resource is not None:
+                    users = getattr(resource, "users", None)
+                    queue = getattr(resource, "queue", None)
+                    if users is not None and req in users:
+                        resource.release(req)
+                    elif hasattr(req, "cancel"):
+                        req.cancel()
+                    elif queue is not None and req in queue:
+                        try:
+                            queue.remove(req)
+                        except ValueError:
+                            pass
+            if removed_from_store:
+                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+            raise
 
     def __str__(self) -> str:
             return f'LiteralSelector("{self._iri}")'
@@ -309,6 +343,37 @@ class HistorySelector(RuntimeSelector):
 
     def __str__(self) -> str:
         return f"HistorySelector(pool={self.pool_type}, pred={self._source})"
+
+    def __init__(self, pool_type: str, predicate: Callable[..., bool]):
+        super().__init__(pool_type, predicate)
+        self._predicate_accepts_env = False
+        try:
+            sig = inspect.signature(predicate)
+            has_varargs = any(
+                param.kind is inspect.Parameter.VAR_POSITIONAL for param in sig.parameters.values()
+            )
+            positional = [
+                param
+                for param in sig.parameters.values()
+                if param.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            ]
+            if has_varargs or len(positional) >= 2:
+                self._predicate_accepts_env = True
+        except (TypeError, ValueError):
+            self._predicate_accepts_env = False
+
+    def resolve(
+            self, env: simpy.Environment
+    ) -> Generator[simpy.events.Event, None, Tuple[str, simpy.events.Event]]:
+        store = FilterStoreRegistry.get_filter_store(self.pool_type, env)
+        if self._predicate_accepts_env:
+            predicate = lambda obj: self._predicate(obj, env)
+        else:
+            predicate = self._predicate
+        result = yield from self._atomic_get_and_lock(env, store, predicate)
+        if result is None:
+            return
+        return result
 
 
 class KgQuerySelector(Selector):

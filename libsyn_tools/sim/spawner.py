@@ -37,6 +37,8 @@ class Spawner(BaseModel, ABC):
         if self._sim_ref is not None:
             raise RuntimeError("Spawner already attached")
         self._sim_ref = weakref.ref(sim)
+        if hasattr(sim, "_register_spawner"):
+            sim._register_spawner(self)
         self._on_attach(sim)
 
     @property
@@ -58,6 +60,14 @@ class Spawner(BaseModel, ABC):
     @abstractmethod
     def _detach_safe(self, sim: Simulation) -> None:
         """Optional: remove callbacks (not strictly required for most runs)."""
+
+    def detach(self) -> None:
+        sim = None if self._sim_ref is None else self._sim_ref()
+        if sim is None:
+            self._sim_ref = None
+            return
+        self._detach_safe(sim)
+        self._sim_ref = None
 
 
 class TimerSpawner(Spawner):
@@ -83,8 +93,11 @@ class TimerSpawner(Spawner):
         if self.start_offset > 0:
             yield env.timeout(self._sim_time(sim, self.start_offset))
         while self.alive:
-            op = self.op_factory(sim)
-            sim.spawn_operation(op)
+            try:
+                op = self.op_factory(sim)
+                sim.spawn_operation(op)
+            except Exception as err:
+                logger.warning(f"TimerSpawner failed to spawn operation: {err}")
             yield env.timeout(self._sim_time(sim, self._sample_dt()))
 
 
@@ -229,8 +242,10 @@ class PolicyEnforcerSpawner(Spawner):
     origins: Tuple[str, ...] = ("SHACL",)
     dispositions: Tuple[str, ...] = ("committed", "aborted")
     dedupe: bool = True
+    max_remediations_per_focus: int = 1
     _seen_violation_ids: Set[str] = PrivateAttr(default_factory=set)
-    _seen_op_shapes: Set[Tuple[str, str, Optional[str]]] = PrivateAttr(default_factory=set)
+    _seen_op_shapes: Set[Tuple[str, Optional[str]]] = PrivateAttr(default_factory=set)
+    _remediation_counts: Dict[Tuple[str, Optional[str]], int] = PrivateAttr(default_factory=dict)
 
     def _should_skip(self, record: SHACLViolationRecord) -> bool:
         if record.origin not in self.origins:
@@ -239,21 +254,27 @@ class PolicyEnforcerSpawner(Spawner):
             return True
         if record.shape_iri is None:
             return True
+        op_shape = (record.shape_iri, record.focus_iri)
+        if self.max_remediations_per_focus >= 0:
+            count = self._remediation_counts.get(op_shape, 0)
+            if count >= self.max_remediations_per_focus:
+                return True
         if not self.dedupe:
             return False
         if record.violation_id in self._seen_violation_ids:
             return True
-        op_shape = (record.operation_id, record.shape_iri, record.focus_iri)
         if op_shape in self._seen_op_shapes:
             return True
         return False
 
     def _mark_seen(self, record: SHACLViolationRecord) -> None:
-        if not self.dedupe:
-            return
-        self._seen_violation_ids.add(record.violation_id)
         if record.shape_iri is not None:
-            self._seen_op_shapes.add((record.operation_id, record.shape_iri, record.focus_iri))
+            op_shape = (record.shape_iri, record.focus_iri)
+            self._remediation_counts[op_shape] = self._remediation_counts.get(op_shape, 0) + 1
+            if self.dedupe:
+                self._seen_op_shapes.add(op_shape)
+        if self.dedupe:
+            self._seen_violation_ids.add(record.violation_id)
 
     def _on_attach(self, sim: Simulation) -> None:
         def _on_violation(record: SHACLViolationRecord):

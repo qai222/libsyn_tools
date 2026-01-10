@@ -69,6 +69,33 @@ def test_selector_ordering_is_stable() -> None:
     assert op.resources == [alpha.identifier, zeta.identifier]
 
 
+def test_selector_ordering_with_lambdas_is_stable_across_ops() -> None:
+    alpha = MaterialContainer(identifier="alpha-lambda")
+    zeta = MaterialContainer(identifier="zeta-lambda")
+    for obj in (alpha, zeta):
+        obj.has_pool_type.add("POOL_ORDERING_LAMBDA")
+        obj.is_present = {True}
+        KnowledgeGraph.get_object_from_lookup(obj.identifier)
+
+    op_one = TwoSelectorOp(
+        identifier="op-one",
+        participant_alpha=AttributeSelector("POOL_ORDERING_LAMBDA", lambda obj: obj.identifier == alpha.identifier),
+        participant_zeta=AttributeSelector("POOL_ORDERING_LAMBDA", lambda obj: obj.identifier == zeta.identifier),
+    )
+    op_two = TwoSelectorOp(
+        identifier="op-two",
+        participant_alpha=AttributeSelector("POOL_ORDERING_LAMBDA", lambda obj: obj.identifier == alpha.identifier),
+        participant_zeta=AttributeSelector("POOL_ORDERING_LAMBDA", lambda obj: obj.identifier == zeta.identifier),
+    )
+    op_two.required_precedents.append(op_one.identifier)
+
+    sim = Simulation([op_one, op_two])
+    sim.run()
+
+    assert op_one.resources == [alpha.identifier, zeta.identifier]
+    assert op_two.resources == [alpha.identifier, zeta.identifier]
+
+
 def test_interrupt_while_waiting_on_lock_request() -> None:
     container = MaterialContainer(identifier="lock-wait")
     container.has_pool_type.add("POOL_LOCK_WAIT")

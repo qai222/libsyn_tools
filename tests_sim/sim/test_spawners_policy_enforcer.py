@@ -142,3 +142,36 @@ def test_policy_enforcer_dedupe_includes_focus():
 
     spawned = [op_id for op_id in sim.operation_registry if op_id.startswith("remediate-")]
     assert sorted(spawned) == ["remediate-focus-a", "remediate-focus-b"]
+
+
+def test_policy_enforcer_throttle_limits_repeats():
+    shape_iri = "urn:shape:throttle"
+    counts = {"i": 0}
+
+    def _factory(record: SHACLViolationRecord):
+        counts["i"] += 1
+        return _NoOp(identifier=f"remediate-{counts['i']}")
+
+    sim = Simulation([])
+    spawner = PolicyEnforcerSpawner(
+        shape_dispatch={shape_iri: _factory},
+        dedupe=False,
+        max_remediations_per_focus=2,
+    )
+    spawner.attach(sim)
+
+    for _ in range(3):
+        sim.callbacks.emit_violation(
+            SHACLViolationRecord(
+                sim_time=0.0,
+                operation_id="op-1",
+                origin="SHACL",
+                severity="soft",
+                disposition="committed",
+                shape_iri=shape_iri,
+                focus_iri="focus-a",
+            )
+        )
+
+    spawned = [op_id for op_id in sim.operation_registry if op_id.startswith("remediate-")]
+    assert len(spawned) == 2

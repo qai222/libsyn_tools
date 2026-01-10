@@ -191,8 +191,25 @@ class Operation(ABC, BaseModel):
                 obj = get_object_for_resource(req.resource)
             except KeyError:
                 pass
+            except Exception:
+                obj = None
 
-            req.resource.release(req)
+            resource = getattr(req, "resource", None)
+            if resource is not None:
+                try:
+                    users = getattr(resource, "users", None)
+                    queue = getattr(resource, "queue", None)
+                    if users is not None and req in users:
+                        resource.release(req)
+                    elif hasattr(req, "cancel"):
+                        req.cancel()
+                    elif queue is not None and req in queue:
+                        try:
+                            queue.remove(req)
+                        except ValueError:
+                            pass
+                except Exception:
+                    pass
 
             if obj is not None and getattr(obj, "is_present", {False}) == {True}:
                 FilterStoreRegistry.put_obj_into_filter_store(obj, env)
@@ -205,11 +222,11 @@ class Operation(ABC, BaseModel):
             # deterministic ordering prevents dead-locks -------------------
             def _ordering_key(role: str, spec: StrOrSelector):
                 if isinstance(spec, LiteralSelector):
-                    return ("literal", identifier_from_iri(spec._iri))
+                    return ("literal", role, "LiteralSelector", identifier_from_iri(spec._iri))
                 if isinstance(spec, str):
-                    return ("literal", identifier_from_iri(spec))
+                    return ("literal", role, "LiteralSelector", identifier_from_iri(spec))
                 pool_type = getattr(spec, "pool_type", "")
-                return (pool_type, spec.__class__.__name__, role)
+                return (pool_type, role, spec.__class__.__name__)
 
             ordered_specs = sorted(participant_specs.items(), key=lambda kv: _ordering_key(kv[0], kv[1]))
     
