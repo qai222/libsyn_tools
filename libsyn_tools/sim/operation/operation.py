@@ -245,7 +245,7 @@ class Operation(ABC, BaseModel):
                     )
 
                 if result is None:
-                    raise RuntimeError(f"{self.identifier}: selector resolution aborted for {role}")
+                    raise simpy.Interrupt(f"selector-cancelled:{role}")
                 iri, req = result
 
                 if iri in acquired:
@@ -262,7 +262,14 @@ class Operation(ABC, BaseModel):
             _write_participant_iris(self, resolved)
     
             # also expose them via resources[] for backward compatibility
-            self.resources = list(resolved.values())
+            unique_resources: list[str] = []
+            seen_resources: set[str] = set()
+            for iri in resolved.values():
+                if iri in seen_resources:
+                    continue
+                seen_resources.add(iri)
+                unique_resources.append(iri)
+            self.resources = unique_resources
     
             # build list of graph edits now that everything is bound -------
             self.operation_effects = self.get_operation_effects()

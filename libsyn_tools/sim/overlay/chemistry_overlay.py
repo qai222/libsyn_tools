@@ -23,7 +23,7 @@ LIB = Namespace(SimOntology.base_url)
 class ChemistryOverlayProvider:
     def snapshot(self) -> Graph:
         g = Graph()
-        for pom in PortionOfMaterial.object_lookup.values():
+        for pom in PortionOfMaterial.all_instances():
             if pom.is_present != {True}:
                 continue
             pom_iri = canonical_iri(pom.identifier)

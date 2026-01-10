@@ -46,10 +46,13 @@ class TransferMaterialByPortionSize(Operation):
     @staticmethod
     def _get_operation_effects(src_iri, dst_iri, dev_iri, portion_size):
         src = KnowledgeGraph.get_object_from_lookup(src_iri)
+        if src is None:
+            raise RuntimeError(f"source container {src_iri!r} not found")
 
         if not isinstance(src, MaterialContainer):
             raise RuntimeError(
-                f"source container: {src.__class__.__name__} {src.instance_iri} is not a {MaterialContainer.__name__}")
+                f"source container {src_iri!r} is not a {MaterialContainer.__name__}"
+            )
 
         edits: List[UnitaryEdit] = []
         prop_iri = Is_directly_contained_by.predicate_iri
@@ -149,6 +152,12 @@ class TransferMaterialByVolume(Operation):
 
     def get_operation_effects(self) -> List[UnitaryEdit]:
         src = KnowledgeGraph.get_object_from_lookup(self.participant_source)
+        if src is None:
+            raise RuntimeError(f"source container {self.participant_source!r} not found")
+        if not isinstance(src, MaterialContainer):
+            raise RuntimeError(
+                f"source container {self.participant_source!r} is not a {MaterialContainer.__name__}"
+            )
 
         src_v = src.directly_contained_pom_volume
 

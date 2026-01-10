@@ -387,7 +387,12 @@ class Simulation:
         logger.info(f"Event log exported → {filename}")
 
     def _build_instance_history_dataframe(self) -> pd.DataFrame:
-        end_time_index = {r.operation_id: r.timestamp for r in self.history_log if r.event_type == "OPERATION_END"}
+        terminal_events = {"OPERATION_END", "OPERATION_ABORT", "OPERATION_INTERRUPT"}
+        end_time_index = {
+            r.operation_id: r.timestamp
+            for r in self.history_log
+            if r.event_type in terminal_events
+        }
         rows: list[dict] = []
         ctx = get_runtime_context(self.env, create=False)
         for rs in ctx.runtime_cache.values():

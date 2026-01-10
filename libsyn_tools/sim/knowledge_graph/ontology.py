@@ -18,7 +18,20 @@ class Substance(Individual):
     """
     Material continuant: vials, plates, devices, portions of material, etc.
     """
-    pass
+    @classmethod
+    def all_instances(cls) -> Iterable["Substance"]:
+        """
+        Yield every Substance (of any subclass) that currently exists in memory — once per instance.
+        """
+        stack = [cls]
+        seen_ids: set[str] = set()
+        while stack:
+            k = stack.pop()
+            for obj in k.object_lookup.values():
+                if obj.instance_iri not in seen_ids:
+                    seen_ids.add(obj.instance_iri)
+                    yield obj
+            stack.extend(k.__subclasses__())
 
 
 class Process(Individual):
@@ -236,10 +249,13 @@ class PortionOfMaterial(Substance):
     def get_portion_by_volume(self, volume: float) -> "PortionOfMaterial":
         if self.volume <= 0:
             raise ValueError("cannot split portion of material with non-positive volume")
-        if volume <= 0 or volume > self.volume + 1e-9:
+        eps = 1e-9
+        if volume <= 0 or volume > self.volume + eps:
             raise ValueError(
-                f"volume must be in the range (0, {self.volume + 1e-9:.9g}]"
+                f"volume must be in the range (0, {self.volume + eps:.9g}]"
             )
+        if volume > self.volume:
+            volume = self.volume
         portion_size = volume / self.volume
         return self.get_portion(portion_size)
 
@@ -300,7 +316,11 @@ class LabObject(Substance):
             )
         target_class = instance_class
         out: list[T_co] = []
-        for inst in target_class.object_lookup.values():
+        if hasattr(target_class, "all_instances"):
+            candidates = target_class.all_instances()
+        else:
+            candidates = target_class.object_lookup.values()
+        for inst in candidates:
             if only_present and inst.is_present != {True}:
                 continue
             if container in inst.is_directly_contained_by:
@@ -313,7 +333,7 @@ class LabObject(Substance):
     @property
     def directly_contained_pom_volume(self) -> float:
         vol = 0.0
-        for pom in PortionOfMaterial.object_lookup.values():
+        for pom in PortionOfMaterial.all_instances():
             if self in pom.is_directly_contained_by and pom.is_present == {True}:
                 vol += pom.volume
         return vol

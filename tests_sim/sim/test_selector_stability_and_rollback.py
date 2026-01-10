@@ -10,7 +10,7 @@ from libsyn_tools.sim import Simulation
 from libsyn_tools.sim.knowledge_graph import MaterialContainer
 from libsyn_tools.sim.operation.operation import Operation
 from libsyn_tools.sim.operation.runtime import get_runtime_state
-from libsyn_tools.sim.operation.selector import AttributeSelector, FilterStoreRegistry
+from libsyn_tools.sim.operation.selector import AttributeSelector, FilterStoreRegistry, Selector
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit, Annihilate, Create
 from libsyn_tools.sim.policy import PolicyBundle, PolicyRule
 
@@ -25,6 +25,19 @@ class TwoSelectorOp(Operation):
 
 class SelectorWaitOp(Operation):
     participant_target: AttributeSelector
+
+    def get_operation_effects(self) -> list[UnitaryEdit]:
+        return []
+
+
+class CancelSelector(Selector):
+    def resolve(self, env: simpy.Environment):
+        yield env.timeout(0)
+        return None
+
+
+class SelectorCancelOp(Operation):
+    participant_target: Selector
 
     def get_operation_effects(self) -> list[UnitaryEdit]:
         return []
@@ -97,6 +110,15 @@ def test_interrupt_while_waiting_on_lock_request() -> None:
     assert not rs.lock.queue
     assert any(event.event_type == "OPERATION_INTERRUPT" for event in sim.history_log)
     assert not any(event.event_type == "OPERATION_START" for event in sim.history_log)
+
+
+def test_selector_cancel_reports_interrupt() -> None:
+    op = SelectorCancelOp(participant_target=CancelSelector())
+    sim = Simulation([op])
+    sim.run()
+
+    assert any(event.event_type == "OPERATION_INTERRUPT" for event in sim.history_log)
+    assert not any(event.event_type == "OPERATION_ABORT" for event in sim.history_log)
 
 
 def test_rollback_restores_filter_store() -> None:

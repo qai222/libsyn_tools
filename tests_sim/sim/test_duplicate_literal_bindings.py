@@ -8,6 +8,7 @@ from libsyn_tools.sim import Simulation
 from libsyn_tools.sim.knowledge_graph import MaterialContainer, canonical_iri
 from libsyn_tools.sim.operation.operation import Operation
 from libsyn_tools.sim.operation.selector import LiteralSelector
+from libsyn_tools.sim.operation.runtime import get_runtime_state
 from libsyn_tools.sim.operation.unitary_edit import Create, UnitaryEdit
 
 
@@ -62,4 +63,20 @@ def test_duplicate_literal_selectors_do_not_block(env: simpy.Environment):
         if r.operation_id == op.identifier and r.event_type == "OPERATION_END"
     ]
     assert end_events
+
+
+def test_duplicate_resources_deduped_for_provenance(env: simpy.Environment):
+    container = _world_one_container()
+
+    op = DuplicateLiteralOp(
+        identifier="dup-op-resources",
+        participant_left=container.identifier,
+        participant_right=container.identifier,
+    )
+    sim = Simulation([op])
+    sim.run(until=1.0)
+
+    assert op.resources == [container.identifier]
+    runtime_state = get_runtime_state(container, sim.env)
+    assert list(runtime_state.recent_operations).count(op) == 1
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_duplicate_literal_bindings.py ###

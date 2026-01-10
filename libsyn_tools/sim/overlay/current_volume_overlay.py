@@ -22,7 +22,7 @@ LIB = Namespace("https://libsyn-sim/kg/")
 class CurrentVolumeOverlayProvider:
     def snapshot(self) -> Graph:
         g = Graph()
-        for c in MaterialContainer.object_lookup.values():
+        for c in MaterialContainer.all_instances():
             if c.is_present != {True}:
                 continue
             vol = c.directly_contained_pom_volume
