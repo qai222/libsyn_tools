@@ -1,38 +1,37 @@
-# Codex Agent Guide — libsyn_tools (sim correctness fixes)
+# Codex Agent Guide — libsyn_tools (sim correctness)
 
 ## Scope
 Work only in this repository.
-Primary directories:
-- `libsyn_tools/sim/**`
-- `tests_sim/**`
+Focus on:
+- libsyn_tools/sim/**
+- tests_sim/**
 
-## Required workflow each run
-1) Read `codex_state.md` (state + task list + log).
-2) Run baseline:
-   - `pytest -q tests_sim`
+## Every run must do
+1) Read codex_state.md.
+2) Run baseline tests:
+   pytest -q tests_sim
    If baseline fails, fix baseline first.
-3) Implement the next task in the task list (below).
-4) Add/extend regression tests in `tests_sim/` for each fix.
+3) Execute the next task prompt in order.
+4) Add/adjust regression tests in tests_sim for the task.
 5) Run:
-   - `pytest -q tests_sim`
-6) Update `codex_state.md`:
+   pytest -q tests_sim
+6) Update codex_state.md:
    - mark task DONE
-   - list files changed
-   - list tests added/updated
-   - summarize behavior change and any decisions
+   - files changed
+   - tests added/updated
+   - behavior notes/decisions
 
 ## Constraints
-- Prefer small, surgical patches.
-- Avoid overengineering: no new frameworks, no large refactors.
-- Use explicit runtime validation (no asserts for correctness).
-- Ensure fixes are robust (clear errors, no hidden AttributeError/TypeError).
-- Preserve backwards compatibility unless explicitly stated.
+- Prefer small, surgical fixes; avoid large redesigns.
+- Correctness > convenience: avoid silent failures; emit clear errors.
+- Do not use assert for runtime validation.
+- Keep semantics stable unless codex_state.md records a deliberate change.
 
 ## Testing guidance
-- Add at least one regression test per issue.
-- Use unique pool_type strings per test to avoid cross-test contamination.
-- Tests should be deterministic; keep sim timeouts short.
+- Use unique pool_type strings per test to avoid global registry bleed.
+- Tests should be deterministic; keep SimPy timings small.
+- Add at least 1 regression test per bug class.
 
-## Commands
-- Full sim tests: `pytest -q tests_sim`
-- Single test: `pytest -q tests_sim/test_file.py::test_name`
+## Useful commands
+pytest -q tests_sim
+pytest -q tests_sim/test_file.py::test_name
