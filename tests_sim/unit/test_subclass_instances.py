@@ -52,3 +52,5 @@ def test_subclass_instances_appear_in_overlays_and_queries() -> None:
     assert container.directly_contained_pom_volume == 3.0
     contained = LabObject.get_directly_contained_individuals(container, PortionOfMaterial, only_present=True)
     assert pom in contained
+    subclass_contained = LabObject.get_directly_contained_individuals(container, MyPOM, only_present=True)
+    assert pom in subclass_contained

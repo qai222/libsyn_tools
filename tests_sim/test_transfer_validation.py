@@ -21,6 +21,13 @@ def test_transfer_portion_size_missing_source_raises() -> None:
         op.get_operation_effects()
 
 
+def test_transfer_portion_size_none_source_raises_clear_error() -> None:
+    with pytest.raises(RuntimeError, match="source container is required"):
+        TransferMaterialByPortionSize._get_operation_effects(
+            None, "dst", "dev", 0.5
+        )
+
+
 def test_transfer_volume_missing_source_raises() -> None:
     op = TransferMaterialByVolume(
         participant_source="missing-source-volume",
@@ -29,6 +36,17 @@ def test_transfer_volume_missing_source_raises() -> None:
         transfer_volume=1.0,
     )
     with pytest.raises(RuntimeError, match="missing-source-volume"):
+        op.get_operation_effects()
+
+
+def test_transfer_volume_none_source_raises_clear_error() -> None:
+    op = TransferMaterialByVolume.model_construct(
+        participant_source=None,
+        participant_destination="dst",
+        participant_device="dev",
+        transfer_volume=1.0,
+    )
+    with pytest.raises(RuntimeError, match="source container is required"):
         op.get_operation_effects()
 
 

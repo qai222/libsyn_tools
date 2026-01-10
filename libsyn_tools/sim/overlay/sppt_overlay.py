@@ -30,11 +30,12 @@ Design notes
 
 from dataclasses import dataclass, field
 from typing import Dict, Optional, List, Any
+from urllib.parse import quote
 
 from rdflib import Graph, Namespace, URIRef, Literal
 from rdflib.namespace import RDF, XSD
 
-from libsyn_tools.sim.knowledge_graph import canonical_iri
+from libsyn_tools.sim.knowledge_graph import canonical_iri, identifier_from_iri
 from libsyn_tools.sim.knowledge_graph.ontology import (
     Has_participant, Has_interval, Has_begin_time, Has_end_time
 )
@@ -78,11 +79,29 @@ class SPPTOverlayProvider:
             span.participants = list(op.resources)
         self._materialize_span(op.identifier, span)
 
+    @staticmethod
+    def _escaped_op_id(op_id: str) -> str:
+        normalized = identifier_from_iri(op_id)
+        return quote(normalized, safe="")
+
     def _materialize_span(self, op_id: str, span: _OpSpan) -> None:
-        proc_iri = LIB[f"Process/{op_id}"]
-        int_iri = LIB[f"Interval/{op_id}"]
-        self._g.remove((proc_iri, None, None))
-        self._g.remove((int_iri, None, None))
+        escaped = self._escaped_op_id(op_id)
+        proc_iri = LIB[f"Process/{escaped}"]
+        int_iri = LIB[f"Interval/{escaped}"]
+        sppt_proc_predicates = [
+            RDF.type,
+            URIRef(Has_interval.predicate_iri),
+            URIRef(Has_participant.predicate_iri),
+        ]
+        sppt_interval_predicates = [
+            RDF.type,
+            URIRef(Has_begin_time.predicate_iri),
+            URIRef(Has_end_time.predicate_iri),
+        ]
+        for predicate in sppt_proc_predicates:
+            self._g.remove((proc_iri, predicate, None))
+        for predicate in sppt_interval_predicates:
+            self._g.remove((int_iri, predicate, None))
 
         if span.t0 is None or span.t1 is None:
             return

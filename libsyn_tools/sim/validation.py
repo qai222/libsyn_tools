@@ -21,3 +21,18 @@ def require_singleton(values: Iterable[T] | None, field_name: str, owner_id: str
             f"[{formatted_values}]"
         )
     return values_list[0]
+
+
+def require_singleton_or_error(
+    values: Iterable[T] | None,
+    field_name: str,
+    owner_id: str | None = None,
+    *,
+    context: str | None = None,
+) -> T:
+    try:
+        return require_singleton(values, field_name, owner_id)
+    except ValueError as exc:
+        owner_label = f"{owner_id}" if owner_id else "unknown"
+        context_label = f" ({context})" if context else ""
+        raise ValueError(f"{field_name} for {owner_label} is invalid{context_label}: {exc}") from exc

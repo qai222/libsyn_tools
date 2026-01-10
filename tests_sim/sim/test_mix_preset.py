@@ -1,6 +1,7 @@
 # ### THIS IS THE START OF CONTENT OF tests_sim/sim/test_mix_preset.py ###
 from __future__ import annotations
 
+import pytest
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
@@ -51,4 +52,19 @@ def test_mix_in_container_merges_poms() -> None:
     assert len(poms) == 1
     volume_after = container.directly_contained_pom_volume
     assert abs(volume_after - volume_before) <= _EPS
+
+
+def test_mix_in_container_missing_container_raises() -> None:
+    op = MixInContainer(identifier="mix-missing", participant_container="missing-container")
+    with pytest.raises(RuntimeError, match="container not found"):
+        op.get_operation_effects()
+
+
+def test_mix_in_container_non_present_container_raises() -> None:
+    container = MaterialContainer(identifier="mix-absent")
+    KnowledgeGraph.get_object_from_lookup(container.identifier)
+
+    op = MixInContainer(identifier="mix-absent-op", participant_container=container.identifier)
+    with pytest.raises(RuntimeError, match="container is not present"):
+        op.get_operation_effects()
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_mix_preset.py ###

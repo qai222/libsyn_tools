@@ -1,7 +1,9 @@
 # ### THIS IS THE START OF CONTENT OF tests_sim/sim/test_overlay_sppt_provider.py ###
 from __future__ import annotations
 
-from rdflib import Namespace
+from urllib.parse import quote
+
+from rdflib import Namespace, URIRef
 from rdflib.namespace import RDF
 from twa.data_model.base_ontology import KnowledgeGraph
 
@@ -10,11 +12,12 @@ from libsyn_tools.sim import Simulation
 from libsyn_tools.sim.knowledge_graph  import (
     MaterialContainer, PortionOfMaterial, Is_directly_contained_by
 )
+from libsyn_tools.sim.lifecycle import LifecycleCallbacks
 from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty
 from libsyn_tools.sim.operation.operation import Operation
 from libsyn_tools.sim.operation.unitary_edit import RemoveObjectProperty, UnitaryEdit
 from libsyn_tools.sim.operation_preset.transfer import TransferMaterialByPortionSize
-from libsyn_tools.sim.overlay.sppt_overlay import SPPTOverlayProvider
+from libsyn_tools.sim.overlay.sppt_overlay import SPPTOverlayProvider, _OpSpan
 
 LIB = Namespace("https://libsyn-sim/kg/")
 
@@ -104,4 +107,20 @@ def test_sppt_overlay_closes_interval_on_abort():
     int_iri = LIB[f"Interval/{op.identifier}"]
     assert (int_iri, LIB.has_begin_time, None) in g
     assert (int_iri, LIB.has_end_time, None) in g
+
+
+def test_sppt_overlay_escapes_operation_identifier_and_preserves_metadata() -> None:
+    op_id = "unsafe op/with space"
+    span = _OpSpan(t0=0.0, t1=1.0, participants=[])
+    provider = SPPTOverlayProvider(LifecycleCallbacks())
+    escaped = quote(op_id, safe="")
+    proc_iri = LIB[f"Process/{escaped}"]
+    custom_pred = LIB.customNote
+    provider._g.add((proc_iri, custom_pred, URIRef("https://example.com/meta")))
+
+    provider._materialize_span(op_id, span)
+
+    assert " " not in str(proc_iri)
+    assert (proc_iri, RDF.type, LIB.Process) in provider._g
+    assert (proc_iri, custom_pred, URIRef("https://example.com/meta")) in provider._g
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_overlay_sppt_provider.py ###

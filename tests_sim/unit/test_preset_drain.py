@@ -1,12 +1,14 @@
 # ### THIS IS THE START OF CONTENT OF tests_sim/unit/test_preset_drain.py ###
 from __future__ import annotations
 
+import pytest
 import simpy
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
 from libsyn_tools.sim.effect_engine import EffectEngine
 from libsyn_tools.sim.knowledge_graph   import (
+    LabObject,
     MaterialContainer,
     PortionOfMaterial,
     Is_directly_contained_by,
@@ -60,4 +62,20 @@ def test_drain_excess_edits_shape(env: simpy.Environment):
     # but we assert the shape uses only valid primitives and non-empty.
     assert edits
     assert all(isinstance(e.type, UnitaryEditType) for e in edits)
+
+
+def test_drain_excess_destination_wrong_type_raises() -> None:
+    src = MaterialContainer()
+    dst = LabObject()
+    for obj in (src, dst):
+        obj.is_present = {True}
+        KnowledgeGraph.get_object_from_lookup(obj.identifier)
+
+    op = DrainExcess(
+        participant_source=src.identifier,
+        participant_destination=dst.identifier,
+        target_volume=1.0,
+    )
+    with pytest.raises(RuntimeError, match="destination must be a MaterialContainer"):
+        op.get_operation_effects()
 # ### THIS IS THE END OF CONTENT OF tests_sim/unit/test_preset_drain.py ###

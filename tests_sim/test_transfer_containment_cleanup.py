@@ -32,6 +32,11 @@ def test_transfer_removes_containment_link_from_annihilated_pom() -> None:
         instance_2_iri=src.identifier,
         property_iri=Is_directly_contained_by.predicate_iri,
     ).apply()
+    AddObjectProperty(
+        instance_1_iri=pom.identifier,
+        instance_2_iri=src.instance_iri,
+        property_iri=Is_directly_contained_by.predicate_iri,
+    ).apply()
 
     op = TransferMaterialByPortionSize(
         identifier="transfer_cleanup",
@@ -47,6 +52,8 @@ def test_transfer_removes_containment_link_from_annihilated_pom() -> None:
 
     assert pom.is_present == {False}
     assert src not in pom.is_directly_contained_by
+    assert src.identifier not in pom.is_directly_contained_by
+    assert src.instance_iri not in pom.is_directly_contained_by
 
     all_src_poms = LabObject.get_directly_contained_individuals(
         src, PortionOfMaterial, only_present=False

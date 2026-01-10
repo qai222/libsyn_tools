@@ -58,13 +58,20 @@ def test_make_drain_to_capacity_respects_capacity() -> None:
     focus_small.is_present = {True}
     focus_small.has_capacity.add(1e-9)
     KnowledgeGraph.get_object_from_lookup(focus_small.identifier)
-    with pytest.raises(ValueError):
-        make_drain_to_capacity(focus_small.identifier, waste.identifier)
+    op_small = make_drain_to_capacity(focus_small.identifier, waste.identifier)
+    assert op_small.target_volume <= focus_small.capacity
 
 
 def test_container_capacity_missing_raises() -> None:
     container = MaterialContainer(identifier="no-capacity")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="has_capacity for no-capacity is invalid"):
+        _ = container.capacity
+
+
+def test_container_capacity_multiple_values_raises() -> None:
+    container = MaterialContainer(identifier="cap-multi")
+    container.has_capacity.update({1.0, 2.0})
+    with pytest.raises(ValueError, match="has_capacity for cap-multi is invalid"):
         _ = container.capacity
 
 

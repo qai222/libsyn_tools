@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import simpy
+import pytest
 from pydantic import Field
 
 from twa.data_model.base_ontology import KnowledgeGraph
@@ -16,6 +17,7 @@ from libsyn_tools.sim.knowledge_graph import (
     Is_directly_contained_by,
 )
 from libsyn_tools.sim.operation.operation import Operation
+from libsyn_tools.sim.operation.runtime import get_runtime_state
 from libsyn_tools.sim.operation.unitary_edit import AddObjectProperty, Create, UnitaryEdit
 from libsyn_tools.sim.operation_preset.transfer import TransferMaterialByPortionSize
 
@@ -139,4 +141,18 @@ def test_build_report_interrupt_terminal_makespan() -> None:
     assert counts["interrupt"] == 1
     assert counts["in_progress"] == 0
     assert report.summary["makespan"] is not None
+
+
+def test_build_report_invalid_pool_type_raises_clear_error() -> None:
+    container = MaterialContainer(identifier="report-pool-invalid")
+    container.is_present = {True}
+    KnowledgeGraph.get_object_from_lookup(container.identifier)
+    Create(instance_1_iri=container.identifier).apply()
+
+    sim = Simulation([])
+    get_runtime_state(container, sim.env)
+    container.has_pool_type.update({"POOL_REPORT_A", "POOL_REPORT_B"})
+
+    with pytest.raises(ValueError, match="has_pool_type for report-pool-invalid is invalid"):
+        sim.build_report()
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_report.py ###

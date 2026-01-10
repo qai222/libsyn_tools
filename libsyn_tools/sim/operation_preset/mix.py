@@ -21,8 +21,12 @@ class MixInContainer(Operation):
 
     def get_operation_effects(self) -> List[UnitaryEdit]:
         container = KnowledgeGraph.get_object_from_lookup(self.participant_container)
+        if container is None:
+            raise RuntimeError("MixInContainer: container not found")
         if not isinstance(container, MaterialContainer):
             raise RuntimeError("MixInContainer: container must be a MaterialContainer")
+        if getattr(container, "is_present", {False}) != {True}:
+            raise RuntimeError("MixInContainer: container is not present")
 
         poms = LabObject.get_directly_contained_individuals(container, PortionOfMaterial, only_present=True)
         if len(poms) <= 1:

@@ -41,6 +41,15 @@ class UnionGraphView(Graph):
     def triples(self, triple):
         return self._aggregate.triples(triple)
 
+    def value(self, subject=None, predicate=None, object=None, default=None, any=True):
+        return self._aggregate.value(
+            subject=subject,
+            predicate=predicate,
+            object=object,
+            default=default,
+            any=any,
+        )
+
     def query(self, *args, **kwargs):
         return self._aggregate.query(*args, **kwargs)
 

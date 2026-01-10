@@ -39,12 +39,16 @@ class ChemicalBase(Entity):
         return (f"{self.__class__.__name__}: ({self.identifier})\n"
                 f"{self.smiles} @ {self.mass} (g)")
 
+    def _require_mass_density(self, context: str) -> None:
+        if self.mass is None:
+            raise ValueError(f"Chemical {self!r} lacks a `mass` value for {context}")
+        if self.density is None:
+            raise ValueError(f"Chemical {self!r} lacks a `density` value for {context}")
+
     @property
     def volume(self) -> float | None:
-        if self.mass is None:
-            return
-        else:
-            return self.mass / self.density
+        self._require_mass_density("volume computation")
+        return self.mass / self.density
 
     @property
     def moles(self) -> float | None:
@@ -104,6 +108,7 @@ class Chemical(Chemical_):
         return [self * p for p in portions]
 
     def __mul__(self, other: float) -> Chemical:
+        self._require_mass_density("scaling")
         d = self.model_dump()
         del d['identifier']
         d['mass'] = self.mass * other
@@ -111,6 +116,8 @@ class Chemical(Chemical_):
         return Chemical(**d)
 
     def __add__(self, other: Chemical) -> Chemical:
+        self._require_mass_density("addition")
+        other._require_mass_density("addition")
         d = self.model_dump()
         del d['identifier']
         sum_chemical = Chemical(**d)

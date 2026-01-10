@@ -45,6 +45,8 @@ class TransferMaterialByPortionSize(Operation):
 
     @staticmethod
     def _get_operation_effects(src_iri, dst_iri, dev_iri, portion_size):
+        if src_iri is None:
+            raise RuntimeError("source container is required for transfer")
         src = KnowledgeGraph.get_object_from_lookup(src_iri)
         if src is None:
             raise RuntimeError(f"source container {src_iri!r} not found")
@@ -53,6 +55,8 @@ class TransferMaterialByPortionSize(Operation):
             raise RuntimeError(
                 f"source container {src_iri!r} is not a {MaterialContainer.__name__}"
             )
+        if getattr(src, "is_present", {False}) != {True}:
+            raise RuntimeError(f"source container {src_iri!r} is not present")
 
         edits: List[UnitaryEdit] = []
         prop_iri = Is_directly_contained_by.predicate_iri
@@ -75,14 +79,14 @@ class TransferMaterialByPortionSize(Operation):
 
             src_instance_iri = getattr(src, "instance_iri", src.identifier)
             unlink_targets = {src.identifier, src_instance_iri}
-            link_present = src in pom.is_directly_contained_by or any(
-                target in pom.is_directly_contained_by for target in unlink_targets
-            )
-            if link_present:
+            removal_targets = {target for target in unlink_targets if target in pom.is_directly_contained_by}
+            if src in pom.is_directly_contained_by:
+                removal_targets.add(src.identifier)
+            for target in removal_targets:
                 edits.append(
                     RemoveObjectProperty(
                         instance_1_iri=pom.identifier,
-                        instance_2_iri=src.identifier,
+                        instance_2_iri=target,
                         property_iri=prop_iri,
                     )
                 )
@@ -151,6 +155,8 @@ class TransferMaterialByVolume(Operation):
         return v
 
     def get_operation_effects(self) -> List[UnitaryEdit]:
+        if self.participant_source is None:
+            raise RuntimeError("source container is required for volume transfer")
         src = KnowledgeGraph.get_object_from_lookup(self.participant_source)
         if src is None:
             raise RuntimeError(f"source container {self.participant_source!r} not found")
@@ -158,6 +164,8 @@ class TransferMaterialByVolume(Operation):
             raise RuntimeError(
                 f"source container {self.participant_source!r} is not a {MaterialContainer.__name__}"
             )
+        if getattr(src, "is_present", {False}) != {True}:
+            raise RuntimeError(f"source container {self.participant_source!r} is not present")
 
         src_v = src.directly_contained_pom_volume
 

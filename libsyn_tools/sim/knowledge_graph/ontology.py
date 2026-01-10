@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Iterable, Type, TypeVar
+from typing import ClassVar, Iterable, Type, TypeVar
 
 from pydantic import Field
 from twa.data_model.base_ontology import BaseClass
@@ -205,9 +205,19 @@ class PortionOfMaterial(Substance):
     has_ingredient: Has_ingredient[str] = Field(default_factory=set)
     is_directly_contained_by: Is_directly_contained_by["LabObject"] = Field(default_factory=set)
 
+    _FLOAT_ROUND_DECIMALS: ClassVar[int] = 9
+
+    @classmethod
+    def _normalize_chemical_payload(cls, chemical: Chemical) -> dict:
+        data = chemical.model_dump()
+        for key, value in data.items():
+            if isinstance(value, float):
+                data[key] = round(value, cls._FLOAT_ROUND_DECIMALS)
+        return data
+
     @staticmethod
     def _ingredient_key(chemical: Chemical) -> str:
-        data = chemical.model_dump()
+        data = PortionOfMaterial._normalize_chemical_payload(chemical)
         data.pop("identifier", None)
         data.pop("mass", None)
         return json.dumps(data, sort_keys=True)
@@ -229,16 +239,18 @@ class PortionOfMaterial(Substance):
 
     def _set_ingredients(self, chemicals: list[Chemical]) -> None:
         self.has_ingredient = {
-            json.dumps(chemical.model_dump(), sort_keys=True) for chemical in chemicals
+            json.dumps(self._normalize_chemical_payload(chemical), sort_keys=True) for chemical in chemicals
         }
 
     @property
     def volume(self) -> float:
         v = 0.0
         for chem in self.get_ingredients():
-            if chem.volume is None:
-                raise ValueError(f"Chemical {chem!r} lacks a `volume` value")
-            v += float(chem.volume)
+            try:
+                chem_volume = chem.volume
+            except ValueError as exc:
+                raise ValueError(f"Chemical {chem!r} lacks a `volume` value") from exc
+            v += float(chem_volume)
         return v
 
     def add_chemical(self, chemical: Chemical) -> None:
@@ -271,7 +283,9 @@ class PortionOfMaterial(Substance):
         new_pom = PortionOfMaterial()
         for chemical in self.get_ingredients():
             new_chemical = chemical.split([portion_size, 1 - portion_size])[0]
-            new_pom.has_ingredient.add(json.dumps(new_chemical.model_dump(), sort_keys=True))
+            new_pom.has_ingredient.add(
+                json.dumps(self._normalize_chemical_payload(new_chemical), sort_keys=True)
+            )
         return new_pom
 
     def get_ingredients(self) -> list[Chemical]:
@@ -316,10 +330,11 @@ class LabObject(Substance):
             )
         target_class = instance_class
         out: list[T_co] = []
-        if hasattr(target_class, "all_instances"):
-            candidates = target_class.all_instances()
-        else:
-            candidates = target_class.object_lookup.values()
+        if not hasattr(target_class, "all_instances"):
+            raise NotImplementedError(
+                "instance_class must provide all_instances() for containment lookup."
+            )
+        candidates = target_class.all_instances()
         for inst in candidates:
             if only_present and inst.is_present != {True}:
                 continue
@@ -378,9 +393,14 @@ class MaterialContainer(LabObject):
 
     @property
     def capacity(self) -> float:
-        from libsyn_tools.sim.validation import require_singleton
+        from libsyn_tools.sim.validation import require_singleton_or_error
 
-        cap = require_singleton(self.has_capacity, "has_capacity", self.identifier)
+        cap = require_singleton_or_error(
+            self.has_capacity,
+            "has_capacity",
+            self.identifier,
+            context="capacity access",
+        )
         return float(cap)
 
 

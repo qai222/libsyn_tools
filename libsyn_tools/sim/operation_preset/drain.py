@@ -55,6 +55,14 @@ class DrainExcess(Operation):
             raise RuntimeError(
                 f"DrainExcess {self.identifier}: destination must be a MaterialContainer"
             )
+        if getattr(src, "is_present", {False}) != {True}:
+            raise RuntimeError(
+                f"DrainExcess {self.identifier}: source {self.participant_source!r} is not present"
+            )
+        if getattr(dst, "is_present", {False}) != {True}:
+            raise RuntimeError(
+                f"DrainExcess {self.identifier}: destination {self.participant_destination!r} is not present"
+            )
 
         builder = EffectsBuilder()
         prop_iri = Is_directly_contained_by.predicate_iri

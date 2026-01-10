@@ -38,7 +38,7 @@ from libsyn_tools.sim.knowledge_graph import LabObject
 from libsyn_tools.sim.knowledge_graph import identifier_from_iri
 from libsyn_tools.sim.env_utils import get_effect_engine
 from libsyn_tools.sim.operation.runtime import get_runtime_context, get_runtime_state
-from libsyn_tools.sim.validation import require_singleton
+from libsyn_tools.sim.validation import require_singleton_or_error
 
 
 class FilterStoreRegistry:
@@ -55,7 +55,9 @@ class FilterStoreRegistry:
     def put_obj_into_filter_store(cls, obj: LabObject, env: simpy.Environment):
         if not obj.has_pool_type:
             return
-        pool_type = require_singleton(obj.has_pool_type, "has_pool_type", obj.identifier)
+        pool_type = require_singleton_or_error(
+            obj.has_pool_type, "has_pool_type", obj.identifier, context="filter store insert"
+        )
         if obj.is_present != {True}:
             return
         rs = get_runtime_state(obj, env)
@@ -79,7 +81,9 @@ class FilterStoreRegistry:
     def remove_obj_from_filter_store(cls, obj: LabObject, env: simpy.Environment):
         if not obj.has_pool_type:
             return
-        pool_type = require_singleton(obj.has_pool_type, "has_pool_type", obj.identifier)
+        pool_type = require_singleton_or_error(
+            obj.has_pool_type, "has_pool_type", obj.identifier, context="filter store removal"
+        )
         ctx = get_runtime_context(env)
         store = ctx.filter_stores.get(pool_type)
         # Direct removal is safe here: we only use this when an object must be
@@ -219,7 +223,9 @@ class LiteralSelector(Selector):
         try:
             pool_type = None
             if obj.has_pool_type:
-                pool_type = require_singleton(obj.has_pool_type, "has_pool_type", obj.identifier)
+                pool_type = require_singleton_or_error(
+                    obj.has_pool_type, "has_pool_type", obj.identifier, context="literal selector"
+                )
             if pool_type is not None and obj.is_present == {True}:
                 FilterStoreRegistry.put_obj_into_filter_store(obj, env)
                 store = FilterStoreRegistry.get_filter_store(pool_type, env)

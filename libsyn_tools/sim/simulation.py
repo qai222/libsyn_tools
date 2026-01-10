@@ -21,13 +21,13 @@ from .effect_engine import (
     SHACLValidationError,
 )
 from .overlay import SPPTOverlayProvider, CurrentVolumeOverlayProvider
-from .knowledge_graph import LabObject, Has_interrupt_events
+from .knowledge_graph import LabObject, Has_interrupt_events, identifier_from_iri
 from .lifecycle import LifecycleCallbacks
 from .operation.operation import Operation, _OpState
 from .operation.runtime import _needs_runtime_tracking, get_runtime_context, get_runtime_state
 from .operation.unitary_edit import AddDataProperty
 from .report import RunReport
-from .validation import require_singleton
+from .validation import require_singleton_or_error
 
 
 class OperationEventRecord(BaseModel):
@@ -78,9 +78,11 @@ class OperationProcess:
         return dt * self.speed_factor
 
     def add_event_log(self, event_type: str, data: dict | None = None) -> None:
+        # Timestamp is in simulated time (scaled by simulation_speed_factor).
+        # Base time can be derived by dividing by speed_factor when needed.
         self.history_log.append(
             OperationEventRecord(
-                operation_id=self.operation.identifier,
+                operation_id=identifier_from_iri(self.operation.identifier),
                 timestamp=self.env.now,
                 event_type=event_type,
                 operation_data=data or self.operation.model_dump(),
@@ -362,7 +364,7 @@ class Simulation:
     def _log_history_event(self, operation_id: str, timestamp: float, event_type: str, data: dict) -> None:
         self.history_log.append(
             OperationEventRecord(
-                operation_id=operation_id,
+                operation_id=identifier_from_iri(operation_id),
                 timestamp=timestamp,
                 event_type=event_type,
                 operation_data=data,
@@ -437,18 +439,22 @@ class Simulation:
                 continue
             pool_type = None
             if getattr(rs.obj, "has_pool_type", set()):
-                pool_type = require_singleton(
-                    getattr(rs.obj, "has_pool_type", set()), "has_pool_type", rs.obj.identifier
+                pool_type = require_singleton_or_error(
+                    getattr(rs.obj, "has_pool_type", set()),
+                    "has_pool_type",
+                    rs.obj.identifier,
+                    context="instance history",
                 )
             for operation in rs.recent_operations:
+                op_id = identifier_from_iri(operation.identifier)
                 rows.append(
                     {
                         "instance_iri": rs.obj.identifier,
                         "instance_type": rs.obj.__class__.__name__,
                         "pool_type": pool_type,
-                        "operation_id": operation.identifier,
+                        "operation_id": op_id,
                         "operation_type": operation.__class__.__name__,
-                        "sim_timestamp": end_time_index.get(operation.identifier, None),
+                        "sim_timestamp": end_time_index.get(op_id, None),
                     }
                 )
         return pd.DataFrame(rows)
@@ -503,7 +509,7 @@ class Simulation:
                 columns=["operation_id", "timestamp", "event_type", "operation_data"]
             )
         effects_by_op = {
-            op_id: proc.operation.describe_effects()
+            identifier_from_iri(op_id): proc.operation.describe_effects()
             for op_id, proc in self.operation_registry.items()
         }
         if not event_log_df.empty and "operation_id" in event_log_df:

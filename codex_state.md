@@ -101,6 +101,80 @@ Task 9: Provenance/report exports (instance history timestamps for terminal even
   - TimerSpawner errors are contained, and simulations require explicit until when timers are attached.
   - PolicyEnforcer now dedupes by (shape, focus) and enforces per-focus remediation caps; Simulation.run detaches spawners.
 
+### Task 6: Presets/remediation validation (transfer src guards, drain dst guards, drain-to-capacity clamp + clear errors, transfer containment unlink, mix-in presence checks)
+- Status: DONE
+- Files changed:
+  - libsyn_tools/sim/operation_preset/transfer.py
+  - libsyn_tools/sim/operation_preset/drain.py
+  - libsyn_tools/sim/operation_preset/mix.py
+  - libsyn_tools/sim/remediation.py
+  - tests_sim/test_transfer_validation.py
+  - tests_sim/test_transfer_containment_cleanup.py
+  - tests_sim/unit/test_preset_drain.py
+  - tests_sim/sim/test_mix_preset.py
+  - tests_sim/sim/test_numeric_validation.py
+- Tests added/updated:
+  - tests_sim/test_transfer_validation.py::test_transfer_portion_size_none_source_raises_clear_error
+  - tests_sim/test_transfer_validation.py::test_transfer_volume_none_source_raises_clear_error
+  - tests_sim/test_transfer_containment_cleanup.py::test_transfer_removes_containment_link_from_annihilated_pom
+  - tests_sim/unit/test_preset_drain.py::test_drain_excess_destination_wrong_type_raises
+  - tests_sim/sim/test_mix_preset.py::test_mix_in_container_missing_container_raises
+  - tests_sim/sim/test_mix_preset.py::test_mix_in_container_non_present_container_raises
+  - tests_sim/sim/test_numeric_validation.py::test_make_drain_to_capacity_respects_capacity
+- Notes:
+  - Transfer presets now check source presence and remove containment links for identifier and instance IRIs before annihilation.
+  - DrainExcess and MixInContainer fail fast on missing/non-present inputs.
+  - make_drain_to_capacity converts capacity validation ValueErrors into RuntimeErrors and clamps tiny capacities to stay within capacity.
+
+### Task 7: Ontology/material math robustness (portion_by_volume clamp, chemical None handling, reduce JSON drift with rounding, functional-set validation)
+- Status: DONE
+- Files changed:
+  - libsyn_tools/chem_schema/chemical.py
+  - libsyn_tools/sim/knowledge_graph/ontology.py
+  - libsyn_tools/sim/validation.py
+  - libsyn_tools/sim/operation/selector.py
+  - libsyn_tools/sim/effect_engine.py
+  - libsyn_tools/sim/simulation.py
+  - tests_sim/sim/test_material_math.py
+  - tests_sim/sim/test_numeric_validation.py
+  - tests_sim/sim/test_report.py
+- Tests added/updated:
+  - tests_sim/sim/test_material_math.py::test_get_portion_by_volume_clamps_to_total_volume
+  - tests_sim/sim/test_material_math.py::test_pom_math_rejects_missing_mass_or_density
+  - tests_sim/sim/test_material_math.py::test_split_merge_cycles_conserve_volume
+  - tests_sim/sim/test_numeric_validation.py::test_container_capacity_missing_raises
+  - tests_sim/sim/test_numeric_validation.py::test_container_capacity_multiple_values_raises
+  - tests_sim/sim/test_report.py::test_build_report_invalid_pool_type_raises_clear_error
+- Notes:
+  - Chemical math now raises clear ValueErrors when mass/density are missing, and POM serialization rounds floats for deterministic keys.
+  - Pool type/capacity singleton violations now surface as clearer domain errors, including during report building.
+
+### Task 8: Overlay/subclass coverage + containment helpers (all_instances traversal)
+- Status: DONE
+- Files changed:
+  - libsyn_tools/sim/knowledge_graph/ontology.py
+  - tests_sim/unit/test_subclass_instances.py
+- Tests added/updated:
+  - tests_sim/unit/test_subclass_instances.py::test_subclass_instances_appear_in_overlays_and_queries
+- Notes:
+  - Containment lookup now requires instance_class.all_instances(), ensuring subclass instances are included.
+
+### Task 9: Provenance/report exports (instance history timestamps for terminal events, stable IDs, SPPT IRI escaping + safe removal)
+- Status: DONE
+- Files changed:
+  - libsyn_tools/sim/simulation.py
+  - libsyn_tools/sim/overlay/sppt_overlay.py
+  - libsyn_tools/sim/graph_utils.py
+  - tests_sim/sim/test_overlay_sppt_provider.py
+  - tests_sim/sim/test_instance_history_terminal_events.py
+  - tests_sim/unit/test_union_graph_view.py
+- Tests added/updated:
+  - tests_sim/sim/test_overlay_sppt_provider.py::test_sppt_overlay_escapes_operation_identifier_and_preserves_metadata
+  - tests_sim/sim/test_instance_history_terminal_events.py::test_instance_history_normalizes_operation_identifier
+  - tests_sim/unit/test_union_graph_view.py::test_union_graph_view_behaves_like_graph
+- Notes:
+  - Operation/event exports now normalize identifiers, SPPT overlay escapes unsafe op IDs and preserves non-SPPT metadata, and union graph view delegates value/query over the aggregate.
+
 ### Template
 - Task N: <title>
   - Status: DONE / IN PROGRESS
