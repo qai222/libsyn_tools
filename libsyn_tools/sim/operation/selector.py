@@ -15,6 +15,13 @@ Level 4 `KgQuerySelector`: predicate is a generic query to the full KG, not impl
 All selectors guarantee **atomic selection + locking**: as soon as a
 LabObject is picked it is locked (via a per-object `simpy.Resource`)
 before the IRI is returned to the caller, preventing race conditions.
+
+Known limitation: multi-resource selection from small pools can deadlock
+under contention even with stable ordering (e.g., each operation holds one
+resource and waits for another). This is not prevented by the current
+implementation. Mitigation: avoid operations that require N resources from
+pool size N when concurrent; serialize those operations; or increase pool
+size.
 """
 
 from __future__ import annotations
@@ -31,6 +38,7 @@ from libsyn_tools.sim.knowledge_graph import LabObject
 from libsyn_tools.sim.knowledge_graph import identifier_from_iri
 from libsyn_tools.sim.env_utils import get_effect_engine
 from libsyn_tools.sim.operation.runtime import get_runtime_context, get_runtime_state
+from libsyn_tools.sim.validation import require_singleton
 
 
 class FilterStoreRegistry:
@@ -45,9 +53,9 @@ class FilterStoreRegistry:
 
     @classmethod
     def put_obj_into_filter_store(cls, obj: LabObject, env: simpy.Environment):
-        pool_type = next(iter(obj.has_pool_type), None)
-        if pool_type is None:
+        if not obj.has_pool_type:
             return
+        pool_type = require_singleton(obj.has_pool_type, "has_pool_type", obj.identifier)
         if obj.is_present != {True}:
             return
         rs = get_runtime_state(obj, env)
@@ -59,9 +67,9 @@ class FilterStoreRegistry:
 
     @classmethod
     def remove_obj_from_filter_store(cls, obj: LabObject, env: simpy.Environment):
-        pool_type = next(iter(obj.has_pool_type), None)
-        if pool_type is None:
+        if not obj.has_pool_type:
             return
+        pool_type = require_singleton(obj.has_pool_type, "has_pool_type", obj.identifier)
         ctx = get_runtime_context(env)
         store = ctx.filter_stores.get(pool_type)
         # Direct removal is safe here: we only use this when an object must be
@@ -103,8 +111,8 @@ class Selector(ABC):
         and `request`, put it back and retry.
 
         FIX – starvation: when a candidate fails under the lock we
-        re-insert it at the **front** of the queue so its original
-        ordering is preserved.
+        re-insert it into the store via `store.put(...)` so it can be
+        reselected later (FIFO append).
 
         Cancellation/interrupt safety
         -----------------------------
@@ -199,7 +207,9 @@ class LiteralSelector(Selector):
         req: simpy.events.Event | None = None
 
         try:
-            pool_type = next(iter(obj.has_pool_type), None)
+            pool_type = None
+            if obj.has_pool_type:
+                pool_type = require_singleton(obj.has_pool_type, "has_pool_type", obj.identifier)
             if pool_type is not None and obj.is_present == {True}:
                 store = FilterStoreRegistry.get_filter_store(pool_type, env)
                 get_ev = store.get(filter=lambda candidate: candidate is obj)

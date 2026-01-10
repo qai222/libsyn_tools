@@ -358,9 +358,9 @@ class MaterialContainer(LabObject):
 
     @property
     def capacity(self) -> float:
-        cap = next(iter(self.has_capacity), None)
-        if cap is None:
-            raise ValueError(f"{self.identifier} has no `has_capacity` set")
+        from libsyn_tools.sim.validation import require_singleton
+
+        cap = require_singleton(self.has_capacity, "has_capacity", self.identifier)
         return float(cap)
 
 

@@ -18,6 +18,7 @@ from twa.data_model.base_ontology import KnowledgeGraph
 from libsyn_tools.sim.knowledge_graph import BaseClass, MaterialContainer, SimOntology
 from libsyn_tools.sim.operation import Operation, UnitaryEdit, UnitaryEditType, FilterStoreRegistry, get_runtime_state
 from libsyn_tools.sim.operation.runtime import get_runtime_context, _needs_runtime_tracking
+from libsyn_tools.sim.validation import require_singleton
 from .effect_shacl import SHACLViolationRecord, _iter_validation_results, _first
 from .graph_utils import union_view_many, union_view_for_shacl
 from .policy import PolicyBundle
@@ -550,7 +551,8 @@ class EffectEngine:
             runtime_in_filter_store = False
             pool_type = None
             if _needs_runtime_tracking(obj):
-                pool_type = next(iter(obj.has_pool_type), None)
+                if obj.has_pool_type:
+                    pool_type = require_singleton(obj.has_pool_type, "has_pool_type", obj.identifier)
                 runtime_resource = ctx.resource_map.get(obj.instance_iri)
                 runtime_registered = runtime_resource is not None
                 runtime_cache_present = obj.instance_iri in ctx.runtime_cache

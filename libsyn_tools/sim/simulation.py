@@ -27,6 +27,7 @@ from .operation.operation import Operation, _OpState
 from .operation.runtime import _needs_runtime_tracking, get_runtime_context, get_runtime_state
 from .operation.unitary_edit import AddDataProperty
 from .report import RunReport
+from .validation import require_singleton
 
 
 class OperationEventRecord(BaseModel):
@@ -392,7 +393,11 @@ class Simulation:
         for rs in ctx.runtime_cache.values():
             if not _needs_runtime_tracking(rs.obj):
                 continue
-            pool_type = next(iter(getattr(rs.obj, "has_pool_type", set())), None)
+            pool_type = None
+            if getattr(rs.obj, "has_pool_type", set()):
+                pool_type = require_singleton(
+                    getattr(rs.obj, "has_pool_type", set()), "has_pool_type", rs.obj.identifier
+                )
             for operation in rs.recent_operations:
                 rows.append(
                     {
@@ -449,6 +454,7 @@ class Simulation:
         logger.info(f"Instance history exported → {filename}")
 
     def build_report(self, include_ttl: bool = False) -> RunReport:
+        terminal_event_types = {"OPERATION_END", "OPERATION_ABORT", "OPERATION_INTERRUPT"}
         event_log_df = pd.DataFrame.from_records([r.model_dump() for r in self.history_log])
         if event_log_df.empty:
             event_log_df = pd.DataFrame(
@@ -471,8 +477,13 @@ class Simulation:
             )
         instance_history_df = self._build_instance_history_dataframe()
 
-        end_times = [r.timestamp for r in self.history_log if r.event_type == "OPERATION_END"]
-        makespan = max(end_times) if end_times else None
+        start_times = [r.timestamp for r in self.history_log if r.event_type == "OPERATION_START"]
+        terminal_times = [r.timestamp for r in self.history_log if r.event_type in terminal_event_types]
+        if terminal_times:
+            earliest_start = min(start_times) if start_times else min(terminal_times)
+            makespan = max(terminal_times) - earliest_start
+        else:
+            makespan = None
 
         op_counts = {
             "start": sum(1 for r in self.history_log if r.event_type == "OPERATION_START"),
@@ -480,8 +491,10 @@ class Simulation:
             "abort": sum(1 for r in self.history_log if r.event_type == "OPERATION_ABORT"),
             "interrupt": sum(1 for r in self.history_log if r.event_type == "OPERATION_INTERRUPT"),
         }
-        terminal_count = op_counts["end"] + op_counts["abort"] + op_counts["interrupt"]
-        op_counts["in_progress"] = max(op_counts["start"] - terminal_count, 0)
+        started_ops = {r.operation_id for r in self.history_log if r.event_type == "OPERATION_START"}
+        terminal_ops = {r.operation_id for r in self.history_log if r.event_type in terminal_event_types}
+        in_progress_ops = started_ops - terminal_ops
+        op_counts["in_progress"] = len(in_progress_ops)
 
         violation_counts = {
             "by_origin": {},
@@ -497,8 +510,7 @@ class Simulation:
             disp_key = (rec.shape_iri, rec.disposition)
             violation_by_shape_disposition[disp_key] = violation_by_shape_disposition.get(disp_key, 0) + 1
 
-        started_ops = set(event_log_df.loc[event_log_df["event_type"] == "OPERATION_START", "operation_id"])
-        if started_ops:
+        if started_ops and "operation_id" in instance_history_df.columns:
             utilization_df = instance_history_df[instance_history_df["operation_id"].isin(started_ops)]
         else:
             utilization_df = instance_history_df

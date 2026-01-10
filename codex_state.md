@@ -37,8 +37,26 @@ Date: 2026-01-09
   - Tests added/updated:
   - Notes:
 
+- Task 3: Report correctness for terminal events, makespan, and empty history
+  - Status: DONE
+  - Files changed: libsyn_tools/sim/simulation.py
+  - Tests added/updated: tests_sim/sim/test_report.py
+  - Notes: makespan now derives from terminal events; in-progress counts use started minus terminal operations; empty logs handled without crashes.
+
+- Task 2: Functional-set cardinality validation
+  - Status: DONE
+  - Files changed: libsyn_tools/sim/validation.py; libsyn_tools/sim/knowledge_graph/ontology.py; libsyn_tools/sim/operation/selector.py; libsyn_tools/sim/effect_engine.py; libsyn_tools/sim/simulation.py
+  - Tests added/updated: tests_sim/sim/test_functional_set_validation.py
+  - Notes: singleton helper enforces exact cardinality for pool_type and capacity access, raising ValueError on missing or multiple values.
+
+- Task 4: Selector doc alignment and deadlock limitation note
+  - Status: DONE
+  - Files changed: libsyn_tools/sim/operation/selector.py
+  - Tests added/updated: None (doc-only)
+  - Notes: updated selector docs to reflect store.put reinsertion and added deadlock limitation/mitigation note.
+
 ## Completion checklist
-- [ ] Docs: selector reinsertion doc matches behavior; deadlock limitation documented
-- [ ] Validation helper added; key functional-set lookups use it; tests cover 0/multi values
-- [ ] build_report handles empty history; terminal events; makespan computed from terminal events; tests cover abort/interrupt-only runs
-- [ ] `pytest -q tests_sim` passes
+- [x] Docs: selector reinsertion doc matches behavior; deadlock limitation documented
+- [x] Validation helper added; key functional-set lookups use it; tests cover 0/multi values
+- [x] build_report handles empty history; terminal events; makespan computed from terminal events; tests cover abort/interrupt-only runs
+- [x] `pytest -q tests_sim` passes
