@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import StrEnum, auto
+import math
 from typing import Any, Optional, Union
 
 import simpy
@@ -11,7 +12,12 @@ from simpy.resources.resource import Request
 from libsyn_tools.sim.operation.runtime import get_object_for_resource
 from libsyn_tools.sim.knowledge_graph import identifier_from_iri
 from twa.data_model.base_ontology import KnowledgeGraph
-from libsyn_tools.sim.operation.selector import Selector, LiteralSelector, FilterStoreRegistry
+from libsyn_tools.sim.operation.selector import (
+    Selector,
+    LiteralSelector,
+    FilterStoreRegistry,
+    SelectorCancelled,
+)
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit, UnitaryEditType
 from libsyn_tools.utils import str_uuid
 
@@ -172,8 +178,20 @@ class Operation(ABC, BaseModel):
         * compute action_effects
         Returns a SimPy Event so the scheduler can `yield` on it.
         """
-        if self.temporal_cost is not None and self.temporal_cost < 0:
-            raise ValueError(f"{self.identifier}: temporal_cost must be >= 0")
+        if self.temporal_cost is not None:
+            try:
+                is_finite = math.isfinite(self.temporal_cost)
+            except TypeError as exc:
+                raise ValueError(f"{self.identifier}: temporal_cost must be finite and >= 0") from exc
+            if not is_finite or self.temporal_cost < 0:
+                raise ValueError(f"{self.identifier}: temporal_cost must be finite and >= 0")
+        if self.scheduled_start_time is not None:
+            try:
+                is_finite = math.isfinite(self.scheduled_start_time)
+            except TypeError as exc:
+                raise ValueError(f"{self.identifier}: scheduled_start_time must be finite and >= 0") from exc
+            if not is_finite or self.scheduled_start_time < 0:
+                raise ValueError(f"{self.identifier}: scheduled_start_time must be finite and >= 0")
         if self.sim_state is not _OpState.NEW:
             raise RuntimeError(f"{self.identifier}: pre_act called in state {self.sim_state}")
         self.sim_state = _OpState.PREPARED
@@ -262,7 +280,7 @@ class Operation(ABC, BaseModel):
                     )
 
                 if result is None:
-                    raise simpy.Interrupt(f"selector-cancelled:{role}")
+                    raise SelectorCancelled(f"selector-cancelled:{role}")
                 iri, req = result
 
                 if iri in acquired:
@@ -386,8 +404,25 @@ class Operation(ABC, BaseModel):
     def _validate_temporal_cost(cls, value: Optional[float]) -> Optional[float]:
         if value is None:
             return value
-        if value < 0:
-            raise ValueError("temporal_cost must be >= 0")
+        try:
+            is_finite = math.isfinite(value)
+        except TypeError as exc:
+            raise ValueError("temporal_cost must be finite and >= 0") from exc
+        if not is_finite or value < 0:
+            raise ValueError("temporal_cost must be finite and >= 0")
+        return value
+
+    @field_validator("scheduled_start_time")
+    @classmethod
+    def _validate_scheduled_start_time(cls, value: Optional[float]) -> Optional[float]:
+        if value is None:
+            return value
+        try:
+            is_finite = math.isfinite(value)
+        except TypeError as exc:
+            raise ValueError("scheduled_start_time must be finite and >= 0") from exc
+        if not is_finite or value < 0:
+            raise ValueError("scheduled_start_time must be finite and >= 0")
         return value
 
     class Config:

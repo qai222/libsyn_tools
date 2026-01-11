@@ -67,3 +67,21 @@ def test_remove_safe_with_pending_get() -> None:
     FilterStoreRegistry.put_obj_into_filter_store(obj, sim.env)
     sim.env.run(until=0.1)
     assert get_ev.triggered
+
+
+def test_remove_scans_all_stores() -> None:
+    obj = MaterialContainer(identifier="remove-all-object")
+    obj.has_pool_type.add("POOL_REMOVE_ALL_NEW")
+    obj.is_present = {True}
+    KnowledgeGraph.get_object_from_lookup(obj.identifier)
+
+    sim = Simulation([])
+    store_old = FilterStoreRegistry.get_filter_store("POOL_REMOVE_ALL_OLD", sim.env)
+    store_new = FilterStoreRegistry.get_filter_store("POOL_REMOVE_ALL_NEW", sim.env)
+    store_old.items.append(obj)
+    store_new.items.append(obj)
+
+    FilterStoreRegistry.remove_obj_from_filter_store(obj, sim.env)
+
+    assert obj not in store_old.items
+    assert obj not in store_new.items

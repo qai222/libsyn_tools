@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import pytest
 
 from libsyn_tools.sim import Simulation
 from libsyn_tools.sim.operation.operation import Operation
@@ -45,4 +46,10 @@ def test_scheduled_start_time_uses_base_time_with_speed_factor():
 
     expected_start_sim = scheduled_base * speed_factor
     assert math.isclose(start_time, expected_start_sim, rel_tol=0, abs_tol=1e-6)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf"), -1.0])
+def test_scheduled_start_time_invalid_init_rejected(value: float) -> None:
+    with pytest.raises(ValueError, match="scheduled_start_time"):
+        ScheduledOp(scheduled_start_time=value)
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_scheduled_start_time_speed.py ###

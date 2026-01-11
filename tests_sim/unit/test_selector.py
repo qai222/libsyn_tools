@@ -74,6 +74,29 @@ def test_attribute_selector_from_pool(env: simpy.Environment):
     assert (o1 in store.items) or (o2 in store.items)
 
 
+def test_selector_predicate_exception_restores_pool(env: simpy.Environment) -> None:
+    pool = "VIAL_PREDICATE_ERROR"
+    eng = EffectEngine()
+
+    obj = _make_pool_obj(pool)
+    KnowledgeGraph.get_object_from_lookup(obj.identifier)
+    Create(instance_1_iri=obj.identifier).apply()
+    eng._register_if_new(obj, env)
+
+    def pred(_obj: LabObject) -> bool:
+        raise RuntimeError("predicate failure")
+
+    sel = AttributeSelector(pool_type=pool, predicate=pred)
+    proc = env.process(sel.resolve(env))
+    with pytest.raises(RuntimeError, match="predicate failure"):
+        env.run(proc)
+
+    store = FilterStoreRegistry.get_filter_store(pool, env)
+    rs = get_runtime_state(obj, env)
+    assert obj in store.items
+    assert rs.lock.count == 0
+
+
 def test_filter_store_isolated_between_envs():
     pool = "VIAL"
     eng = EffectEngine()

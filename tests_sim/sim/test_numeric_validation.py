@@ -94,6 +94,28 @@ def test_negative_temporal_cost_raises_early() -> None:
     assert any(event.event_type == "OPERATION_ABORT" for event in sim.history_log)
 
 
-def test_temporal_cost_negative_init_raises() -> None:
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_temporal_cost_nonfinite_assignment_aborts(value: float) -> None:
+    pool_type = f"POOL_TEMP_INVALID_{value}"
+    container = MaterialContainer(identifier=f"temp-invalid-{value}")
+    container.has_pool_type.add(pool_type)
+    container.is_present = {True}
+    KnowledgeGraph.get_object_from_lookup(container.identifier)
+
+    op = _NoOp(participant_container=container.identifier)
+    op.temporal_cost = value
+
+    sim = Simulation([op])
+    sim.run()
+
+    rs = get_runtime_state(container, sim.env)
+    store = FilterStoreRegistry.get_filter_store(pool_type, sim.env)
+    assert rs.lock.count == 0
+    assert container in store.items
+    assert any(event.event_type == "OPERATION_ABORT" for event in sim.history_log)
+
+
+@pytest.mark.parametrize("value", [-0.5, float("nan"), float("inf"), float("-inf")])
+def test_temporal_cost_invalid_init_raises(value: float) -> None:
     with pytest.raises(ValueError):
-        _NoOp(participant_container="x", temporal_cost=-0.5)
+        _NoOp(participant_container="x", temporal_cost=value)

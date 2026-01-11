@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import random
 from collections import defaultdict
 from pathlib import Path
@@ -24,6 +25,7 @@ from .overlay import SPPTOverlayProvider, CurrentVolumeOverlayProvider
 from .knowledge_graph import LabObject, Has_interrupt_events, identifier_from_iri
 from .lifecycle import LifecycleCallbacks
 from .operation.operation import Operation, _OpState
+from .operation.selector import SelectorCancelled
 from .operation.runtime import _needs_runtime_tracking, get_runtime_context, get_runtime_state
 from .operation.unitary_edit import AddDataProperty
 from .report import RunReport
@@ -108,62 +110,67 @@ class OperationProcess:
             self.done_event.succeed()
         self.callbacks.emit_operation_end(self)
 
+    def _handle_interrupt(self, reason: str) -> None:
+        # If we were interrupted while waiting on pre_act(), cancel the
+        # child process so it cannot continue acquiring locks in the
+        # background after we have cleaned up.
+        if self._pre_act_process is not None and not self._pre_act_process.triggered:
+            try:
+                self._pre_act_process.interrupt(reason)
+                self._pre_act_process.defused = True
+            except Exception:
+                pass
+            self._pre_act_process = None
+
+        edits = []
+        reason_txt = f"{self.operation.identifier}:{reason}"
+        # record interrupt on participants (only if literal IRIs)
+        for participant_name in self.operation.model_fields:
+            if not participant_name.startswith("participant_"):
+                continue
+            iri = getattr(self.operation, participant_name)
+            if not isinstance(iri, str):
+                continue
+            edits.append(
+                AddDataProperty(
+                    instance_1_iri=iri,
+                    property_iri=Has_interrupt_events.predicate_iri,
+                    data_value=reason_txt,
+                )
+            )
+        if edits:
+            # Interrupt bookkeeping should never crash the simulation.
+            # If a policy marks interrupt events as forbidden (aborted),
+            # swallow the resulting ContractViolationError so locks are
+            # still released and the op can terminate cleanly.
+            try:
+                self.effect_engine.apply(
+                    edits,
+                    self.env,
+                    operation_id=self.operation.identifier,
+                    locked_iris=self.operation.resources,
+                )
+            except Exception as err:
+                try:
+                    logger.warning(f"Interrupt bookkeeping failed: {err}")
+                except Exception:
+                    pass
+        # Always release locks / finish the op cleanly.
+        self._safe_cleanup()
+
+        self.add_event_log("OPERATION_INTERRUPT", {"reason": str(reason)})
+        self.callbacks.emit_operation_interrupt(self, str(reason))
+        if not self.done_event.triggered:
+            self.done_event.succeed()
+        self.callbacks.emit_operation_end(self)
+
     def run(self):
         try:
             yield from self._run_core()
         except simpy.Interrupt as interrupt:
-            # If we were interrupted while waiting on pre_act(), cancel the
-            # child process so it cannot continue acquiring locks in the
-            # background after we have cleaned up.
-            if self._pre_act_process is not None and not self._pre_act_process.triggered:
-                try:
-                    self._pre_act_process.interrupt(interrupt.cause)
-                    self._pre_act_process.defused = True
-                except Exception:
-                    pass
-                self._pre_act_process = None
-
-            edits = []
-            reason_txt = f"{self.operation.identifier}:{interrupt.cause}"
-            # record interrupt on participants (only if literal IRIs)
-            for participant_name in self.operation.model_fields:
-                if not participant_name.startswith("participant_"):
-                    continue
-                iri = getattr(self.operation, participant_name)
-                if not isinstance(iri, str):
-                    continue
-                edits.append(
-                    AddDataProperty(
-                        instance_1_iri=iri,
-                        property_iri=Has_interrupt_events.predicate_iri,
-                        data_value=reason_txt,
-                    )
-                )
-            if edits:
-                # Interrupt bookkeeping should never crash the simulation.
-                # If a policy marks interrupt events as forbidden (aborted),
-                # swallow the resulting ContractViolationError so locks are
-                # still released and the op can terminate cleanly.
-                try:
-                    self.effect_engine.apply(
-                        edits,
-                        self.env,
-                        operation_id=self.operation.identifier,
-                        locked_iris=self.operation.resources,
-                    )
-                except Exception as err:
-                    try:
-                        logger.warning(f"Interrupt bookkeeping failed: {err}")
-                    except Exception:
-                        pass
-            # Always release locks / finish the op cleanly.
-            self._safe_cleanup()
-
-            self.add_event_log("OPERATION_INTERRUPT", {"reason": str(interrupt.cause)})
-            self.callbacks.emit_operation_interrupt(self, str(interrupt.cause))
-            if not self.done_event.triggered:
-                self.done_event.succeed()
-            self.callbacks.emit_operation_end(self)
+            self._handle_interrupt(str(interrupt.cause))
+        except SelectorCancelled as cancel:
+            self._handle_interrupt(str(cancel))
         except SHACLValidationError:
             self._safe_cleanup()
             raise
@@ -176,6 +183,16 @@ class OperationProcess:
         try:
             # scheduled start gate
             if self.operation.scheduled_start_time is not None:
+                try:
+                    is_finite = math.isfinite(self.operation.scheduled_start_time)
+                except TypeError as exc:
+                    raise ValueError(
+                        f"{self.operation.identifier}: scheduled_start_time must be finite and >= 0"
+                    ) from exc
+                if not is_finite or self.operation.scheduled_start_time < 0:
+                    raise ValueError(
+                        f"{self.operation.identifier}: scheduled_start_time must be finite and >= 0"
+                    )
                 base_now = self.env.now / self.speed_factor
                 delay_base = self.operation.scheduled_start_time - base_now
                 if delay_base > 0:
@@ -256,8 +273,12 @@ class Simulation:
         self.rng = random.Random(random_seed)
 
         self.operations = operations
-        if simulation_speed_factor <= 0:
-            raise ValueError("simulation_speed_factor must be > 0")
+        try:
+            is_finite = math.isfinite(simulation_speed_factor)
+        except TypeError as exc:
+            raise ValueError("simulation_speed_factor must be finite and > 0") from exc
+        if not is_finite or simulation_speed_factor <= 0:
+            raise ValueError("simulation_speed_factor must be finite and > 0")
         self.speed_factor = simulation_speed_factor
 
         if shacl_shapes is None:
@@ -389,28 +410,36 @@ class Simulation:
     def run(self, until: float | None = None) -> None:
         """Start all processes and block until done or until time limit."""
         for proc in self.operation_registry.values():
-            proc.simpy_process = self.env.process(proc.run())
+            if proc.simpy_process is None:
+                proc.simpy_process = self.env.process(proc.run())
 
-        # progress bar via lifecycle callback (no monkey-patch)
-        bar = tqdm(total=len(self.operation_registry), desc="Sim", unit="op")
-
+        bar = None
         def _bar_on_end(proc: OperationProcess):
-            bar.update()
+            if bar is not None:
+                bar.update()
 
-        self.callbacks.on_operation_end.append(_bar_on_end)
-
-        logger.info("Simulation start")
         try:
+            # progress bar via lifecycle callback (no monkey-patch)
+            bar = tqdm(total=len(self.operation_registry), desc="Sim", unit="op")
+            self.callbacks.on_operation_end.append(_bar_on_end)
+
+            logger.info("Simulation start")
             if until is None:
                 for spawner in self._attached_spawners():
-                    if spawner.__class__.__name__ == "TimerSpawner":
-                        raise ValueError("Simulation.run(until=None) requires an explicit until when TimerSpawner is attached")
+                    requires_until = getattr(spawner, "requires_until", False)
+                    if callable(requires_until):
+                        requires_until = requires_until()
+                    if requires_until:
+                        raise ValueError(
+                            "Simulation.run(until=None) requires an explicit until when a periodic spawner is attached"
+                        )
             self.env.run(until=until)
             logger.info(f"Simulation end @ t = {self.env.now}")
         finally:
             if _bar_on_end in self.callbacks.on_operation_end:
                 self.callbacks.on_operation_end.remove(_bar_on_end)
-            bar.close()
+            if bar is not None:
+                bar.close()
             for spawner in list(self._attached_spawners()):
                 try:
                     if hasattr(spawner, "detach"):

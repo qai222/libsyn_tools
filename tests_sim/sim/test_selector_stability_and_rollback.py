@@ -10,7 +10,12 @@ from libsyn_tools.sim import Simulation
 from libsyn_tools.sim.knowledge_graph import MaterialContainer
 from libsyn_tools.sim.operation.operation import Operation
 from libsyn_tools.sim.operation.runtime import get_runtime_state
-from libsyn_tools.sim.operation.selector import AttributeSelector, FilterStoreRegistry, Selector
+from libsyn_tools.sim.operation.selector import (
+    AttributeSelector,
+    FilterStoreRegistry,
+    Selector,
+    SelectorCancelled,
+)
 from libsyn_tools.sim.operation.unitary_edit import UnitaryEdit, Annihilate, Create
 from libsyn_tools.sim.policy import PolicyBundle, PolicyRule
 
@@ -33,7 +38,7 @@ class SelectorWaitOp(Operation):
 class CancelSelector(Selector):
     def resolve(self, env: simpy.Environment):
         yield env.timeout(0)
-        return None
+        raise SelectorCancelled("cancelled")
 
 
 class SelectorCancelOp(Operation):

@@ -29,6 +29,7 @@ compile_schedule_to_simulation (planned ops + SchedulerOutput):
     sim.run()
 """
 
+import math
 from collections.abc import Callable, Iterable
 
 from pydantic import Field
@@ -83,6 +84,18 @@ def _normalize_module_id(module_id: str) -> str:
     return identifier_from_iri(module_id)
 
 
+def _require_finite_non_negative(value: float, *, label: str, op_id: str) -> float:
+    try:
+        is_finite = math.isfinite(value)
+    except TypeError as exc:
+        raise ValueError(f"{label} for scheduled operation {op_id} must be numeric") from exc
+    if not is_finite:
+        raise ValueError(f"{label} for scheduled operation {op_id} must be finite")
+    if value < 0:
+        raise ValueError(f"{label} for scheduled operation {op_id} must be >= 0")
+    return value
+
+
 def compile_schedule_to_simulation(
     planned_ops: list[PlannedOperation] | OperationNetwork,
     schedule: SchedulerOutput,
@@ -111,8 +124,16 @@ def compile_schedule_to_simulation(
         planned = planned_lookup.get(op_id)
         if planned is None:
             raise KeyError(f"Planned operation {op_id} not found in planned_ops")
-        start = schedule.start_times[op_id]
-        end = schedule.end_times[op_id]
+        start = _require_finite_non_negative(
+            schedule.start_times[op_id],
+            label="start_time",
+            op_id=op_id,
+        )
+        end = _require_finite_non_negative(
+            schedule.end_times[op_id],
+            label="end_time",
+            op_id=op_id,
+        )
         duration = end - start
         if duration < 0:
             raise ValueError(f"Negative duration for scheduled operation {op_id}: {duration}")
@@ -131,7 +152,7 @@ def compile_schedule_to_simulation(
         sim_op.identifier = op_id
         sim_op.scheduled_start_time = start
         sim_op.temporal_cost = duration
-        sim_op.required_precedents = list(planned.precedents)
+        sim_op.required_precedents = [identifier_from_iri(pred) for pred in planned.precedents]
         operations.append(sim_op)
 
     return Simulation(

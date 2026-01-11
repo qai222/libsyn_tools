@@ -6,12 +6,8 @@ import pytest
 from libsyn_tools.sim import Simulation
 
 
-def test_simulation_speed_factor_zero_rejected():
+@pytest.mark.parametrize("value", [0, -1.0, float("nan"), float("inf"), float("-inf")])
+def test_simulation_speed_factor_invalid_rejected(value: float) -> None:
     with pytest.raises(ValueError, match="simulation_speed_factor"):
-        Simulation([], simulation_speed_factor=0)
-
-
-def test_simulation_speed_factor_negative_rejected():
-    with pytest.raises(ValueError, match="simulation_speed_factor"):
-        Simulation([], simulation_speed_factor=-1.0)
+        Simulation([], simulation_speed_factor=value)
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_simulation_speed_factor_validation.py ###

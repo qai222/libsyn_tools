@@ -184,3 +184,48 @@ def test_schedule_bridge_normalizes_module_ids_for_ops():
     sim = compile_schedule_to_simulation([planned], schedule)
 
     assert sim.operations[0].participant_module == module.identifier
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf"), -1.0])
+def test_schedule_bridge_rejects_invalid_start_time(value: float) -> None:
+    planned = Operation(identifier="op_bad_start", type=OperationType.TransferLiquid)
+    schedule = SchedulerOutput(
+        start_times={"op_bad_start": value},
+        end_times={"op_bad_start": 1.0},
+        assignments={"op_bad_start": "module_start"},
+    )
+
+    with pytest.raises(ValueError, match="start_time"):
+        compile_schedule_to_simulation([planned], schedule)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf"), -1.0])
+def test_schedule_bridge_rejects_invalid_end_time(value: float) -> None:
+    planned = Operation(identifier="op_bad_end", type=OperationType.TransferLiquid)
+    schedule = SchedulerOutput(
+        start_times={"op_bad_end": 0.0},
+        end_times={"op_bad_end": value},
+        assignments={"op_bad_end": "module_end"},
+    )
+
+    with pytest.raises(ValueError, match="end_time"):
+        compile_schedule_to_simulation([planned], schedule)
+
+
+def test_schedule_bridge_normalizes_precedents():
+    op_a = Operation(identifier="op_prec_a", type=OperationType.TransferLiquid)
+    op_b = Operation(
+        identifier="op_prec_b",
+        type=OperationType.TransferSolid,
+        precedents=[f"https://libsyn-sim/kg/{op_a.identifier}"],
+    )
+    schedule = SchedulerOutput(
+        start_times={"op_prec_a": 0.0, "op_prec_b": 0.0},
+        end_times={"op_prec_a": 1.0, "op_prec_b": 1.0},
+        assignments={"op_prec_a": "module_prec_a", "op_prec_b": "module_prec_b"},
+    )
+
+    sim = compile_schedule_to_simulation([op_a, op_b], schedule)
+    op_b_sim = next(op for op in sim.operations if op.identifier == "op_prec_b")
+
+    assert op_b_sim.required_precedents == [op_a.identifier]

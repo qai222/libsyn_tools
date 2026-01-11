@@ -64,14 +64,14 @@ class FilterStoreRegistry:
         if rs.lock.count > 0 or len(rs.lock.queue) > 0:
             return
         store = cls.get_filter_store(pool_type, env)
-        if obj in store.items:
+        identifiers = [item.identifier for item in store.items]
+        if obj.identifier in identifiers:
             deduped: list[LabObject] = []
-            seen = False
+            seen: set[str] = set()
             for item in store.items:
-                if item is obj:
-                    if seen:
-                        continue
-                    seen = True
+                if item.identifier in seen:
+                    continue
+                seen.add(item.identifier)
                 deduped.append(item)
             store.items[:] = deduped
             return
@@ -79,18 +79,14 @@ class FilterStoreRegistry:
 
     @classmethod
     def remove_obj_from_filter_store(cls, obj: LabObject, env: simpy.Environment):
-        if not obj.has_pool_type:
-            return
-        pool_type = require_singleton_or_error(
-            obj.has_pool_type, "has_pool_type", obj.identifier, context="filter store removal"
-        )
         ctx = get_runtime_context(env)
-        store = ctx.filter_stores.get(pool_type)
-        # Direct removal is safe here: we only use this when an object must be
-        # made unavailable (e.g., unregister/rollback), and any pending get
-        # requests should keep waiting until a future put occurs.
-        if store and obj in store.items:
-            store.items.remove(obj)
+        for store in ctx.filter_stores.values():
+            if store and store.items:
+                store.items[:] = [item for item in store.items if item.identifier != obj.identifier]
+
+
+class SelectorCancelled(RuntimeError):
+    """Raised when a selector is cancelled so callers can treat it as an interrupt."""
 
 
 class Selector(ABC):
@@ -181,14 +177,20 @@ class Selector(ABC):
 
                 # 3) re-validate predicate under the lock; if it still
                 #    passes we are done, otherwise roll back and retry
-                if pred(obj):
+                try:
+                    predicate_ok = pred(obj)
+                except Exception:
+                    predicate_ok = False
+                    raise
+                finally:
+                    if not predicate_ok:
+                        rs.lock.release(req)
+                        req = None
+                        FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+                        obj = None
+
+                if predicate_ok:
                     return obj.identifier, req
-
-                rs.lock.release(req)
-                req = None
-
-                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
-                obj = None
 
         except simpy.Interrupt:
             _cleanup_selection()
@@ -309,11 +311,7 @@ class RuntimeSelector(Selector):
             self, env: simpy.Environment
     ) -> Generator[simpy.events.Event, None, Tuple[str, simpy.events.Event]]:
         store = FilterStoreRegistry.get_filter_store(self.pool_type, env)
-        result = yield from self._atomic_get_and_lock(env, store, self._predicate)
-        if result is None:
-            # selector was cancelled/interrupt-defused
-            return
-        return result
+        return (yield from self._atomic_get_and_lock(env, store, self._predicate))
 
 
 class AttributeSelector(RuntimeSelector):
@@ -376,10 +374,7 @@ class HistorySelector(RuntimeSelector):
             predicate = lambda obj: self._predicate(obj, env)
         else:
             predicate = self._predicate
-        result = yield from self._atomic_get_and_lock(env, store, predicate)
-        if result is None:
-            return
-        return result
+        return (yield from self._atomic_get_and_lock(env, store, predicate))
 
 
 class KgQuerySelector(Selector):
@@ -410,14 +405,11 @@ class KgQuerySelector(Selector):
             raise RuntimeError(f"KgQuerySelector query returned no candidates: {self.sparql}")
 
         store = FilterStoreRegistry.get_filter_store(self.pool_type, env)
-        result = yield from self._atomic_get_and_lock(
+        return (yield from self._atomic_get_and_lock(
             env,
             store,
             lambda obj: identifier_from_iri(obj.identifier) in candidates,
-        )
-        if result is None:
-            return
-        return result  # iri, req
+        ))  # iri, req
 
     def __str__(self) -> str:
         return f"KgQuerySelector(pool={self.pool_type}, var={self.var})"
@@ -429,5 +421,6 @@ __all__ = [
     "AttributeSelector",
     "HistorySelector",
     "KgQuerySelector",
+    "SelectorCancelled",
     "FilterStoreRegistry"
 ]

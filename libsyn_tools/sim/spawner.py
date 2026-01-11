@@ -17,10 +17,13 @@ from __future__ import annotations
 
 import weakref
 from abc import ABC, abstractmethod
+import math
 from typing import Optional, Callable, Any, Dict, Tuple, Set
 
+import simpy
+
 from loguru import logger
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, field_validator
 from rdflib.namespace import SH, RDF
 from rdflib.term import URIRef
 
@@ -32,6 +35,8 @@ from .effect_shacl import SHACLViolationRecord, _iter_validation_results, _first
 
 class Spawner(BaseModel, ABC):
     _sim_ref: Optional[weakref.ReferenceType] = PrivateAttr(default=None)
+    _alive: bool = PrivateAttr(default=True)
+    _process: Optional[simpy.events.Process] = PrivateAttr(default=None)
 
     def attach(self, sim: Simulation) -> None:
         if self._sim_ref is not None:
@@ -69,12 +74,38 @@ class Spawner(BaseModel, ABC):
         self._detach_safe(sim)
         self._sim_ref = None
 
+    @property
+    def requires_until(self) -> bool:
+        return False
+
 
 class TimerSpawner(Spawner):
     op_factory: Callable[[Any], Operation]
     interval: float = Field(..., description="delta t in base time (scaled by simulation_speed_factor)")
     start_offset: float = 0.0
     alive: bool = True
+
+    @field_validator("interval")
+    @classmethod
+    def _validate_interval(cls, value: float) -> float:
+        try:
+            is_finite = math.isfinite(value)
+        except TypeError as exc:
+            raise ValueError("interval must be finite and > 0") from exc
+        if not is_finite or value <= 0:
+            raise ValueError("interval must be finite and > 0")
+        return value
+
+    @field_validator("start_offset")
+    @classmethod
+    def _validate_start_offset(cls, value: float) -> float:
+        try:
+            is_finite = math.isfinite(value)
+        except TypeError as exc:
+            raise ValueError("start_offset must be finite and >= 0") from exc
+        if not is_finite or value < 0:
+            raise ValueError("start_offset must be finite and >= 0")
+        return value
 
     def cancel(self) -> None:
         self.alive = False
@@ -83,22 +114,38 @@ class TimerSpawner(Spawner):
         return float(self.interval)
 
     def _on_attach(self, sim: Simulation) -> None:
-        sim.env.process(self._run(sim))
+        self._alive = True
+        self._process = sim.env.process(self._run(sim))
 
     def _detach_safe(self, sim: Simulation) -> None:
         self.alive = False
+        self._alive = False
+        if self._process is not None:
+            try:
+                if not self._process.triggered:
+                    self._process.interrupt("TimerSpawner detached")
+            except Exception:
+                pass
+            self._process = None
+
+    @property
+    def requires_until(self) -> bool:
+        return True
 
     def _run(self, sim: Simulation):
         env = sim.env
-        if self.start_offset > 0:
-            yield env.timeout(self._sim_time(sim, self.start_offset))
-        while self.alive:
-            try:
-                op = self.op_factory(sim)
-                sim.spawn_operation(op)
-            except Exception as err:
-                logger.warning(f"TimerSpawner failed to spawn operation: {err}")
-            yield env.timeout(self._sim_time(sim, self._sample_dt()))
+        try:
+            if self.start_offset > 0:
+                yield env.timeout(self._sim_time(sim, self.start_offset))
+            while self.alive and self._alive:
+                try:
+                    op = self.op_factory(sim)
+                    sim.spawn_operation(op)
+                except Exception as err:
+                    logger.warning(f"TimerSpawner failed to spawn operation: {err}")
+                yield env.timeout(self._sim_time(sim, self._sample_dt()))
+        except simpy.Interrupt:
+            return
 
 
 class KGInspectorSpawner(Spawner):
@@ -121,6 +168,17 @@ class KGInspectorSpawner(Spawner):
     shape_dispatch: Dict[str, Callable[[str], Optional[Operation]]]
     inspect_interval: float = Field(0.0, ge=0.0)
     _subscribed: bool = PrivateAttr(default=False)
+
+    @field_validator("inspect_interval")
+    @classmethod
+    def _validate_inspect_interval(cls, value: float) -> float:
+        try:
+            is_finite = math.isfinite(value)
+        except TypeError as exc:
+            raise ValueError("inspect_interval must be finite and >= 0") from exc
+        if not is_finite or value < 0:
+            raise ValueError("inspect_interval must be finite and >= 0")
+        return value
 
     def _spawn_for_violations(self, sim: Simulation, report) -> None:
         g = report
@@ -159,42 +217,67 @@ class KGInspectorSpawner(Spawner):
             factory = self.shape_dispatch.get(shape_iri)
             if factory is None:
                 continue
-            op = factory(focus_iri)
-            if op is not None:
-                op.remediation = True
-                sim.spawn_operation(op)
+            try:
+                op = factory(focus_iri)
+                if op is not None:
+                    op.remediation = True
+                    sim.spawn_operation(op)
+            except Exception as err:
+                logger.warning(f"KGInspectorSpawner factory/spawn failed: {err}")
 
     def _on_attach(self, sim: Simulation) -> None:
         if self.inspect_interval > 0:
-            sim.env.process(self._run_every_dt(sim))
+            self._alive = True
+            self._process = sim.env.process(self._run_every_dt(sim))
         else:
             # subscribe to operation_end lifecycle
             if not self._subscribed:
                 def _on_end(proc: OperationProcess):
-                    conforms, report, _ = sim.effect_engine.validate_now()
-                    if not conforms:
-                        self._spawn_for_violations(sim, report)
+                    try:
+                        conforms, report, _ = sim.effect_engine.validate_now()
+                        if not conforms:
+                            self._spawn_for_violations(sim, report)
+                    except Exception as err:
+                        logger.warning(f"KGInspectorSpawner validate_now failed: {err}")
 
                 sim.callbacks.on_operation_end.append(_on_end)
                 self._on_end = _on_end  # keep reference for detach
                 self._subscribed = True
 
     def _detach_safe(self, sim: Simulation) -> None:
+        self._alive = False
         if self._subscribed and hasattr(self, "_on_end"):
             try:
                 sim.callbacks.on_operation_end.remove(self._on_end)
             except ValueError:
                 pass
         self._subscribed = False
+        if self._process is not None:
+            try:
+                if not self._process.triggered:
+                    self._process.interrupt("KGInspectorSpawner detached")
+            except Exception:
+                pass
+            self._process = None
+
+    @property
+    def requires_until(self) -> bool:
+        return self.inspect_interval > 0
 
     def _run_every_dt(self, sim: Simulation):
         env = sim.env
         dt = self.inspect_interval
-        while True:
-            yield env.timeout(self._sim_time(sim, dt))
-            conforms, report, _ = sim.effect_engine.validate_now()
-            if not conforms:
-                self._spawn_for_violations(sim, report)
+        try:
+            while self._alive:
+                yield env.timeout(self._sim_time(sim, dt))
+                try:
+                    conforms, report, _ = sim.effect_engine.validate_now()
+                    if not conforms:
+                        self._spawn_for_violations(sim, report)
+                except Exception as err:
+                    logger.warning(f"KGInspectorSpawner validate_now failed: {err}")
+        except simpy.Interrupt:
+            return
 
 
 class ProcessInterruptSpawner(Spawner):
@@ -211,13 +294,16 @@ class ProcessInterruptSpawner(Spawner):
 
     def _on_attach(self, sim: Simulation) -> None:
         def _on_interrupt(proc: OperationProcess, reason: str):
-            factory = self.interrupt_dispatch.get(str(reason))
-            if factory is None:
-                return
-            op = factory(proc, reason)
-            if op is not None:
-                op.remediation = True
-                self.sim.spawn_operation(op)
+            try:
+                factory = self.interrupt_dispatch.get(str(reason))
+                if factory is None:
+                    return
+                op = factory(proc, reason)
+                if op is not None:
+                    op.remediation = True
+                    self.sim.spawn_operation(op)
+            except Exception as err:
+                logger.warning(f"ProcessInterruptSpawner factory/spawn failed: {err}")
 
         sim.callbacks.on_operation_interrupt.append(_on_interrupt)
         self._on_interrupt = _on_interrupt
@@ -278,20 +364,23 @@ class PolicyEnforcerSpawner(Spawner):
 
     def _on_attach(self, sim: Simulation) -> None:
         def _on_violation(record: SHACLViolationRecord):
-            if self._should_skip(record):
-                return
-            factory = self.shape_dispatch.get(record.shape_iri)
-            if factory is None:
-                return
-            op = factory(record)
-            if op is None:
-                return
-            op.remediation = True
-            self._mark_seen(record)
-            precedents = None
-            if record.operation_id in sim.operation_registry:
-                precedents = [record.operation_id]
-            sim.spawn_operation(op, precedents=precedents)
+            try:
+                if self._should_skip(record):
+                    return
+                factory = self.shape_dispatch.get(record.shape_iri)
+                if factory is None:
+                    return
+                op = factory(record)
+                if op is None:
+                    return
+                op.remediation = True
+                self._mark_seen(record)
+                precedents = None
+                if record.operation_id in sim.operation_registry:
+                    precedents = [record.operation_id]
+                sim.spawn_operation(op, precedents=precedents)
+            except Exception as err:
+                logger.warning(f"PolicyEnforcerSpawner factory/spawn failed: {err}")
 
         sim.callbacks.on_violation.append(_on_violation)
         self._on_violation = _on_violation
@@ -315,6 +404,17 @@ class ValidationAuditSpawner(Spawner):
 
     inspect_interval: float = Field(0.0, ge=0.0)
     _subscribed: bool = PrivateAttr(default=False)
+
+    @field_validator("inspect_interval")
+    @classmethod
+    def _validate_inspect_interval(cls, value: float) -> float:
+        try:
+            is_finite = math.isfinite(value)
+        except TypeError as exc:
+            raise ValueError("inspect_interval must be finite and >= 0") from exc
+        if not is_finite or value < 0:
+            raise ValueError("inspect_interval must be finite and >= 0")
+        return value
 
     def _emit_violation_records(self, sim: Simulation, report) -> None:
         for vr in _iter_validation_results(report):
@@ -362,31 +462,53 @@ class ValidationAuditSpawner(Spawner):
 
     def _on_attach(self, sim: Simulation) -> None:
         if self.inspect_interval > 0:
-            sim.env.process(self._run_every_dt(sim))
+            self._alive = True
+            self._process = sim.env.process(self._run_every_dt(sim))
         else:
             if not self._subscribed:
                 def _on_end(proc: OperationProcess):
-                    conforms, report, _ = sim.effect_engine.validate_now()
-                    if not conforms:
-                        self._emit_violation_records(sim, report)
+                    try:
+                        conforms, report, _ = sim.effect_engine.validate_now()
+                        if not conforms:
+                            self._emit_violation_records(sim, report)
+                    except Exception as err:
+                        logger.warning(f"ValidationAuditSpawner validate_now failed: {err}")
 
                 sim.callbacks.on_operation_end.append(_on_end)
                 self._on_end = _on_end
                 self._subscribed = True
 
     def _detach_safe(self, sim: Simulation) -> None:
+        self._alive = False
         if self._subscribed and hasattr(self, "_on_end"):
             try:
                 sim.callbacks.on_operation_end.remove(self._on_end)
             except ValueError:
                 pass
         self._subscribed = False
+        if self._process is not None:
+            try:
+                if not self._process.triggered:
+                    self._process.interrupt("ValidationAuditSpawner detached")
+            except Exception:
+                pass
+            self._process = None
+
+    @property
+    def requires_until(self) -> bool:
+        return self.inspect_interval > 0
 
     def _run_every_dt(self, sim: Simulation):
         env = sim.env
         dt = self.inspect_interval
-        while True:
-            yield env.timeout(self._sim_time(sim, dt))
-            conforms, report, _ = sim.effect_engine.validate_now()
-            if not conforms:
-                self._emit_violation_records(sim, report)
+        try:
+            while self._alive:
+                yield env.timeout(self._sim_time(sim, dt))
+                try:
+                    conforms, report, _ = sim.effect_engine.validate_now()
+                    if not conforms:
+                        self._emit_violation_records(sim, report)
+                except Exception as err:
+                    logger.warning(f"ValidationAuditSpawner validate_now failed: {err}")
+        except simpy.Interrupt:
+            return
