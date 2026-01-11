@@ -1,45 +1,31 @@
-# Codex Agent Guide — libsyn_tools (sim correctness hardening)
+# Codex Agent Guide — libsyn_tools v0.3 (sim module)
 
-You are working **only** in this repository. Focus on **`libsyn_tools/sim/**`** and **`tests_sim/**`**.  
-The repo already has `tests_sim` and **all tests currently pass** at the starting point.
+These tasks target **only two correctness issues** in the simulator:
+- (A) `LiteralSelector` can hang indefinitely when the FilterStore is out-of-sync.
+- (B) Interrupt bookkeeping can mutate the KG without actually holding locks.
 
-## Run protocol (do this every run)
-1. Read **`AGENTS.md`** (this file) and **`codex_state.md`**.
-2. Run baseline tests:
+## Every run workflow
+1) Read `codex_state_v0.3_AB.md`.
+2) Run baseline:
    - `pytest -q tests_sim`
-   If baseline fails, stop and fix baseline before doing new work.
-3. Execute the **next incomplete task** from `codes_task_prompts.md`.
-4. Add/adjust **regression tests** for the change.
-5. Run:
+3) Execute the next task in `codes_task_prompts_v0.3_AB.md`.
+4) Add/adjust regression tests in `tests_sim/`.
+5) Run:
    - `pytest -q tests_sim`
-6. Update `codex_state.md`:
-   - Mark the task DONE
-   - List files changed
-   - List tests added/updated
-   - Note any behavior/semantics changes
+6) Update `codex_state_v0.3_AB.md` with:
+   - task status DONE
+   - files changed
+   - tests added/updated
+   - notes/decisions
 
-## Constraints & priorities
-- Prefer **simple, robust, non-overengineered** fixes.
-- Avoid breaking APIs unless explicitly required; if you must, document in `codex_state.md`.
-- **No `assert` for runtime validation.** Use explicit exceptions.
-- Prevent:
-  - leaked locks
-  - drained pool stores
-  - non-terminating sims (unless explicitly configured)
-  - silent masking of correctness errors (make strictness configurable when needed)
-
-## Design invariants to preserve
-- **Presence = availability** (`is_present == {True}` required for selection and mutation unless creating).
-- Operations must not proceed RUNNING if `pre_act` failed/cancelled.
-- Validation/spawners must not fabricate invalid focus IDs.
-- Reports/provenance should reflect terminal outcomes (END/ABORT/INTERRUPT).
+## Constraints
+- Prefer **minimal, robust** changes (no redesign of the locking model).
+- Do not introduce new blocking waits inside interrupt handlers.
+- Preserve semantics:
+  - If an object is legitimately unavailable (not present / locked), selectors may wait.
+  - The fix must remove only the *unintended* hang when an object is available but missing from the store.
+- No `assert` for correctness validation.
 
 ## Testing guidance
-- Use **unique pool types** in tests to avoid global registry bleed.
-- Keep tests deterministic; short timeouts.
-- Add at least one regression test per bug class.
-- When a behavior is semantics-sensitive, encode the decision in a test.
-
-## Commands
-- Full suite: `pytest -q tests_sim`
-- Single test: `pytest -q tests_sim/path/to/test_file.py::test_name`
+- Use unique pool_type strings per test.
+- Keep tests deterministic with short sim timeouts.
