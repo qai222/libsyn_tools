@@ -19,19 +19,22 @@ def make_drain_to_capacity(focus_iri: str, waste_iri: str) -> DrainExcess:
         waste = KnowledgeGraph.get_object_from_lookup(waste_id)
     if focus is None or waste is None:
         raise RuntimeError("make_drain_to_capacity requires focus and waste to exist in KG")
+    if not getattr(focus, "has_capacity", set()):
+        raise RuntimeError(f"{focus.identifier} has no capacity set")
+    if len(focus.has_capacity) != 1:
+        raise RuntimeError(f"{focus.identifier} has invalid capacity set")
     try:
         capacity = getattr(focus, "capacity", None)
     except ValueError as exc:
-        raise RuntimeError(f"{focus.identifier} has non-positive capacity") from exc
+        raise RuntimeError(f"{focus.identifier} has invalid capacity") from exc
     if capacity is None:
         raise RuntimeError(f"{focus.identifier} has no capacity set")
     if capacity <= 0:
         raise RuntimeError(f"{focus.identifier} has non-positive capacity")
-    if capacity <= _EPS:
-        target_volume = capacity
-    else:
+    target_volume = capacity
+    if capacity > _EPS:
         target_volume = max(capacity - _EPS, _EPS)
-        target_volume = min(target_volume, capacity)
+    target_volume = min(target_volume, capacity)
     return DrainExcess(
         participant_source=focus.identifier,
         participant_destination=waste.identifier,

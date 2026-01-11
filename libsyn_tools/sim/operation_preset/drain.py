@@ -36,6 +36,14 @@ class DrainExcess(Operation):
     target_volume: float = Field(..., gt=0)
 
     def get_operation_effects(self) -> List[UnitaryEdit]:
+        if self.participant_source is None:
+            raise RuntimeError(
+                f"DrainExcess {self.identifier}: source is required"
+            )
+        if self.participant_destination is None:
+            raise RuntimeError(
+                f"DrainExcess {self.identifier}: destination is required"
+            )
         src = KnowledgeGraph.get_object_from_lookup(self.participant_source)
         dst = KnowledgeGraph.get_object_from_lookup(self.participant_destination)
 

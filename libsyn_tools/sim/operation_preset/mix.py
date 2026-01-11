@@ -20,9 +20,13 @@ class MixInContainer(Operation):
     participant_container: StrOrSelector
 
     def get_operation_effects(self) -> List[UnitaryEdit]:
+        if self.participant_container is None:
+            raise RuntimeError("MixInContainer: container is required")
         container = KnowledgeGraph.get_object_from_lookup(self.participant_container)
         if container is None:
-            raise RuntimeError("MixInContainer: container not found")
+            raise RuntimeError(
+                f"MixInContainer: container {self.participant_container!r} not found"
+            )
         if not isinstance(container, MaterialContainer):
             raise RuntimeError("MixInContainer: container must be a MaterialContainer")
         if getattr(container, "is_present", {False}) != {True}:

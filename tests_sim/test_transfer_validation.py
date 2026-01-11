@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from twa.data_model.base_ontology import KnowledgeGraph
 
-from libsyn_tools.sim.knowledge_graph import LabObject
+from libsyn_tools.sim.knowledge_graph import LabObject, MaterialContainer
 from libsyn_tools.sim.operation_preset.transfer import (
     TransferMaterialByPortionSize,
     TransferMaterialByVolume,
@@ -61,4 +61,40 @@ def test_transfer_volume_non_container_source_raises() -> None:
         transfer_volume=1.0,
     )
     with pytest.raises(RuntimeError, match="MaterialContainer"):
+        op.get_operation_effects()
+
+
+def test_transfer_volume_none_destination_raises_clear_error() -> None:
+    src = MaterialContainer()
+    dev = MaterialContainer()
+    for obj in (src, dev):
+        obj.is_present = {True}
+        KnowledgeGraph.get_object_from_lookup(obj.identifier)
+
+    op = TransferMaterialByVolume.model_construct(
+        participant_source=src.identifier,
+        participant_destination=None,
+        participant_device=dev.identifier,
+        transfer_volume=1.0,
+    )
+    with pytest.raises(RuntimeError, match="destination container is required"):
+        op.get_operation_effects()
+
+
+def test_transfer_volume_non_container_destination_raises() -> None:
+    src = MaterialContainer()
+    dst = LabObject()
+    dev = MaterialContainer()
+    for obj in (src, dst, dev):
+        if isinstance(obj, MaterialContainer):
+            obj.is_present = {True}
+        KnowledgeGraph.get_object_from_lookup(obj.identifier)
+
+    op = TransferMaterialByVolume(
+        participant_source=src.identifier,
+        participant_destination=dst.identifier,
+        participant_device=dev.identifier,
+        transfer_volume=1.0,
+    )
+    with pytest.raises(RuntimeError, match="destination container"):
         op.get_operation_effects()

@@ -56,7 +56,7 @@ def test_mix_in_container_merges_poms() -> None:
 
 def test_mix_in_container_missing_container_raises() -> None:
     op = MixInContainer(identifier="mix-missing", participant_container="missing-container")
-    with pytest.raises(RuntimeError, match="container not found"):
+    with pytest.raises(RuntimeError, match="container .* not found"):
         op.get_operation_effects()
 
 

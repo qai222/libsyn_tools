@@ -24,9 +24,9 @@ Fix all **unique, valid, worth-fixing** correctness issues identified for sim v0
 - [x] Task 3 — Selector/pool robustness (exception-safe atomicity, store healing, fairness, cancellation semantics)
 - [x] Task 4 — Operation spawn/precedents robustness (no double-start, NEW-only, cycles iterative, deferred-start semantics)
 - [x] Task 5 — EffectEngine transactional correctness (no in-place edit mutation, rollback of runtime history, safe snapshotting, IRI normalization, lock rules)
-- [ ] Task 6 — SHACL/policy/spawner correctness (focus validation, dedupe, throttling, factory exception handling, strictness)
-- [ ] Task 7 — Presets/remediation validation fixes (transfer/drain/mix, containment unlink, capacity clamping)
-- [ ] Task 8 — Ontology/material math invariants + serialization stability
+- [x] Task 6 — SHACL/policy/spawner correctness (focus validation, dedupe, throttling, factory exception handling, strictness)
+- [x] Task 7 — Presets/remediation validation fixes (transfer/drain/mix, containment unlink, capacity clamping)
+- [x] Task 8 — Ontology/material math invariants + serialization stability
 - [ ] Task 9 — Overlays/RDF graph correctness (union graph API, stable ingredient IRIs, owl:sameAs bridging, subclass coverage)
 - [ ] Task 10 — Reporting/provenance correctness (terminal timestamps, ID collisions, utilization timing, SPPT safety)
 
@@ -134,8 +134,69 @@ Append entries under “Log” as tasks complete.
       - codex_state.md
     - Tests added/updated:
       - tests_sim/unit/test_effect_engine_transactional_correctness.py
-    - Notes/decisions:
+  - Notes/decisions:
       - CREATE on runtime-tracked objects is allowed without locks when the object is not present in any pool store.
+
+- Date: 2025-09-15
+  Task: 6 — SHACL/policy/spawner correctness (focus validation, dedupe, throttling, factory exception handling, strictness)
+  Status: DONE
+  Summary:
+    - Behavior changes:
+      - SHACL violations now ignore non-URIRef focus nodes and normalize focus IDs against KG objects before remediation.
+      - Policy spawners cap remediation attempts per (shape, focus), count factory failures, and warn on unknown shapes.
+      - Strict overlay validation defaults to enabled when SHACL shapes are provided (configurable via Simulation).
+    - Files changed:
+      - libsyn_tools/sim/effect_engine.py
+      - libsyn_tools/sim/policy.py
+      - libsyn_tools/sim/simulation.py
+      - libsyn_tools/sim/spawner.py
+      - tests_sim/sim/test_overlay_strictness.py
+      - tests_sim/sim/test_spawners_policy_enforcer.py
+      - codex_state.md
+    - Tests added/updated:
+      - tests_sim/sim/test_overlay_strictness.py
+      - tests_sim/sim/test_spawners_policy_enforcer.py
+    - Notes/decisions:
+      - Policy bundle defaults now warn on unknown shapes unless explicitly disabled.
+
+- Date: 2025-09-15
+  Task: 7 — Presets/remediation validation fixes (transfer/drain/mix, containment unlink, capacity clamping)
+  Status: DONE
+  Summary:
+    - Behavior changes:
+      - Transfer presets now validate source/destination/device containers for existence, type, and presence before computing edits.
+      - DrainExcess and MixInContainer provide clearer required-container errors; remediation capacity checks now fail fast on invalid capacity sets.
+    - Files changed:
+      - libsyn_tools/sim/operation_preset/transfer.py
+      - libsyn_tools/sim/operation_preset/drain.py
+      - libsyn_tools/sim/operation_preset/mix.py
+      - libsyn_tools/sim/remediation.py
+      - tests_sim/test_transfer_validation.py
+      - tests_sim/sim/test_mix_preset.py
+      - codex_state.md
+    - Tests added/updated:
+      - tests_sim/test_transfer_validation.py
+      - tests_sim/sim/test_mix_preset.py
+    - Notes/decisions:
+      - Container validation errors now report role-specific messages for transfers.
+
+- Date: 2025-09-15
+  Task: 8 — Ontology/material math invariants + serialization stability
+  Status: DONE
+  Summary:
+    - Behavior changes:
+      - Chemical math now requires finite mass/density and strictly positive density; container capacity must be finite and > 0.
+      - Chemistry overlay skips malformed ingredient blobs with a warning and rounds mass values consistently.
+    - Files changed:
+      - libsyn_tools/chem_schema/chemical.py
+      - libsyn_tools/sim/knowledge_graph/ontology.py
+      - libsyn_tools/sim/overlay/chemistry_overlay.py
+      - tests_sim/sim/test_material_math_invariants.py
+      - codex_state.md
+    - Tests added/updated:
+      - tests_sim/sim/test_material_math_invariants.py
+    - Notes/decisions:
+      - Capacity values of 0 are treated as invalid (must be finite and > 0).
 
 ### Log entry template
 - Date: YYYY-MM-DD

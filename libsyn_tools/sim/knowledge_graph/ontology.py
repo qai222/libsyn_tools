@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from typing import ClassVar, Iterable, Type, TypeVar
 
 from pydantic import Field
@@ -230,10 +231,7 @@ class PortionOfMaterial(Substance):
     def _merge_chemicals(cls, chemicals: list[Chemical]) -> list[Chemical]:
         merged: dict[str, Chemical] = {}
         for chemical in chemicals:
-            if chemical.mass is None:
-                raise ValueError(f"Chemical {chemical!r} lacks a `mass` value")
-            if chemical.density is None:
-                raise ValueError(f"Chemical {chemical!r} lacks a `density` value")
+            chemical._require_mass_density("merge")
             key = cls._ingredient_key(chemical)
             if key in merged:
                 merged[key] = merged[key] + chemical
@@ -409,7 +407,12 @@ class MaterialContainer(LabObject):
             self.identifier,
             context="capacity access",
         )
-        return float(cap)
+        cap_value = float(cap)
+        if not math.isfinite(cap_value) or cap_value <= 0:
+            raise ValueError(
+                f"has_capacity for {self.identifier} is invalid (capacity must be finite and > 0)"
+            )
+        return cap_value
 
 
 # Ensure models are rebuilt (TWA)

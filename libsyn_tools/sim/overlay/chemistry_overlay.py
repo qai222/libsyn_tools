@@ -11,6 +11,7 @@ This emits ephemeral triples:
 
 import json
 
+from loguru import logger
 from rdflib import Graph, Namespace, Literal
 from rdflib.namespace import XSD
 
@@ -21,6 +22,8 @@ LIB = Namespace(SimOntology.base_url)
 
 
 class ChemistryOverlayProvider:
+    _FLOAT_ROUND_DECIMALS = PortionOfMaterial._FLOAT_ROUND_DECIMALS
+
     def snapshot(self) -> Graph:
         g = Graph()
         for pom in PortionOfMaterial.all_instances():
@@ -29,12 +32,20 @@ class ChemistryOverlayProvider:
             pom_iri = canonical_iri(pom.identifier)
             ingredient_blobs = sorted(pom.has_ingredient)
             for idx, blob in enumerate(ingredient_blobs):
-                chemical = Chemical(**json.loads(blob))
+                try:
+                    chemical = Chemical(**json.loads(blob))
+                except Exception as exc:
+                    logger.warning(
+                        f"ChemistryOverlayProvider skipped malformed ingredient blob for "
+                        f"{pom.identifier!r}: {exc}"
+                    )
+                    continue
                 ingredient_id = f"ingredient/{identifier_from_iri(pom.identifier)}/{idx}"
                 ingredient_iri = canonical_iri(ingredient_id)
                 g.add((pom_iri, LIB.hasIngredient, ingredient_iri))
                 if chemical.smiles:
                     g.add((ingredient_iri, LIB.smiles, Literal(chemical.smiles)))
                 if chemical.mass is not None:
-                    g.add((ingredient_iri, LIB.mass, Literal(float(chemical.mass), datatype=XSD.double)))
+                    mass_value = round(float(chemical.mass), self._FLOAT_ROUND_DECIMALS)
+                    g.add((ingredient_iri, LIB.mass, Literal(mass_value, datatype=XSD.double)))
         return g

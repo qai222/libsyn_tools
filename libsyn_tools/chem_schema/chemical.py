@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from loguru import logger
 
 from libsyn_tools.utils import get_provenance_model, StateOfMatter, estimate_property_dummy, FilePath, \
@@ -44,6 +46,20 @@ class ChemicalBase(Entity):
             raise ValueError(f"Chemical {self!r} lacks a `mass` value for {context}")
         if self.density is None:
             raise ValueError(f"Chemical {self!r} lacks a `density` value for {context}")
+        try:
+            mass_finite = math.isfinite(self.mass)
+        except TypeError as exc:
+            raise ValueError(f"Chemical {self!r} has non-numeric `mass` for {context}") from exc
+        if not mass_finite:
+            raise ValueError(f"Chemical {self!r} has non-finite `mass` for {context}")
+        try:
+            density_finite = math.isfinite(self.density)
+        except TypeError as exc:
+            raise ValueError(f"Chemical {self!r} has non-numeric `density` for {context}") from exc
+        if not density_finite:
+            raise ValueError(f"Chemical {self!r} has non-finite `density` for {context}")
+        if self.density <= 0:
+            raise ValueError(f"Chemical {self!r} has non-positive `density` for {context}")
 
     @property
     def volume(self) -> float | None:

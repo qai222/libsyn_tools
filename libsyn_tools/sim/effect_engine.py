@@ -215,7 +215,16 @@ class EffectEngine:
     ) -> list[SHACLViolationRecord]:
         records: list[SHACLViolationRecord] = []
         for vr in _iter_validation_results(shacl_report_graph):
-            shape_iri = _first(shacl_report_graph, vr, SH.sourceShape)
+            shape_node = shacl_report_graph.value(vr, SH.sourceShape, any=False)
+            focus_node = shacl_report_graph.value(vr, SH.focusNode, any=False)
+            shape_iri = str(shape_node) if isinstance(shape_node, URIRef) else None
+            focus_iri = str(focus_node) if isinstance(focus_node, URIRef) else None
+            if focus_iri is not None:
+                focus_obj = KnowledgeGraph.get_object_from_lookup(focus_iri)
+                if focus_obj is None:
+                    normalized_focus = identifier_from_iri(focus_iri)
+                    focus_obj = KnowledgeGraph.get_object_from_lookup(normalized_focus)
+                focus_iri = focus_obj.identifier if focus_obj is not None else None
             policy = self.policy.rule_for_shape(shape_iri) if self.policy else None
             rec = SHACLViolationRecord(
                 sim_time=env_now,
@@ -228,7 +237,7 @@ class EffectEngine:
                 edit_descriptions=edit_descriptions,
                 seed=seed,
                 shape_iri=shape_iri,
-                focus_iri=_first(shacl_report_graph, vr, SH.focusNode),
+                focus_iri=focus_iri,
                 message=_first(shacl_report_graph, vr, SH.resultMessage),
                 report_graph_ttl=shacl_report_graph.serialize(format="turtle"),
             )

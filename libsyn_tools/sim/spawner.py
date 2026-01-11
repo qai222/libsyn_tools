@@ -18,6 +18,7 @@ from __future__ import annotations
 import weakref
 from abc import ABC, abstractmethod
 import math
+import warnings
 from typing import Optional, Callable, Any, Dict, Tuple, Set
 
 import simpy
@@ -168,6 +169,9 @@ class KGInspectorSpawner(Spawner):
     shape_dispatch: Dict[str, Callable[[str], Optional[Operation]]]
     inspect_interval: float = Field(0.0, ge=0.0)
     _subscribed: bool = PrivateAttr(default=False)
+    warn_on_unknown_shape: bool = True
+    error_on_unknown_shape: bool = False
+    _warned_unknown_shapes: Set[str] = PrivateAttr(default_factory=set)
 
     @field_validator("inspect_interval")
     @classmethod
@@ -216,6 +220,15 @@ class KGInspectorSpawner(Spawner):
             logger.debug(f"sourceShape = {shape_iri}")
             factory = self.shape_dispatch.get(shape_iri)
             if factory is None:
+                if self.error_on_unknown_shape:
+                    raise ValueError(f"KGInspectorSpawner has no factory for shape {shape_iri!r}.")
+                if self.warn_on_unknown_shape and shape_iri not in self._warned_unknown_shapes:
+                    warnings.warn(
+                        f"KGInspectorSpawner has no factory for shape {shape_iri!r}.",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+                    self._warned_unknown_shapes.add(shape_iri)
                 continue
             try:
                 op = factory(focus_iri)
@@ -329,9 +342,13 @@ class PolicyEnforcerSpawner(Spawner):
     dispositions: Tuple[str, ...] = ("committed", "aborted")
     dedupe: bool = True
     max_remediations_per_focus: int = 1
+    warn_on_unknown_shape: bool = True
+    error_on_unknown_shape: bool = False
     _seen_violation_ids: Set[str] = PrivateAttr(default_factory=set)
     _seen_op_shapes: Set[Tuple[str, Optional[str]]] = PrivateAttr(default_factory=set)
     _remediation_counts: Dict[Tuple[str, Optional[str]], int] = PrivateAttr(default_factory=dict)
+    _failure_counts: Dict[Tuple[str, Optional[str]], int] = PrivateAttr(default_factory=dict)
+    _warned_unknown_shapes: Set[str] = PrivateAttr(default_factory=set)
 
     def _should_skip(self, record: SHACLViolationRecord) -> bool:
         if record.origin not in self.origins:
@@ -339,6 +356,8 @@ class PolicyEnforcerSpawner(Spawner):
         if record.disposition not in self.dispositions:
             return True
         if record.shape_iri is None:
+            return True
+        if record.focus_iri is None:
             return True
         op_shape = (record.shape_iri, record.focus_iri)
         if self.max_remediations_per_focus >= 0:
@@ -353,23 +372,71 @@ class PolicyEnforcerSpawner(Spawner):
             return True
         return False
 
-    def _mark_seen(self, record: SHACLViolationRecord) -> None:
-        if record.shape_iri is not None:
-            op_shape = (record.shape_iri, record.focus_iri)
-            self._remediation_counts[op_shape] = self._remediation_counts.get(op_shape, 0) + 1
-            if self.dedupe:
-                self._seen_op_shapes.add(op_shape)
+    def _record_attempt(self, record: SHACLViolationRecord, *, mark_seen: bool) -> None:
+        if record.shape_iri is None:
+            return
+        op_shape = (record.shape_iri, record.focus_iri)
+        self._remediation_counts[op_shape] = self._remediation_counts.get(op_shape, 0) + 1
         if self.dedupe:
             self._seen_violation_ids.add(record.violation_id)
+            if mark_seen:
+                self._seen_op_shapes.add(op_shape)
+
+    def _mark_seen(self, record: SHACLViolationRecord) -> None:
+        self._record_attempt(record, mark_seen=True)
+
+    def _mark_failed(self, record: SHACLViolationRecord) -> None:
+        if record.shape_iri is None:
+            return
+        op_shape = (record.shape_iri, record.focus_iri)
+        self._failure_counts[op_shape] = self._failure_counts.get(op_shape, 0) + 1
+        self._record_attempt(record, mark_seen=False)
+
+    @staticmethod
+    def _is_blank_node_iri(iri: str) -> bool:
+        return iri.startswith("_:")
+
+    def _normalize_focus(self, record: SHACLViolationRecord) -> Optional[str]:
+        focus_iri = record.focus_iri
+        if not focus_iri:
+            return None
+        if self._is_blank_node_iri(focus_iri):
+            record.focus_iri = None
+            return None
+        focus_obj = KnowledgeGraph.get_object_from_lookup(focus_iri)
+        if focus_obj is None:
+            normalized = identifier_from_iri(focus_iri)
+            if normalized != focus_iri:
+                focus_obj = KnowledgeGraph.get_object_from_lookup(normalized)
+        if focus_obj is None:
+            record.focus_iri = None
+            return None
+        record.focus_iri = focus_obj.identifier
+        return record.focus_iri
+
+    def _handle_unknown_shape(self, shape_iri: Optional[str]) -> None:
+        if shape_iri is None:
+            return
+        if self.error_on_unknown_shape:
+            raise ValueError(f"PolicyEnforcerSpawner has no factory for shape {shape_iri!r}.")
+        if self.warn_on_unknown_shape and shape_iri not in self._warned_unknown_shapes:
+            warnings.warn(
+                f"PolicyEnforcerSpawner has no factory for shape {shape_iri!r}.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            self._warned_unknown_shapes.add(shape_iri)
 
     def _on_attach(self, sim: Simulation) -> None:
         def _on_violation(record: SHACLViolationRecord):
+            self._normalize_focus(record)
+            if self._should_skip(record):
+                return
+            factory = self.shape_dispatch.get(record.shape_iri)
+            if factory is None:
+                self._handle_unknown_shape(record.shape_iri)
+                return
             try:
-                if self._should_skip(record):
-                    return
-                factory = self.shape_dispatch.get(record.shape_iri)
-                if factory is None:
-                    return
                 op = factory(record)
                 if op is None:
                     return
@@ -380,6 +447,7 @@ class PolicyEnforcerSpawner(Spawner):
                     precedents = [record.operation_id]
                 sim.spawn_operation(op, precedents=precedents)
             except Exception as err:
+                self._mark_failed(record)
                 logger.warning(f"PolicyEnforcerSpawner factory/spawn failed: {err}")
 
         sim.callbacks.on_violation.append(_on_violation)

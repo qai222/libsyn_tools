@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import pytest
 from rdflib import Graph, Namespace
 from rdflib.namespace import SH, XSD
 from twa.data_model.base_ontology import KnowledgeGraph
@@ -13,6 +14,7 @@ from libsyn_tools.sim.knowledge_graph import (
     MaterialContainer,
     PortionOfMaterial,
     Is_directly_contained_by,
+    identifier_from_iri,
 )
 from libsyn_tools.sim.operation.operation import Operation
 from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty, UnitaryEdit
@@ -108,11 +110,18 @@ class _NoOp(Operation):
 
 def test_policy_enforcer_dedupe_includes_focus():
     shape_iri = "urn:shape:dedupe"
+    base = "https://libsyn-sim/kg/"
+    obj_a = MaterialContainer(identifier=f"{base}focus-a")
+    obj_b = MaterialContainer(identifier=f"{base}focus-b")
+    for obj in (obj_a, obj_b):
+        KnowledgeGraph.get_object_from_lookup(obj.identifier)
+        Create(instance_1_iri=obj.identifier).apply()
 
     def _factory(record: SHACLViolationRecord):
         if record.focus_iri is None:
             return None
-        return _NoOp(identifier=f"remediate-{record.focus_iri}")
+        focus_id = identifier_from_iri(record.focus_iri)
+        return _NoOp(identifier=f"remediate-{focus_id}")
 
     sim = Simulation([])
     spawner = PolicyEnforcerSpawner(shape_dispatch={shape_iri: _factory}, dedupe=True)
@@ -125,7 +134,7 @@ def test_policy_enforcer_dedupe_includes_focus():
         severity="soft",
         disposition="committed",
         shape_iri=shape_iri,
-        focus_iri="focus-a",
+        focus_iri=obj_a.identifier,
     )
     rec_b = SHACLViolationRecord(
         sim_time=0.0,
@@ -134,7 +143,7 @@ def test_policy_enforcer_dedupe_includes_focus():
         severity="soft",
         disposition="committed",
         shape_iri=shape_iri,
-        focus_iri="focus-b",
+        focus_iri=obj_b.identifier,
     )
 
     sim.callbacks.emit_violation(rec_a)
@@ -147,6 +156,10 @@ def test_policy_enforcer_dedupe_includes_focus():
 def test_policy_enforcer_throttle_limits_repeats():
     shape_iri = "urn:shape:throttle"
     counts = {"i": 0}
+    base = "https://libsyn-sim/kg/"
+    focus = MaterialContainer(identifier=f"{base}focus-throttle")
+    KnowledgeGraph.get_object_from_lookup(focus.identifier)
+    Create(instance_1_iri=focus.identifier).apply()
 
     def _factory(record: SHACLViolationRecord):
         counts["i"] += 1
@@ -169,9 +182,98 @@ def test_policy_enforcer_throttle_limits_repeats():
                 severity="soft",
                 disposition="committed",
                 shape_iri=shape_iri,
-                focus_iri="focus-a",
+                focus_iri=focus.identifier,
             )
         )
 
     spawned = [op_id for op_id in sim.operation_registry if op_id.startswith("remediate-")]
     assert len(spawned) == 2
+
+
+def test_policy_enforcer_skips_blank_node_focus():
+    shape_iri = "urn:shape:blank-focus"
+    counts = {"i": 0}
+
+    def _factory(record: SHACLViolationRecord):
+        counts["i"] += 1
+        return _NoOp(identifier="remediate-blank")
+
+    sim = Simulation([])
+    spawner = PolicyEnforcerSpawner(shape_dispatch={shape_iri: _factory})
+    spawner.attach(sim)
+
+    sim.callbacks.emit_violation(
+        SHACLViolationRecord(
+            sim_time=0.0,
+            operation_id="op-blank",
+            origin="SHACL",
+            severity="soft",
+            disposition="committed",
+            shape_iri=shape_iri,
+            focus_iri="_:b0",
+        )
+    )
+
+    assert counts["i"] == 0
+    assert "remediate-blank" not in sim.operation_registry
+
+
+def test_policy_enforcer_factory_exception_is_capped():
+    shape_iri = "urn:shape:factory-error"
+    base = "https://libsyn-sim/kg/"
+    focus = MaterialContainer(identifier=f"{base}focus-failure")
+    KnowledgeGraph.get_object_from_lookup(focus.identifier)
+    Create(instance_1_iri=focus.identifier).apply()
+    counts = {"i": 0}
+
+    def _factory(record: SHACLViolationRecord):
+        counts["i"] += 1
+        raise RuntimeError("boom")
+
+    sim = Simulation([])
+    spawner = PolicyEnforcerSpawner(
+        shape_dispatch={shape_iri: _factory},
+        dedupe=False,
+        max_remediations_per_focus=2,
+    )
+    spawner.attach(sim)
+
+    for _ in range(4):
+        sim.callbacks.emit_violation(
+            SHACLViolationRecord(
+                sim_time=0.0,
+                operation_id="op-err",
+                origin="SHACL",
+                severity="soft",
+                disposition="committed",
+                shape_iri=shape_iri,
+                focus_iri=focus.identifier,
+            )
+        )
+
+    assert counts["i"] == 2
+
+
+def test_policy_enforcer_warns_on_unknown_shape():
+    shape_iri = "urn:shape:missing"
+    base = "https://libsyn-sim/kg/"
+    focus = MaterialContainer(identifier=f"{base}focus-missing-shape")
+    KnowledgeGraph.get_object_from_lookup(focus.identifier)
+    Create(instance_1_iri=focus.identifier).apply()
+
+    sim = Simulation([])
+    spawner = PolicyEnforcerSpawner(shape_dispatch={})
+    spawner.attach(sim)
+
+    with pytest.warns(RuntimeWarning, match="no factory"):
+        sim.callbacks.emit_violation(
+            SHACLViolationRecord(
+                sim_time=0.0,
+                operation_id="op-missing",
+                origin="SHACL",
+                severity="soft",
+                disposition="committed",
+                shape_iri=shape_iri,
+                focus_iri=focus.identifier,
+            )
+        )

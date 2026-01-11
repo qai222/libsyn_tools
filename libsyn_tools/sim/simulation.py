@@ -300,7 +300,8 @@ class Simulation:
             simulation_speed_factor: float = 1.0,
             random_seed: int | None = None,
             shacl_shapes: str | Path | Graph | None = None,
-            shacl_inference: str = "owlrl"
+            shacl_inference: str = "owlrl",
+            strict_overlays: bool | None = None,
     ):
         self.env = simpy.Environment()
         get_runtime_context(self.env)
@@ -327,10 +328,13 @@ class Simulation:
         # NEW: lifecycle callbacks (shared among engine + processes)
         self.callbacks = LifecycleCallbacks(history_logger=self._log_history_event)
 
+        if strict_overlays is None:
+            strict_overlays = shapes_graph is not None
         self.effect_engine = EffectEngine(
             shapes_graph=shapes_graph,
             inference=shacl_inference,
             callbacks=self.callbacks,  # NEW
+            strict_overlays=strict_overlays,
         )
         self.env._libsyn_effect_engine = self.effect_engine
         self._sppt_overlay = SPPTOverlayProvider(self.callbacks)
