@@ -22,7 +22,12 @@ from .effect_engine import (
     SHACLValidationError,
 )
 from .overlay import SPPTOverlayProvider, CurrentVolumeOverlayProvider
-from .knowledge_graph import LabObject, Has_interrupt_events, identifier_from_iri
+from .knowledge_graph import (
+    LabObject,
+    MaterialContainer,
+    Has_interrupt_events,
+    identifier_from_iri,
+)
 from .lifecycle import LifecycleCallbacks
 from .operation.operation import Operation, _OpState
 from .operation.selector import SelectorCancelled
@@ -31,10 +36,10 @@ from .operation.runtime import (
     get_object_for_resource,
     get_runtime_context,
     get_runtime_state,
+    OperationUsageRecord,
 )
 from .operation.unitary_edit import AddDataProperty
 from .report import RunReport
-from .validation import require_singleton_or_error
 
 
 class OperationEventRecord(BaseModel):
@@ -266,7 +271,31 @@ class OperationProcess:
             for iri in self.operation.resources:
                 obj = KnowledgeGraph.get_object_from_lookup(iri)
                 if _needs_runtime_tracking(obj) and getattr(obj, "is_present", {False}) == {True}:
-                    get_runtime_state(obj, self.env).recent_operations.append(self.operation)
+                    runtime_state = get_runtime_state(obj, self.env)
+                    runtime_state.recent_operations.append(self.operation)
+                    pool_type = None
+                    pool_type_error = None
+                    try:
+                        pool_values = set(getattr(obj, "has_pool_type", set()))
+                        if len(pool_values) == 1:
+                            pool_type = next(iter(pool_values))
+                        elif len(pool_values) > 1:
+                            pool_type_error = (
+                                f"has_pool_type for {obj.identifier} is invalid (found {len(pool_values)} values)"
+                            )
+                    except Exception as exc:
+                        pool_type_error = f"has_pool_type for {obj.identifier} is invalid: {exc}"
+                    runtime_state.recent_operation_records.append(
+                        OperationUsageRecord(
+                            operation_id=identifier_from_iri(self.operation.identifier),
+                            operation_type=self.operation.__class__.__name__,
+                            pool_type=pool_type,
+                            lock_acquired_sim_time=self.operation.lock_acquired_times.get(
+                                identifier_from_iri(obj.identifier)
+                            ),
+                            pool_type_error=pool_type_error,
+                        )
+                    )
 
             # FINISH
             self.operation.post_act(self.env)
@@ -527,7 +556,9 @@ class Simulation:
         df_log.to_csv(filename, index=False)
         logger.info(f"Event log exported → {filename}")
 
-    def _build_instance_history_dataframe(self) -> pd.DataFrame:
+    def _build_instance_history_dataframe(
+        self, diagnostics: list[dict] | None = None
+    ) -> pd.DataFrame:
         terminal_events = {"OPERATION_END", "OPERATION_ABORT", "OPERATION_INTERRUPT"}
         end_time_index = {
             r.operation_id: r.timestamp
@@ -539,24 +570,37 @@ class Simulation:
         for rs in ctx.runtime_cache.values():
             if not _needs_runtime_tracking(rs.obj):
                 continue
-            pool_type = None
-            if getattr(rs.obj, "has_pool_type", set()):
-                pool_type = require_singleton_or_error(
-                    getattr(rs.obj, "has_pool_type", set()),
-                    "has_pool_type",
-                    rs.obj.identifier,
-                    context="instance history",
-                )
-            for operation in rs.recent_operations:
-                op_id = identifier_from_iri(operation.identifier)
+            records = list(rs.recent_operation_records)
+            if not records and rs.recent_operations:
+                for operation in rs.recent_operations:
+                    op_id = identifier_from_iri(operation.identifier)
+                    records.append(
+                        OperationUsageRecord(
+                            operation_id=op_id,
+                            operation_type=operation.__class__.__name__,
+                            pool_type=None,
+                            lock_acquired_sim_time=None,
+                        )
+                    )
+            for record in records:
+                if record.pool_type_error and diagnostics is not None:
+                    diagnostics.append(
+                        {
+                            "kind": "invalid_pool_type",
+                            "instance_iri": rs.obj.identifier,
+                            "operation_id": record.operation_id,
+                            "message": record.pool_type_error,
+                        }
+                    )
                 rows.append(
                     {
                         "instance_iri": rs.obj.identifier,
                         "instance_type": rs.obj.__class__.__name__,
-                        "pool_type": pool_type,
-                        "operation_id": op_id,
-                        "operation_type": operation.__class__.__name__,
-                        "sim_timestamp": end_time_index.get(op_id, None),
+                        "pool_type": record.pool_type,
+                        "operation_id": record.operation_id,
+                        "operation_type": record.operation_type,
+                        "lock_acquired_sim_timestamp": record.lock_acquired_sim_time,
+                        "sim_timestamp": end_time_index.get(record.operation_id, None),
                     }
                 )
         return pd.DataFrame(rows)
@@ -639,7 +683,8 @@ class Simulation:
             shacl_df = pd.DataFrame.from_records(
                 [rec.model_dump(exclude={"report_graph_ttl"}) for rec in violation_records]
             )
-        instance_history_df = self._build_instance_history_dataframe()
+        diagnostics: list[dict] = []
+        instance_history_df = self._build_instance_history_dataframe(diagnostics)
 
         start_times = [r.timestamp for r in self.history_log if r.event_type == "OPERATION_START"]
         terminal_times = [r.timestamp for r in self.history_log if r.event_type in terminal_event_types]
@@ -689,6 +734,32 @@ class Simulation:
             for module_iri in module_rows["instance_iri"]:
                 utilization_by_module[module_iri] = utilization_by_module.get(module_iri, 0) + 1
 
+        ctx = get_runtime_context(self.env, create=False)
+        for rs in ctx.runtime_cache.values():
+            pool_values = set(getattr(rs.obj, "has_pool_type", set()))
+            if len(pool_values) > 1:
+                diagnostics.append(
+                    {
+                        "kind": "invalid_pool_type",
+                        "instance_iri": rs.obj.identifier,
+                        "message": (
+                            f"has_pool_type for {rs.obj.identifier} is invalid "
+                            f"(found {len(pool_values)} values)"
+                        ),
+                    }
+                )
+            if isinstance(rs.obj, MaterialContainer):
+                try:
+                    _ = rs.obj.capacity
+                except Exception as exc:
+                    diagnostics.append(
+                        {
+                            "kind": "invalid_capacity",
+                            "instance_iri": rs.obj.identifier,
+                            "message": f"has_capacity for {rs.obj.identifier} is invalid: {exc}",
+                        }
+                    )
+
         remediation_ops_spawned = 0
         if not event_log_df.empty and "operation_data" in event_log_df:
             start_rows = event_log_df[event_log_df["event_type"] == "OPERATION_START"]
@@ -709,6 +780,7 @@ class Simulation:
                 "by_module": utilization_by_module,
             },
             "remediation_ops_spawned": remediation_ops_spawned,
+            "diagnostics": diagnostics,
         }
 
         return RunReport(

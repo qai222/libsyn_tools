@@ -12,6 +12,7 @@ from libsyn_tools.sim import Simulation
 from libsyn_tools.sim.knowledge_graph  import (
     MaterialContainer, PortionOfMaterial, Is_directly_contained_by
 )
+from libsyn_tools.sim.knowledge_graph.ontology import Has_begin_time_base, Has_end_time_base
 from libsyn_tools.sim.lifecycle import LifecycleCallbacks
 from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty
 from libsyn_tools.sim.operation.operation import Operation
@@ -123,4 +124,29 @@ def test_sppt_overlay_escapes_operation_identifier_and_preserves_metadata() -> N
     assert " " not in str(proc_iri)
     assert (proc_iri, RDF.type, LIB.Process) in provider._g
     assert (proc_iri, custom_pred, URIRef("https://example.com/meta")) in provider._g
+
+
+def test_sppt_overlay_emits_base_time_when_speed_factor_used() -> None:
+    src = MaterialContainer()
+    KnowledgeGraph.get_object_from_lookup(src.identifier)
+    Create(instance_1_iri=src.identifier).apply()
+
+    op = BadRemove(
+        identifier="base-time-op",
+        participant_src=src.identifier,
+        bad_dst="missing-dst",
+    )
+
+    sim = Simulation([op], simulation_speed_factor=2.0)
+    provider = SPPTOverlayProvider(sim.callbacks)
+    sim.effect_engine.register_overlay_provider(provider.snapshot)
+    sim.run()
+
+    g = provider.snapshot()
+    int_iri = LIB[f"Interval/{op.identifier}"]
+    base_begin = URIRef(Has_begin_time_base.predicate_iri)
+    base_end = URIRef(Has_end_time_base.predicate_iri)
+
+    assert (int_iri, base_begin, None) in g
+    assert (int_iri, base_end, None) in g
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_overlay_sppt_provider.py ###

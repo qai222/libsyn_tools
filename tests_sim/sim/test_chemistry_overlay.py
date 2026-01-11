@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 from pydantic import Field
-from rdflib import Namespace, Literal
+import hashlib
+
+from rdflib import Namespace, Literal, URIRef
+from rdflib.namespace import OWL
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
@@ -11,10 +14,13 @@ from libsyn_tools.sim.knowledge_graph import (
     MaterialContainer,
     PortionOfMaterial,
     Is_directly_contained_by,
+    canonical_iri,
+    identifier_from_iri,
 )
 from libsyn_tools.sim.operation.operation import Operation, StrOrSelector
 from libsyn_tools.sim.operation.selector import KgQuerySelector
 from libsyn_tools.sim.operation.unitary_edit import Create, AddObjectProperty, UnitaryEdit
+from libsyn_tools.sim.overlay.chemistry_overlay import ChemistryOverlayProvider
 from libsyn_tools.sim.packs.chemistry import install_chemistry_pack
 
 
@@ -76,4 +82,38 @@ def test_kg_query_selector_can_filter_by_smiles() -> None:
     sim.run()
 
     assert op.resolved_resources["target"] == container.identifier
+
+
+def test_ingredient_iris_are_stable_and_hashed() -> None:
+    pom = PortionOfMaterial(identifier="pom-hash")
+    pom.add_chemical(Chemical(smiles="CCO", mass=1.0, density=1.0))
+    pom.add_chemical(Chemical(smiles="O", mass=2.0, density=1.0))
+
+    KnowledgeGraph.get_object_from_lookup(pom.identifier)
+    Create(instance_1_iri=pom.identifier).apply()
+
+    provider = ChemistryOverlayProvider()
+    first_graph = provider.snapshot()
+    lib = Namespace("https://libsyn-sim/kg/")
+
+    ingredient_iris_first = {
+        obj for _, _, obj in first_graph.triples((canonical_iri(pom.identifier), lib.hasIngredient, None))
+    }
+    assert ingredient_iris_first
+
+    ingredient_blobs = list(pom.has_ingredient)
+    pom.has_ingredient = {ingredient_blobs[1], ingredient_blobs[0]}
+
+    second_graph = provider.snapshot()
+    ingredient_iris_second = {
+        obj for _, _, obj in second_graph.triples((canonical_iri(pom.identifier), lib.hasIngredient, None))
+    }
+    assert ingredient_iris_first == ingredient_iris_second
+
+    expected_hash = hashlib.sha256(ingredient_blobs[0].encode("utf-8")).hexdigest()
+    expected_ingredient_id = f"ingredient/{identifier_from_iri(pom.identifier)}/{expected_hash}"
+    expected_ingredient_iri = canonical_iri(expected_ingredient_id)
+    assert expected_ingredient_iri in ingredient_iris_first
+    assert (URIRef(pom.identifier), OWL.sameAs, canonical_iri(pom.identifier)) in first_graph
+    assert (URIRef(expected_ingredient_id), OWL.sameAs, expected_ingredient_iri) in first_graph
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_chemistry_overlay.py ###

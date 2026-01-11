@@ -33,11 +33,16 @@ from typing import Dict, Optional, List, Any
 from urllib.parse import quote
 
 from rdflib import Graph, Namespace, URIRef, Literal
-from rdflib.namespace import RDF, XSD
+from rdflib.namespace import OWL, RDF, XSD
 
 from libsyn_tools.sim.knowledge_graph import canonical_iri, identifier_from_iri
 from libsyn_tools.sim.knowledge_graph.ontology import (
-    Has_participant, Has_interval, Has_begin_time, Has_end_time
+    Has_participant,
+    Has_interval,
+    Has_begin_time,
+    Has_end_time,
+    Has_begin_time_base,
+    Has_end_time_base,
 )
 
 LIB = Namespace("https://libsyn-sim/kg/")
@@ -47,6 +52,8 @@ LIB = Namespace("https://libsyn-sim/kg/")
 class _OpSpan:
     t0: Optional[float] = None
     t1: Optional[float] = None
+    base_t0: Optional[float] = None
+    base_t1: Optional[float] = None
     participants: List[str] = field(default_factory=list)
 
 
@@ -67,6 +74,8 @@ class SPPTOverlayProvider:
         op = proc.operation
         span = self._spans.setdefault(op.identifier, _OpSpan())
         span.t0 = float(proc.env.now)
+        speed_factor = getattr(proc, "speed_factor", None) or 1.0
+        span.base_t0 = float(proc.env.now) / float(speed_factor)
         # After pre_act(), resources hold resolved participant IRIs (strings)
         if op.resources:
             span.participants = list(op.resources)
@@ -75,6 +84,8 @@ class SPPTOverlayProvider:
         op = proc.operation
         span = self._spans.setdefault(op.identifier, _OpSpan())
         span.t1 = float(proc.env.now)
+        speed_factor = getattr(proc, "speed_factor", None) or 1.0
+        span.base_t1 = float(proc.env.now) / float(speed_factor)
         if not span.participants and op.resources:
             span.participants = list(op.resources)
         self._materialize_span(op.identifier, span)
@@ -97,6 +108,8 @@ class SPPTOverlayProvider:
             RDF.type,
             URIRef(Has_begin_time.predicate_iri),
             URIRef(Has_end_time.predicate_iri),
+            URIRef(Has_begin_time_base.predicate_iri),
+            URIRef(Has_end_time_base.predicate_iri),
         ]
         for predicate in sppt_proc_predicates:
             self._g.remove((proc_iri, predicate, None))
@@ -122,9 +135,29 @@ class SPPTOverlayProvider:
                 Literal(span.t1, datatype=XSD.double),
             )
         )
+        if span.base_t0 is not None:
+            self._g.add(
+                (
+                    int_iri,
+                    URIRef(Has_begin_time_base.predicate_iri),
+                    Literal(span.base_t0, datatype=XSD.double),
+                )
+            )
+        if span.base_t1 is not None:
+            self._g.add(
+                (
+                    int_iri,
+                    URIRef(Has_end_time_base.predicate_iri),
+                    Literal(span.base_t1, datatype=XSD.double),
+                )
+            )
         self._g.add((proc_iri, URIRef(Has_interval.predicate_iri), int_iri))
         for p in span.participants:
-            self._g.add((proc_iri, URIRef(Has_participant.predicate_iri), canonical_iri(p)))
+            canon = canonical_iri(p)
+            raw = URIRef(identifier_from_iri(p))
+            if raw != canon:
+                self._g.add((raw, OWL.sameAs, canon))
+            self._g.add((proc_iri, URIRef(Has_participant.predicate_iri), canon))
 
     # ---- overlay snapshot ----
     def snapshot(self) -> Graph:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import dataclass
 from typing import Dict, TYPE_CHECKING
 
 import simpy
@@ -61,6 +62,15 @@ def get_resource_for_object(obj: LabObject, env: simpy.Environment | None = None
         )
 
 
+@dataclass(frozen=True)
+class OperationUsageRecord:
+    operation_id: str
+    operation_type: str
+    pool_type: str | None
+    lock_acquired_sim_time: float | None
+    pool_type_error: str | None = None
+
+
 class _RuntimeState:
     def __init__(self, env: simpy.Environment, obj: LabObject):
         self.env = env
@@ -68,6 +78,7 @@ class _RuntimeState:
         self.lock = get_resource_for_object(obj, env)
         self.recent_edits: deque[UnitaryEdit] = deque(maxlen=128)
         self.recent_operations: deque["Operation"] = deque(maxlen=128)
+        self.recent_operation_records: deque[OperationUsageRecord] = deque(maxlen=128)
         # TODO we could use weakref but is it necessary? or maybe just use (timestamp, action id)?
         # from weakref import ref
         # self.recent_actions: deque[ref[Action]] = deque(maxlen=128)

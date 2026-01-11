@@ -143,7 +143,7 @@ def test_build_report_interrupt_terminal_makespan() -> None:
     assert report.summary["makespan"] is not None
 
 
-def test_build_report_invalid_pool_type_raises_clear_error() -> None:
+def test_build_report_invalid_pool_type_adds_diagnostics() -> None:
     container = MaterialContainer(identifier="report-pool-invalid")
     container.is_present = {True}
     KnowledgeGraph.get_object_from_lookup(container.identifier)
@@ -153,6 +153,32 @@ def test_build_report_invalid_pool_type_raises_clear_error() -> None:
     get_runtime_state(container, sim.env)
     container.has_pool_type.update({"POOL_REPORT_A", "POOL_REPORT_B"})
 
-    with pytest.raises(ValueError, match="has_pool_type for report-pool-invalid is invalid"):
-        sim.build_report()
+    report = sim.build_report()
+
+    diagnostics = report.summary.get("diagnostics", [])
+    assert any(
+        entry.get("kind") == "invalid_pool_type"
+        and entry.get("instance_iri") == container.identifier
+        for entry in diagnostics
+    )
+
+
+def test_build_report_invalid_capacity_adds_diagnostics() -> None:
+    container = MaterialContainer(identifier="report-capacity-invalid")
+    container.is_present = {True}
+    KnowledgeGraph.get_object_from_lookup(container.identifier)
+    Create(instance_1_iri=container.identifier).apply()
+
+    sim = Simulation([])
+    get_runtime_state(container, sim.env)
+    container.has_capacity.update({1.0, 2.0})
+
+    report = sim.build_report()
+
+    diagnostics = report.summary.get("diagnostics", [])
+    assert any(
+        entry.get("kind") == "invalid_capacity"
+        and entry.get("instance_iri") == container.identifier
+        for entry in diagnostics
+    )
 # ### THIS IS THE END OF CONTENT OF tests_sim/sim/test_report.py ###

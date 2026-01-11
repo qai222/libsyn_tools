@@ -14,7 +14,11 @@ Notes
 
 from rdflib import Graph, Namespace, Literal, URIRef
 from rdflib.namespace import XSD, OWL
-from libsyn_tools.sim.knowledge_graph import MaterialContainer, canonical_iri
+from libsyn_tools.sim.knowledge_graph import (
+    MaterialContainer,
+    canonical_iri,
+    identifier_from_iri,
+)
 
 LIB = Namespace("https://libsyn-sim/kg/")
 
@@ -33,7 +37,7 @@ class CurrentVolumeOverlayProvider:
             # as a URIRef (e.g., <v1>) rather than the canonical base_url IRI.
             # Emit owl:sameAs so owlrl inference can bridge the alias without
             # duplicating the currentVolume triple.
-            raw = URIRef(c.instance_iri)
+            raw = URIRef(identifier_from_iri(c.instance_iri))
             if raw != canon:
                 g.add((raw, OWL.sameAs, canon))
         return g

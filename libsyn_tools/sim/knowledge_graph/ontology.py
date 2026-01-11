@@ -120,9 +120,25 @@ class Has_end_time(SimFunctionalDataProperty):
     pass
 
 
+class Has_begin_time_base(SimFunctionalDataProperty):
+    """
+    Begin time in base (unscaled) seconds or ISO timestamp string.
+    """
+    pass
+
+
+class Has_end_time_base(SimFunctionalDataProperty):
+    """
+    End time in base (unscaled) seconds or ISO timestamp string.
+    """
+    pass
+
+
 # Attach interval endpoints on TimeInterval individuals
 TimeInterval.has_begin_time: Has_begin_time[float | str] = Field(default_factory=set)  # type: ignore[attr-defined]
 TimeInterval.has_end_time: Has_end_time[float | str] = Field(default_factory=set)  # type: ignore[attr-defined]
+TimeInterval.has_begin_time_base: Has_begin_time_base[float | str] = Field(default_factory=set)  # type: ignore[attr-defined]
+TimeInterval.has_end_time_base: Has_end_time_base[float | str] = Field(default_factory=set)  # type: ignore[attr-defined]
 
 
 # ======================================================================
@@ -332,11 +348,27 @@ class LabObject(Substance):
             )
         target_class = instance_class
         out: list[T_co] = []
-        if not hasattr(target_class, "all_instances"):
-            raise NotImplementedError(
-                "instance_class must provide all_instances() for containment lookup."
-            )
-        candidates = target_class.all_instances()
+
+        if hasattr(target_class, "all_instances"):
+            candidates = target_class.all_instances()
+        else:
+            stack = [target_class]
+            seen_ids: set[str] = set()
+
+            def _iter_instances():
+                while stack:
+                    k = stack.pop()
+                    object_lookup = getattr(k, "object_lookup", None)
+                    if object_lookup is None:
+                        stack.extend(k.__subclasses__())
+                        continue
+                    for obj in object_lookup.values():
+                        if obj.instance_iri not in seen_ids:
+                            seen_ids.add(obj.instance_iri)
+                            yield obj
+                    stack.extend(k.__subclasses__())
+
+            candidates = _iter_instances()
         for inst in candidates:
             if only_present and inst.is_present != {True}:
                 continue

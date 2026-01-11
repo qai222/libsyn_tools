@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from rdflib import Namespace
+from rdflib import Namespace, URIRef
+from rdflib.namespace import OWL
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
@@ -76,3 +77,5 @@ def test_current_volume_overlay_uses_canonical_iris():
 
     assert LIB[c.identifier] in cv_subjects
     assert LIB[c.identifier] in sppt_participants
+    assert (URIRef(c.identifier), OWL.sameAs, LIB[c.identifier]) in cv_graph
+    assert (URIRef(c.identifier), OWL.sameAs, LIB[c.identifier]) in sppt_graph

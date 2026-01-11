@@ -77,4 +77,12 @@ class RunReport:
         lines.append(f"- remediation_ops_spawned: {self.summary.get('remediation_ops_spawned', 0)}")
         lines.append("")
 
+        diagnostics = self.summary.get("diagnostics", [])
+        if diagnostics:
+            lines.append("## Diagnostics")
+            lines.append("")
+            for entry in diagnostics:
+                lines.append(f"- {entry}")
+            lines.append("")
+
         return "\n".join(lines)

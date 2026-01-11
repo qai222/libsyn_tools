@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from rdflib import Namespace
+from rdflib import Namespace, URIRef
+from rdflib.namespace import RDF
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.chem_schema import Chemical
@@ -33,13 +34,23 @@ def test_build_query_graph_includes_current_volume_overlay():
         property_iri=Is_directly_contained_by.predicate_iri,
     ).apply()
 
+    data_graph = KnowledgeGraph.graph()
+    base_triple = next(
+        data_graph.triples((URIRef(container.identifier), RDF.type, None)),
+        None,
+    )
+    assert base_triple is not None
+
     sim = Simulation([])
     engine = get_effect_engine(sim.env)
     union_graph = engine.build_query_graph()
 
-    triples = list(
+    overlay_triples = list(
         union_graph.triples(
             (canonical_iri(container.instance_iri), lib.currentVolume, None)
         )
     )
-    assert len(triples) >= 1
+    assert len(overlay_triples) >= 1
+
+    base_triples = list(union_graph.triples(base_triple))
+    assert base_triples == [base_triple]

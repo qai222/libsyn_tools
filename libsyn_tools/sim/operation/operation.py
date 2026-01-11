@@ -153,6 +153,7 @@ class Operation(ABC, BaseModel):
     """
     runtime-only attributes (excluded from serialisation)
     """
+    lock_acquired_times: dict[str, float] = Field(default_factory=dict, exclude=True)
 
     def execute(self):
         """ applying operation effects """
@@ -195,6 +196,7 @@ class Operation(ABC, BaseModel):
         if self.sim_state is not _OpState.NEW:
             raise RuntimeError(f"{self.identifier}: pre_act called in state {self.sim_state}")
         self.sim_state = _OpState.PREPARED
+        self.lock_acquired_times = {}
         return env.process(self._pre_act_implementation(env))
 
     def _mark_running(self):
@@ -289,6 +291,8 @@ class Operation(ABC, BaseModel):
                 else:
                     acquired[iri] = req
                     self.locks.append(req)
+                    if iri not in self.lock_acquired_times:
+                        self.lock_acquired_times[iri] = env.now
     
                 resolved[role] = iri
     

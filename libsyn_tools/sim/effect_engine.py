@@ -31,7 +31,7 @@ from libsyn_tools.sim.operation import Operation, UnitaryEdit, UnitaryEditType, 
 from libsyn_tools.sim.operation.runtime import get_runtime_context, _needs_runtime_tracking
 from libsyn_tools.sim.validation import require_singleton_or_error
 from .effect_shacl import SHACLViolationRecord, _iter_validation_results, _first
-from .graph_utils import union_view_many, union_view_for_shacl
+from .graph_utils import union_view_for_shacl
 from .policy import PolicyBundle
 from .lifecycle import LifecycleCallbacks
 
@@ -88,6 +88,7 @@ class _ObjectSnapshot:
     pool_type: str | None
     recent_edits_len: int | None
     recent_operations_len: int | None
+    recent_operation_records_len: int | None
 
 
 class EffectEngine:
@@ -199,7 +200,7 @@ class EffectEngine:
         """
         data_graph: Graph = KnowledgeGraph.graph()
         overlay_graphs = self._collect_overlay_graphs()
-        return union_view_many([data_graph, *overlay_graphs])
+        return union_view_for_shacl([data_graph, *overlay_graphs])
 
     # --- SHACL helpers (unchanged) ---
     def _collect_shacl_violations(
@@ -744,6 +745,7 @@ class EffectEngine:
             pool_type = None
             recent_edits_len = None
             recent_operations_len = None
+            recent_operation_records_len = None
             if _needs_runtime_tracking(obj):
                 if obj.has_pool_type:
                     try:
@@ -765,6 +767,9 @@ class EffectEngine:
                     if runtime_state is not None:
                         recent_edits_len = len(runtime_state.recent_edits)
                         recent_operations_len = len(runtime_state.recent_operations)
+                        recent_operation_records_len = len(
+                            runtime_state.recent_operation_records
+                        )
                 if pool_type:
                     store = ctx.filter_stores.get(pool_type)
                     runtime_in_filter_store = bool(store and obj in store.items)
@@ -778,6 +783,7 @@ class EffectEngine:
                 pool_type=pool_type,
                 recent_edits_len=recent_edits_len,
                 recent_operations_len=recent_operations_len,
+                recent_operation_records_len=recent_operation_records_len,
             )
         return snapshots
 
@@ -821,6 +827,12 @@ class EffectEngine:
                     if snap.recent_operations_len is not None:
                         while len(runtime_state.recent_operations) > snap.recent_operations_len:
                             runtime_state.recent_operations.pop()
+                    if snap.recent_operation_records_len is not None:
+                        while (
+                            len(runtime_state.recent_operation_records)
+                            > snap.recent_operation_records_len
+                        ):
+                            runtime_state.recent_operation_records.pop()
             else:
                 ctx.runtime_cache.pop(obj.instance_iri, None)
                 setattr(obj, "_runtime", None)

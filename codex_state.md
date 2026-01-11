@@ -27,13 +27,64 @@ Fix all **unique, valid, worth-fixing** correctness issues identified for sim v0
 - [x] Task 6 — SHACL/policy/spawner correctness (focus validation, dedupe, throttling, factory exception handling, strictness)
 - [x] Task 7 — Presets/remediation validation fixes (transfer/drain/mix, containment unlink, capacity clamping)
 - [x] Task 8 — Ontology/material math invariants + serialization stability
-- [ ] Task 9 — Overlays/RDF graph correctness (union graph API, stable ingredient IRIs, owl:sameAs bridging, subclass coverage)
-- [ ] Task 10 — Reporting/provenance correctness (terminal timestamps, ID collisions, utilization timing, SPPT safety)
+- [x] Task 9 — Overlays/RDF graph correctness (union graph API, stable ingredient IRIs, owl:sameAs bridging, subclass coverage)
+- [x] Task 10 — Reporting/provenance correctness (terminal timestamps, ID collisions, utilization timing, SPPT safety)
 
 ## Progress log
 Append entries under “Log” as tasks complete.
 
 ### Log
+- Date: 2025-09-16
+  Task: 10 — Reporting/provenance correctness (terminal timestamps, ID collisions, utilization timing, SPPT safety)
+  Status: DONE
+  Summary:
+    - Behavior changes:
+      - Instance history now records lock-acquired timestamps and pool types captured at usage time, and report diagnostics include malformed pool types/capacities instead of raising.
+      - SPPT overlay records base-time interval predicates alongside sim-time and handles missing speed_factor in callbacks.
+    - Files changed:
+      - libsyn_tools/sim/knowledge_graph/ontology.py
+      - libsyn_tools/sim/operation/runtime.py
+      - libsyn_tools/sim/operation/operation.py
+      - libsyn_tools/sim/effect_engine.py
+      - libsyn_tools/sim/simulation.py
+      - libsyn_tools/sim/overlay/sppt_overlay.py
+      - libsyn_tools/sim/report.py
+      - tests_sim/sim/test_overlay_sppt_provider.py
+      - tests_sim/sim/test_report.py
+      - tests_sim/sim/test_utilization_timing.py
+      - codex_state.md
+    - Tests added/updated:
+      - tests_sim/sim/test_overlay_sppt_provider.py
+      - tests_sim/sim/test_report.py
+      - tests_sim/sim/test_utilization_timing.py
+    - Notes/decisions:
+      - Base-time SPPT predicates are emitted as additional interval properties alongside existing sim-time fields.
+
+- Date: 2025-09-16
+  Task: 9 — Overlays/RDF graph correctness (union graph API, stable ingredient IRIs, owl:sameAs bridging, subclass coverage)
+  Status: DONE
+  Summary:
+    - Behavior changes:
+      - Chemistry overlays now mint ingredient IRIs from hashes of ingredient blobs and emit owl:sameAs bridges for identifier/canonical forms.
+      - Current volume and SPPT overlays emit owl:sameAs bridges for identifier/canonical forms, and query graph construction now returns a UnionGraphView facade.
+      - Containment lookups fall back to subclass-aware iteration when all_instances is unavailable.
+    - Files changed:
+      - libsyn_tools/sim/overlay/current_volume_overlay.py
+      - libsyn_tools/sim/overlay/chemistry_overlay.py
+      - libsyn_tools/sim/overlay/sppt_overlay.py
+      - libsyn_tools/sim/knowledge_graph/ontology.py
+      - libsyn_tools/sim/effect_engine.py
+      - tests_sim/sim/test_chemistry_overlay.py
+      - tests_sim/sim/test_effect_engine_query_graph.py
+      - tests_sim/unit/test_overlay_current_volume_provider.py
+      - codex_state.md
+    - Tests added/updated:
+      - tests_sim/sim/test_chemistry_overlay.py
+      - tests_sim/sim/test_effect_engine_query_graph.py
+      - tests_sim/unit/test_overlay_current_volume_provider.py
+    - Notes/decisions:
+      - Ingredient overlay nodes are now keyed by content hash rather than index to keep identifiers stable.
+
 - Date: 2025-09-15
   Task: 1 — Finite/valid time validation everywhere
   Status: DONE
