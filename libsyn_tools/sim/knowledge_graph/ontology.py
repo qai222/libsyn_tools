@@ -27,7 +27,11 @@ class Substance(Individual):
         seen_ids: set[str] = set()
         while stack:
             k = stack.pop()
-            for obj in k.object_lookup.values():
+            object_lookup = getattr(k, "object_lookup", None)
+            if object_lookup is None:
+                stack.extend(k.__subclasses__())
+                continue
+            for obj in object_lookup.values():
                 if obj.instance_iri not in seen_ids:
                     seen_ids.add(obj.instance_iri)
                     yield obj
@@ -378,7 +382,11 @@ class LabObject(Substance):
         seen_ids: set[str] = set()
         while stack:
             k = stack.pop()
-            for obj in k.object_lookup.values():
+            object_lookup = getattr(k, "object_lookup", None)
+            if object_lookup is None:
+                stack.extend(k.__subclasses__())
+                continue
+            for obj in object_lookup.values():
                 if obj.instance_iri not in seen_ids:
                     seen_ids.add(obj.instance_iri)
                     yield obj

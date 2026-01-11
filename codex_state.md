@@ -175,6 +175,16 @@ Task 9: Provenance/report exports (instance history timestamps for terminal even
 - Notes:
   - Operation/event exports now normalize identifiers, SPPT overlay escapes unsafe op IDs and preserves non-SPPT metadata, and union graph view delegates value/query over the aggregate.
 
+### Task 10: Robust all_instances when class registries are missing
+- Status: DONE
+- Files changed:
+  - libsyn_tools/sim/knowledge_graph/ontology.py
+  - tests_sim/unit/test_all_instances_robust.py
+- Tests added/updated:
+  - tests_sim/unit/test_all_instances_robust.py::test_all_instances_handles_missing_object_lookup
+- Notes:
+  - all_instances now skips classes whose object_lookup is unset, avoiding NoneType errors during resource build.
+
 ### Template
 - Task N: <title>
   - Status: DONE / IN PROGRESS
