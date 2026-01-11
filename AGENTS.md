@@ -5,14 +5,14 @@ These tasks target **only two correctness issues** in the simulator:
 - (B) Interrupt bookkeeping can mutate the KG without actually holding locks.
 
 ## Every run workflow
-1) Read `codex_state_v0.3_AB.md`.
+1) Read `codex_state.md`.
 2) Run baseline:
    - `pytest -q tests_sim`
-3) Execute the next task in `codes_task_prompts_v0.3_AB.md`.
+3) Execute the next task.
 4) Add/adjust regression tests in `tests_sim/`.
 5) Run:
    - `pytest -q tests_sim`
-6) Update `codex_state_v0.3_AB.md` with:
+6) Update `codex_state.md` with:
    - task status DONE
    - files changed
    - tests added/updated
