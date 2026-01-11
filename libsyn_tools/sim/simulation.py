@@ -26,7 +26,12 @@ from .knowledge_graph import LabObject, Has_interrupt_events, identifier_from_ir
 from .lifecycle import LifecycleCallbacks
 from .operation.operation import Operation, _OpState
 from .operation.selector import SelectorCancelled
-from .operation.runtime import _needs_runtime_tracking, get_runtime_context, get_runtime_state
+from .operation.runtime import (
+    _needs_runtime_tracking,
+    get_object_for_resource,
+    get_runtime_context,
+    get_runtime_state,
+)
 from .operation.unitary_edit import AddDataProperty
 from .report import RunReport
 from .validation import require_singleton_or_error
@@ -75,6 +80,8 @@ class OperationProcess:
 
         # Track the in-flight pre_act SimPy process so interrupts can cancel it.
         self._pre_act_process: Optional[simpy.events.Process] = None
+        self._pending_interrupt: str | None = None
+        self.deferred_start: bool = False
 
     def sim_time(self, dt: float) -> float:
         return dt * self.speed_factor
@@ -90,6 +97,16 @@ class OperationProcess:
                 operation_data=data or self.operation.model_dump(),
             )
         )
+
+    def request_interrupt(self, reason: str) -> None:
+        if self.done_event.triggered:
+            return
+        if self.simpy_process is None:
+            self._pending_interrupt = str(reason)
+            self._handle_interrupt(str(reason))
+            return
+        if not getattr(self.simpy_process, "triggered", True):
+            self.simpy_process.interrupt(reason)
 
     def _safe_cleanup(self) -> None:
         try:
@@ -144,11 +161,24 @@ class OperationProcess:
             # swallow the resulting ContractViolationError so locks are
             # still released and the op can terminate cleanly.
             try:
+                locked_iris: list[str] = []
+                for req in self.operation.locks:
+                    resource = getattr(req, "resource", None)
+                    if resource is None:
+                        continue
+                    try:
+                        obj = get_object_for_resource(resource)
+                    except Exception:
+                        continue
+                    if obj is not None:
+                        locked_iris.append(obj.identifier)
+                if not locked_iris:
+                    locked_iris = list(self.operation.resources)
                 self.effect_engine.apply(
                     edits,
                     self.env,
                     operation_id=self.operation.identifier,
-                    locked_iris=self.operation.resources,
+                    locked_iris=locked_iris,
                 )
             except Exception as err:
                 try:
@@ -165,6 +195,8 @@ class OperationProcess:
         self.callbacks.emit_operation_end(self)
 
     def run(self):
+        if self._pending_interrupt is not None and self.done_event.triggered:
+            return
         try:
             yield from self._run_core()
         except simpy.Interrupt as interrupt:
@@ -181,6 +213,8 @@ class OperationProcess:
 
     def _run_core(self):
         try:
+            if self._pending_interrupt is not None:
+                raise simpy.Interrupt(self._pending_interrupt)
             # scheduled start gate
             if self.operation.scheduled_start_time is not None:
                 try:
@@ -314,12 +348,37 @@ class Simulation:
         self._build_processes()
 
     @staticmethod
+    def _ensure_identifier_form(operation_id: str) -> None:
+        normalized = identifier_from_iri(operation_id)
+        if normalized != operation_id:
+            raise ValueError(
+                f"Operation identifiers must use identifier form, got {operation_id!r}"
+            )
+
+    @staticmethod
+    def _normalize_precedent_ids(precedents: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for pred in precedents:
+            pred_id = identifier_from_iri(pred)
+            if pred_id in seen:
+                continue
+            seen.add(pred_id)
+            normalized.append(pred_id)
+        return normalized
+
+    @staticmethod
     def _validate_precedents(
             operations: List[Operation],
             available_ids: set[str] | None = None,
     ) -> None:
         if available_ids is None:
             available_ids = {op.identifier for op in operations}
+        for op in operations:
+            Simulation._ensure_identifier_form(op.identifier)
+            op.required_precedents = Simulation._normalize_precedent_ids(
+                op.required_precedents
+            )
         for op in operations:
             for pred in op.required_precedents:
                 if pred not in available_ids:
@@ -332,29 +391,39 @@ class Simulation:
             for op in operations
             if op.identifier in available_ids
         }
-        visiting: set[str] = set()
         visited: set[str] = set()
-        stack: list[str] = []
-
-        def _visit(node: str) -> None:
-            if node in visited:
-                return
-            if node in visiting:
-                cycle_start = stack.index(node)
-                cycle = stack[cycle_start:] + [node]
-                raise ValueError(
-                    f"Precedent cycle detected: {' -> '.join(cycle)}"
-                )
-            visiting.add(node)
-            stack.append(node)
-            for neighbor in graph.get(node, []):
-                _visit(neighbor)
-            stack.pop()
-            visiting.remove(node)
-            visited.add(node)
+        visiting: set[str] = set()
 
         for node in graph:
-            _visit(node)
+            if node in visited:
+                continue
+            stack: list[tuple[str, iter[str]]] = [(node, iter(graph.get(node, [])))]
+            path: list[str] = [node]
+            visiting.add(node)
+            while stack:
+                current, neighbors = stack[-1]
+                try:
+                    neighbor = next(neighbors)
+                except StopIteration:
+                    stack.pop()
+                    visiting.remove(current)
+                    visited.add(current)
+                    path.pop()
+                    continue
+                if neighbor in visited:
+                    continue
+                if neighbor in visiting:
+                    if neighbor in path:
+                        cycle_start = path.index(neighbor)
+                        cycle = path[cycle_start:] + [neighbor]
+                    else:
+                        cycle = [neighbor, current, neighbor]
+                    raise ValueError(
+                        f"Precedent cycle detected: {' -> '.join(cycle)}"
+                    )
+                visiting.add(neighbor)
+                stack.append((neighbor, iter(graph.get(neighbor, []))))
+                path.append(neighbor)
 
     def _build_dependency_map(self) -> None:
         for op in self.operations:
@@ -495,14 +564,27 @@ class Simulation:
             precedents: list[str] | None = None,
             start_immediately: bool = True,
     ) -> "OperationProcess":
+        if op.sim_state is not _OpState.NEW:
+            raise ValueError(f"Operation {op.identifier!r} is already in use")
+        self._ensure_identifier_form(op.identifier)
         if op.identifier in self.operation_registry:
             raise ValueError(f"Operation id {op.identifier!r} already exists")
 
+        merged_precedents = list(op.required_precedents)
         if precedents:
-            op.required_precedents.extend(precedents)
+            merged_precedents.extend(precedents)
+        op.required_precedents = self._normalize_precedent_ids(merged_precedents)
 
         existing_ops = [proc.operation for proc in self.operation_registry.values()]
         self._validate_precedents(existing_ops + [op])
+        for pred in op.required_precedents:
+            proc = self.operation_registry.get(pred)
+            if proc is None:
+                continue
+            if proc.deferred_start and not proc.done_event.triggered:
+                raise ValueError(
+                    f"Operation {op.identifier!r} depends on deferred operation {pred!r}"
+                )
         proc = OperationProcess(
             env=self.env,
             operation=op,
@@ -513,6 +595,7 @@ class Simulation:
             speed_factor=self.speed_factor,
             callbacks=self.callbacks,  # NEW
         )
+        proc.deferred_start = not start_immediately
         self.operation_registry[op.identifier] = proc
         for pred in op.required_precedents:
             self.dependents[pred].append(op.identifier)

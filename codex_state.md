@@ -22,8 +22,8 @@ Fix all **unique, valid, worth-fixing** correctness issues identified for sim v0
 - [x] Task 1 — Finite/valid time validation everywhere
 - [x] Task 2 — Termination/run semantics + spawner process lifecycle safety
 - [x] Task 3 — Selector/pool robustness (exception-safe atomicity, store healing, fairness, cancellation semantics)
-- [ ] Task 4 — Operation spawn/precedents robustness (no double-start, NEW-only, cycles iterative, deferred-start semantics)
-- [ ] Task 5 — EffectEngine transactional correctness (no in-place edit mutation, rollback of runtime history, safe snapshotting, IRI normalization, lock rules)
+- [x] Task 4 — Operation spawn/precedents robustness (no double-start, NEW-only, cycles iterative, deferred-start semantics)
+- [x] Task 5 — EffectEngine transactional correctness (no in-place edit mutation, rollback of runtime history, safe snapshotting, IRI normalization, lock rules)
 - [ ] Task 6 — SHACL/policy/spawner correctness (focus validation, dedupe, throttling, factory exception handling, strictness)
 - [ ] Task 7 — Presets/remediation validation fixes (transfer/drain/mix, containment unlink, capacity clamping)
 - [ ] Task 8 — Ontology/material math invariants + serialization stability
@@ -97,8 +97,45 @@ Append entries under “Log” as tasks complete.
       - tests_sim/sim/test_filterstore_registry.py
       - tests_sim/sim/test_selector_stability_and_rollback.py
       - tests_sim/unit/test_selector.py
-    - Notes/decisions:
+  - Notes/decisions:
       - Selector cancellation is represented by SelectorCancelled and treated as interrupt-equivalent.
+
+- Date: 2025-09-15
+  Task: 4 — Operation spawn/precedents robustness (no double-start, NEW-only, cycles iterative, deferred-start semantics)
+  Status: DONE
+  Summary:
+    - Behavior changes:
+      - Operation identifiers must use identifier-form IDs; canonical IRIs are rejected to avoid log collisions.
+      - spawn_operation normalizes/de-dupes precedents, validates cycles iteratively, and blocks dependencies on deferred ops.
+      - Interrupts can be recorded for operations before their SimPy process is started.
+    - Files changed:
+      - libsyn_tools/sim/simulation.py
+      - tests_sim/sim/test_spawn_precedent_robustness.py
+      - tests_sim/sim/test_instance_history_terminal_events.py
+      - codex_state.md
+    - Tests added/updated:
+      - tests_sim/sim/test_spawn_precedent_robustness.py
+      - tests_sim/sim/test_instance_history_terminal_events.py
+  - Notes/decisions:
+      - Deferred-start operations are not allowed as precedents unless already terminal.
+
+- Date: 2025-09-15
+  Task: 5 — EffectEngine transactional correctness (no in-place edit mutation, rollback of runtime history, safe snapshotting, IRI normalization, lock rules)
+  Status: DONE
+  Summary:
+    - Behavior changes:
+      - EffectEngine now normalizes edits/locked IRIs without mutating inputs, enforces hashable data values, numeric capacity/time values, and functional cardinality.
+      - Transaction rollback restores runtime history lengths and snapshotting reports invalid pool types as mechanical errors.
+      - CREATE requires exclusivity or explicit locks when a runtime-tracked object appears in pool stores; interrupt bookkeeping uses held locks.
+    - Files changed:
+      - libsyn_tools/sim/effect_engine.py
+      - libsyn_tools/sim/simulation.py
+      - tests_sim/unit/test_effect_engine_transactional_correctness.py
+      - codex_state.md
+    - Tests added/updated:
+      - tests_sim/unit/test_effect_engine_transactional_correctness.py
+    - Notes/decisions:
+      - CREATE on runtime-tracked objects is allowed without locks when the object is not present in any pool store.
 
 ### Log entry template
 - Date: YYYY-MM-DD

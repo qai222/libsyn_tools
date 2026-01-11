@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from copy import copy
 from dataclasses import dataclass
+import math
 from pathlib import Path
 from typing import List, Union, Iterable as It, Optional, Callable
 from uuid import uuid4
@@ -15,7 +17,16 @@ from rdflib import Graph, Literal, URIRef, Namespace, ConjunctiveGraph
 from rdflib.namespace import XSD, SH
 from twa.data_model.base_ontology import KnowledgeGraph
 
-from libsyn_tools.sim.knowledge_graph import BaseClass, MaterialContainer, SimOntology, identifier_from_iri
+from libsyn_tools.sim.knowledge_graph import (
+    BaseClass,
+    MaterialContainer,
+    SimFunctionalDataProperty,
+    SimOntology,
+    Has_begin_time,
+    Has_capacity,
+    Has_end_time,
+    identifier_from_iri,
+)
 from libsyn_tools.sim.operation import Operation, UnitaryEdit, UnitaryEditType, FilterStoreRegistry, get_runtime_state
 from libsyn_tools.sim.operation.runtime import get_runtime_context, _needs_runtime_tracking
 from libsyn_tools.sim.validation import require_singleton_or_error
@@ -75,6 +86,8 @@ class _ObjectSnapshot:
     runtime_cache_present: bool
     runtime_in_filter_store: bool
     pool_type: str | None
+    recent_edits_len: int | None
+    recent_operations_len: int | None
 
 
 class EffectEngine:
@@ -123,6 +136,33 @@ class EffectEngine:
         if obj is not None:
             return obj.identifier
         return identifier_from_iri(iri)
+
+    def _normalize_locked_iris(self, locked_iris: Optional[Iterable[str]]) -> list[str]:
+        normalized: list[str] = []
+        for iri in locked_iris or []:
+            if iri is None:
+                continue
+            normalized_iri = self._normalize_instance_iri(iri)
+            if normalized_iri is not None:
+                normalized.append(normalized_iri)
+        return normalized
+
+    def _normalize_edits(self, edits: Iterable[UnitaryEdit]) -> list[UnitaryEdit]:
+        normalized_edits: list[UnitaryEdit] = []
+        for edit in edits:
+            normalized_instance_1 = self._normalize_instance_iri(edit.instance_1_iri)
+            normalized_instance_2 = (
+                self._normalize_instance_iri(edit.instance_2_iri)
+                if edit.instance_2_iri
+                else None
+            )
+            edit_copy = copy(edit)
+            if normalized_instance_1 is not None:
+                edit_copy.instance_1_iri = normalized_instance_1
+            if normalized_instance_2 is not None or edit.instance_2_iri is not None:
+                edit_copy.instance_2_iri = normalized_instance_2
+            normalized_edits.append(edit_copy)
+        return normalized_edits
 
     # --- overlay provider registry ---
     def register_overlay_provider(self, provider: Callable[[], Graph]) -> None:
@@ -262,6 +302,7 @@ class EffectEngine:
         *,
         edits: It[UnitaryEdit],
         locked_iris: Optional[It[str]] = None,
+        env: simpy.Environment,
         env_now: float,
         operation_id: str,
         batch_id: str,
@@ -305,6 +346,55 @@ class EffectEngine:
             n = prop_cls.__name__
             return n[0].lower() + n[1:]
 
+        def _require_hashable_data_value(edit: UnitaryEdit) -> None:
+            try:
+                hash(edit.data_value)
+            except TypeError as exc:
+                self._raise_mechanical(
+                    f"Mechanical check failed: unhashable data_value {edit.data_value!r}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
+
+        def _require_numeric_data_value(edit: UnitaryEdit, prop_name: str) -> None:
+            value = edit.data_value
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                self._raise_mechanical(
+                    f"Mechanical check failed: {prop_name} requires a numeric value, got {value!r}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
+            try:
+                is_finite = math.isfinite(value)
+            except TypeError as exc:
+                self._raise_mechanical(
+                    f"Mechanical check failed: {prop_name} requires a finite value, got {value!r}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
+            if not is_finite or value < 0:
+                self._raise_mechanical(
+                    f"Mechanical check failed: {prop_name} must be finite and >= 0, got {value!r}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
+
         def _require_data_property(edit: UnitaryEdit) -> None:
             if not edit.property_iri:
                 self._raise_mechanical(
@@ -326,10 +416,13 @@ class EffectEngine:
                     edit_descriptions=edit_descriptions,
                     seed=seed,
                 )
+            _require_hashable_data_value(edit)
             subj = self._lookup_obj(edit.instance_1_iri)
+            prop_cls = SimOntology.data_property_lookup[edit.property_iri]
+            if prop_cls in (Has_capacity, Has_begin_time, Has_end_time):
+                _require_numeric_data_value(edit, edit.property_iri)
             if subj is None:
                 return
-            prop_cls = SimOntology.data_property_lookup[edit.property_iri]
             field_name = _field_name_from_prop_cls(prop_cls)
             if not hasattr(subj, field_name):
                 self._raise_mechanical(
@@ -342,6 +435,28 @@ class EffectEngine:
                     edit_descriptions=edit_descriptions,
                     seed=seed,
                 )
+            if issubclass(prop_cls, SimFunctionalDataProperty):
+                current_values = getattr(subj, field_name, set())
+                if len(current_values) > 1:
+                    self._raise_mechanical(
+                        f"Mechanical check failed: functional data property {edit.property_iri} has multiple values",
+                        env_now=env_now,
+                        operation_id=operation_id,
+                        batch_id=batch_id,
+                        edit_fingerprints=edit_fingerprints,
+                        edit_descriptions=edit_descriptions,
+                        seed=seed,
+                    )
+                if edit.type is UnitaryEditType.ADD_DATA_PROPERTY:
+                    self._raise_mechanical(
+                        f"Mechanical check failed: cannot add to functional data property {edit.property_iri}",
+                        env_now=env_now,
+                        operation_id=operation_id,
+                        batch_id=batch_id,
+                        edit_fingerprints=edit_fingerprints,
+                        edit_descriptions=edit_descriptions,
+                        seed=seed,
+                    )
 
         def _require_object_property(edit: UnitaryEdit) -> None:
             if not edit.property_iri:
@@ -429,12 +544,44 @@ class EffectEngine:
                 )
 
         def _require_lock_if_runtime_tracked(iri: Optional[str]) -> None:
-            if not iri or identifier_from_iri(iri) in creates_set:
+            if not iri:
                 return
             if _is_runtime_tracked(iri) and iri not in locked:
                 self._raise_mechanical(
                     "Mechanical check failed: write coverage requires lock or create; "
                     f"got edit on {iri!r} not in locked set {locked}",
+                    env_now=env_now,
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
+
+        def _require_lock_or_exclusive_create(iri: Optional[str]) -> None:
+            if not iri or not _is_runtime_tracked(iri):
+                return
+            if iri in locked:
+                return
+            ctx = get_runtime_context(env)
+            for store in ctx.filter_stores.values():
+                if any(item.identifier == iri for item in store.items):
+                    self._raise_mechanical(
+                        "Mechanical check failed: CREATE on runtime-tracked object requires lock "
+                        f"when the object is present in a pool store: {iri!r}",
+                        env_now=env_now,
+                        operation_id=operation_id,
+                        batch_id=batch_id,
+                        edit_fingerprints=edit_fingerprints,
+                        edit_descriptions=edit_descriptions,
+                        seed=seed,
+                    )
+                    return
+            obj = self._lookup_obj(iri)
+            if obj is not None and getattr(obj, "is_present", {False}) == {True}:
+                self._raise_mechanical(
+                    "Mechanical check failed: CREATE on runtime-tracked object requires lock "
+                    f"when the object is already present: {iri!r}",
                     env_now=env_now,
                     operation_id=operation_id,
                     batch_id=batch_id,
@@ -467,6 +614,7 @@ class EffectEngine:
                         edit_descriptions=edit_descriptions,
                         seed=seed,
                     )
+                _require_lock_or_exclusive_create(e.instance_1_iri)
             elif t in (
                 UnitaryEditType.ADD_DATA_PROPERTY,
                 UnitaryEditType.CHANGE_DATA_PROPERTY,
@@ -481,10 +629,10 @@ class EffectEngine:
                         env_now=env_now,
                         operation_id=operation_id,
                         batch_id=batch_id,
-                        edit_fingerprints=edit_fingerprints,
-                        edit_descriptions=edit_descriptions,
-                        seed=seed,
-                    )
+                    edit_fingerprints=edit_fingerprints,
+                    edit_descriptions=edit_descriptions,
+                    seed=seed,
+                )
                 _require_present(e.instance_1_iri, "subject")
                 _require_lock_if_runtime_tracked(e.instance_1_iri)
             elif t in (UnitaryEditType.ADD_OBJECT_PROPERTY, UnitaryEditType.REMOVE_OBJECT_PROPERTY):
@@ -585,17 +733,29 @@ class EffectEngine:
             runtime_cache_present = False
             runtime_in_filter_store = False
             pool_type = None
+            recent_edits_len = None
+            recent_operations_len = None
             if _needs_runtime_tracking(obj):
                 if obj.has_pool_type:
-                    pool_type = require_singleton_or_error(
-                        obj.has_pool_type,
-                        "has_pool_type",
-                        obj.identifier,
-                        context="effect snapshot",
-                    )
+                    try:
+                        pool_type = require_singleton_or_error(
+                            obj.has_pool_type,
+                            "has_pool_type",
+                            obj.identifier,
+                            context="effect snapshot",
+                        )
+                    except ValueError as exc:
+                        raise ValueError(
+                            f"has_pool_type for {obj.identifier} is invalid: {exc}"
+                        ) from exc
                 runtime_resource = ctx.resource_map.get(obj.instance_iri)
                 runtime_registered = runtime_resource is not None
                 runtime_cache_present = obj.instance_iri in ctx.runtime_cache
+                if runtime_cache_present:
+                    runtime_state = ctx.runtime_cache.get(obj.instance_iri)
+                    if runtime_state is not None:
+                        recent_edits_len = len(runtime_state.recent_edits)
+                        recent_operations_len = len(runtime_state.recent_operations)
                 if pool_type:
                     store = ctx.filter_stores.get(pool_type)
                     runtime_in_filter_store = bool(store and obj in store.items)
@@ -607,6 +767,8 @@ class EffectEngine:
                 runtime_cache_present=runtime_cache_present,
                 runtime_in_filter_store=runtime_in_filter_store,
                 pool_type=pool_type,
+                recent_edits_len=recent_edits_len,
+                recent_operations_len=recent_operations_len,
             )
         return snapshots
 
@@ -642,15 +804,22 @@ class EffectEngine:
                     if obj.instance_iri not in ctx.resource_map:
                         ctx.resource_map[obj.instance_iri] = simpy.Resource(env, capacity=1)
                     get_runtime_state(obj, env)
+                runtime_state = ctx.runtime_cache.get(obj.instance_iri)
+                if runtime_state is not None:
+                    if snap.recent_edits_len is not None:
+                        while len(runtime_state.recent_edits) > snap.recent_edits_len:
+                            runtime_state.recent_edits.pop()
+                    if snap.recent_operations_len is not None:
+                        while len(runtime_state.recent_operations) > snap.recent_operations_len:
+                            runtime_state.recent_operations.pop()
             else:
                 ctx.runtime_cache.pop(obj.instance_iri, None)
                 setattr(obj, "_runtime", None)
 
+            FilterStoreRegistry.remove_obj_from_filter_store(obj, env)
             if snap.pool_type:
                 if snap.runtime_in_filter_store:
                     FilterStoreRegistry.put_obj_into_filter_store(obj, env)
-                else:
-                    FilterStoreRegistry.remove_obj_from_filter_store(obj, env)
 
     def prepare(self, action: Operation) -> List[UnitaryEdit]:
         return action.operation_effects.copy()
@@ -671,7 +840,8 @@ class EffectEngine:
         SHACL violation with disposition="aborted", which triggers rollback and
         returns committed=False.
         """
-        edits = list(edits)
+        edits = self._normalize_edits(edits)
+        normalized_locked_iris = self._normalize_locked_iris(locked_iris)
         batch_id = str(uuid4())
         fingerprints = [self._fingerprint_edit(e) for e in edits]
         descriptions = [e.describe() for e in edits]
@@ -681,7 +851,8 @@ class EffectEngine:
         try:
             self._precheck_mechanical(
                 edits=edits,
-                locked_iris=list(locked_iris or []),
+                locked_iris=normalized_locked_iris,
+                env=env,
                 env_now=env.now,
                 operation_id=operation_id,
                 batch_id=batch_id,
@@ -717,8 +888,6 @@ class EffectEngine:
                     raise RuntimeError(
                         f"Unknown subject {edit.instance_1_iri!r} for edit {edit.type.value}"
                     )
-                if edit.instance_1_iri != subj.identifier:
-                    edit.instance_1_iri = subj.identifier
                 obj2 = (
                     self._lookup_obj(edit.instance_2_iri)
                     if edit.type in (
@@ -728,8 +897,6 @@ class EffectEngine:
                     and edit.instance_2_iri
                     else None
                 )
-                if obj2 is not None and edit.instance_2_iri != obj2.identifier:
-                    edit.instance_2_iri = obj2.identifier
 
                 if edit.type in (
                     UnitaryEditType.ADD_OBJECT_PROPERTY,
