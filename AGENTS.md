@@ -1,37 +1,45 @@
-# Codex Agent Guide — libsyn_tools (sim correctness)
+# Codex Agent Guide — libsyn_tools (sim correctness hardening)
 
-## Scope
-Work only in this repository.
-Focus on:
-- libsyn_tools/sim/**
-- tests_sim/**
+You are working **only** in this repository. Focus on **`libsyn_tools/sim/**`** and **`tests_sim/**`**.  
+The repo already has `tests_sim` and **all tests currently pass** at the starting point.
 
-## Every run must do
-1) Read codex_state.md.
-2) Run baseline tests:
-   pytest -q tests_sim
-   If baseline fails, fix baseline first.
-3) Execute the next task prompt in order.
-4) Add/adjust regression tests in tests_sim for the task.
-5) Run:
-   pytest -q tests_sim
-6) Update codex_state.md:
-   - mark task DONE
-   - files changed
-   - tests added/updated
-   - behavior notes/decisions
+## Run protocol (do this every run)
+1. Read **`AGENTS.md`** (this file) and **`codex_state.md`**.
+2. Run baseline tests:
+   - `pytest -q tests_sim`
+   If baseline fails, stop and fix baseline before doing new work.
+3. Execute the **next incomplete task** from `codes_task_prompts.md`.
+4. Add/adjust **regression tests** for the change.
+5. Run:
+   - `pytest -q tests_sim`
+6. Update `codex_state.md`:
+   - Mark the task DONE
+   - List files changed
+   - List tests added/updated
+   - Note any behavior/semantics changes
 
-## Constraints
-- Prefer small, surgical fixes; avoid large redesigns.
-- Correctness > convenience: avoid silent failures; emit clear errors.
-- Do not use assert for runtime validation.
-- Keep semantics stable unless codex_state.md records a deliberate change.
+## Constraints & priorities
+- Prefer **simple, robust, non-overengineered** fixes.
+- Avoid breaking APIs unless explicitly required; if you must, document in `codex_state.md`.
+- **No `assert` for runtime validation.** Use explicit exceptions.
+- Prevent:
+  - leaked locks
+  - drained pool stores
+  - non-terminating sims (unless explicitly configured)
+  - silent masking of correctness errors (make strictness configurable when needed)
+
+## Design invariants to preserve
+- **Presence = availability** (`is_present == {True}` required for selection and mutation unless creating).
+- Operations must not proceed RUNNING if `pre_act` failed/cancelled.
+- Validation/spawners must not fabricate invalid focus IDs.
+- Reports/provenance should reflect terminal outcomes (END/ABORT/INTERRUPT).
 
 ## Testing guidance
-- Use unique pool_type strings per test to avoid global registry bleed.
-- Tests should be deterministic; keep SimPy timings small.
-- Add at least 1 regression test per bug class.
+- Use **unique pool types** in tests to avoid global registry bleed.
+- Keep tests deterministic; short timeouts.
+- Add at least one regression test per bug class.
+- When a behavior is semantics-sensitive, encode the decision in a test.
 
-## Useful commands
-pytest -q tests_sim
-pytest -q tests_sim/test_file.py::test_name
+## Commands
+- Full suite: `pytest -q tests_sim`
+- Single test: `pytest -q tests_sim/path/to/test_file.py::test_name`
