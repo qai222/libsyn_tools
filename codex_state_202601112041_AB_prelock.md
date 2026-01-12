@@ -26,9 +26,9 @@ Baseline expectation: `pytest -q tests_sim` passes before edits.
 - Overlay strictness policy is explicit and testable (strict vs tolerant).
 
 ## Task checklist
-- [ ] Task 1 — Fix A (safe cleanup + safe rollback reinsertion) + tests
-- [ ] Task 2 — Fix B (interrupt bookkeeping uses held locks only) + tests
-- [ ] Task 3 — Add/adjust tests to validate pre-lock checklist + any small wiring changes needed
+- [x] Task 1 — Fix A (safe cleanup + safe rollback reinsertion) + tests
+- [x] Task 2 — Fix B (interrupt bookkeeping uses held locks only) + tests
+- [x] Task 3 — Add/adjust tests to validate pre-lock checklist + any small wiring changes needed
 
 ## Log
 (append entries)
@@ -41,3 +41,27 @@ Baseline expectation: `pytest -q tests_sim` passes before edits.
 - Files changed:
 - Tests added/updated:
 - Notes/decisions:
+
+- Date: 2026-01-11
+- Task: Task 1 — Fix A (safe cleanup + safe rollback reinsertion) + tests
+- Status: DONE
+- Summary: Added safe FilterStore reinsertion helper and separated lock release from reinsertion in cleanup/post_act/rollback paths with diagnostics.
+- Files changed: libsyn_tools/sim/operation/selector.py; libsyn_tools/sim/operation/operation.py; libsyn_tools/sim/effect_engine.py; tests_sim/unit/test_cleanup_reinsert_safety.py
+- Tests added/updated: tests_sim/unit/test_cleanup_reinsert_safety.py
+- Notes/decisions: Logged reinsertion failures via loguru and remove ghost entries when pool_type is missing/invalid.
+
+- Date: 2026-01-11
+- Task: Task 2 — Fix B (interrupt bookkeeping uses held locks only) + tests
+- Status: DONE
+- Summary: Restricted interrupt bookkeeping to held locks and wrapped bookkeeping in a safe diagnostic path; added interrupt tests.
+- Files changed: libsyn_tools/sim/simulation.py; tests_sim/sim/test_interrupt_bookkeeping.py
+- Tests added/updated: tests_sim/sim/test_interrupt_bookkeeping.py
+- Notes/decisions: Bookkeeping skips when no locks are held and only targets locked participants.
+
+- Date: 2026-01-11
+- Task: Task 3 — Add/adjust tests to validate pre-lock checklist + any small wiring changes needed
+- Status: DONE
+- Summary: Added pre-lock checklist tests for periodic spawners, selector exception safety, and no double-start.
+- Files changed: tests_sim/sim/test_prelock_checklist.py
+- Tests added/updated: tests_sim/sim/test_prelock_checklist.py
+- Notes/decisions: Kept tests deterministic with unique pool types and short runs.

@@ -840,7 +840,11 @@ class EffectEngine:
             FilterStoreRegistry.remove_obj_from_filter_store(obj, env)
             if snap.pool_type:
                 if snap.runtime_in_filter_store:
-                    FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+                    FilterStoreRegistry.safe_put_obj_into_filter_store(
+                        obj,
+                        env,
+                        context=f"effect_engine.restore:{iri}",
+                    )
 
     def prepare(self, action: Operation) -> List[UnitaryEdit]:
         return action.operation_effects.copy()

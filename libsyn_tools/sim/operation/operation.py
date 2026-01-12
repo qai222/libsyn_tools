@@ -205,6 +205,7 @@ class Operation(ABC, BaseModel):
         self.sim_state = _OpState.RUNNING
 
     def _release_all_locks(self, env: simpy.Environment) -> None:
+        reinserts: dict[str, Any] = {}
         for req in self.locks:
             obj = None
             try:
@@ -232,7 +233,13 @@ class Operation(ABC, BaseModel):
                     pass
 
             if obj is not None and getattr(obj, "is_present", {False}) == {True}:
-                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+                reinserts[obj.identifier] = obj
+        for obj in reinserts.values():
+            FilterStoreRegistry.safe_put_obj_into_filter_store(
+                obj,
+                env,
+                context=f"operation.release_all_locks:{self.identifier}",
+            )
         self.locks.clear()
 
     def _pre_act_implementation(self, env: simpy.Environment) -> None:
@@ -352,6 +359,7 @@ class Operation(ABC, BaseModel):
         if self.sim_state is not _OpState.RUNNING:
             raise RuntimeError(f"{self.identifier}: post_act called in state {self.sim_state}")
 
+        reinserts: dict[str, Any] = {}
         for req in self.locks:
             obj = None
             # Try to map Resource -> LabObject; this may fail if the object was annihilated.
@@ -360,19 +368,42 @@ class Operation(ABC, BaseModel):
             except KeyError:
                 # Resource no longer registered (likely ANNIHILATE). We can still release the lock below.
                 pass
+            except Exception:
+                obj = None
 
-            # Always release the SimPy lock we hold
-            req.resource.release(req)
+            resource = getattr(req, "resource", None)
+            if resource is not None:
+                try:
+                    users = getattr(resource, "users", None)
+                    queue = getattr(resource, "queue", None)
+                    if users is not None and req in users:
+                        resource.release(req)
+                    elif hasattr(req, "cancel"):
+                        req.cancel()
+                    elif queue is not None and req in queue:
+                        try:
+                            queue.remove(req)
+                        except ValueError:
+                            pass
+                except Exception:
+                    pass
 
             # Reinsert only if we successfully mapped and the object is still present
             if obj is not None and getattr(obj, "is_present", {False}) == {True}:
-                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+                reinserts[obj.identifier] = obj
 
         # Fallback reinsertion for cases where resource reverse lookup failed.
         for iri in self.resources:
             obj = KnowledgeGraph.get_object_from_lookup(iri)
             if obj is not None and getattr(obj, "is_present", {False}) == {True}:
-                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+                reinserts[obj.identifier] = obj
+
+        for obj in reinserts.values():
+            FilterStoreRegistry.safe_put_obj_into_filter_store(
+                obj,
+                env,
+                context=f"operation.post_act:{self.identifier}",
+            )
 
         self.locks.clear()
         self.sim_state = _OpState.FINISHED

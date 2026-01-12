@@ -32,6 +32,7 @@ from collections.abc import Callable
 from typing import Generator, Tuple
 
 import simpy
+from loguru import logger
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim.knowledge_graph import LabObject
@@ -76,6 +77,56 @@ class FilterStoreRegistry:
             store.items[:] = deduped
             return
         store.put(obj)
+
+    @classmethod
+    def safe_put_obj_into_filter_store(
+        cls,
+        obj: LabObject,
+        env: simpy.Environment,
+        *,
+        context: str,
+    ) -> None:
+        """
+        Best-effort reinsertion that never raises and records diagnostics.
+
+        If the object's pool_type is missing/invalid, ensure the object is removed
+        from all filter stores to avoid ghost entries.
+        """
+        try:
+            if getattr(obj, "is_present", {False}) != {True}:
+                cls.remove_obj_from_filter_store(obj, env)
+                return
+            if not getattr(obj, "has_pool_type", None):
+                cls.remove_obj_from_filter_store(obj, env)
+                logger.warning(
+                    f"FilterStore reinsertion skipped ({context}) for {obj.identifier}: "
+                    "missing pool_type"
+                )
+                return
+            try:
+                require_singleton_or_error(
+                    obj.has_pool_type,
+                    "has_pool_type",
+                    obj.identifier,
+                    context=f"filter store insert ({context})",
+                )
+            except Exception as exc:
+                cls.remove_obj_from_filter_store(obj, env)
+                logger.warning(
+                    f"FilterStore reinsertion failed ({context}) for {obj.identifier}: {exc}"
+                )
+                return
+            try:
+                cls.put_obj_into_filter_store(obj, env)
+            except Exception as exc:
+                cls.remove_obj_from_filter_store(obj, env)
+                logger.warning(
+                    f"FilterStore reinsertion failed ({context}) for {obj.identifier}: {exc}"
+                )
+        except Exception as exc:
+            logger.warning(
+                f"FilterStore reinsertion failed ({context}) for {getattr(obj, 'identifier', 'unknown')}: {exc}"
+            )
 
     @classmethod
     def remove_obj_from_filter_store(cls, obj: LabObject, env: simpy.Environment):

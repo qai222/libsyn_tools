@@ -144,60 +144,60 @@ class OperationProcess:
                 pass
             self._pre_act_process = None
 
-        held_iris: set[str] = set()
-        for req in self.operation.locks:
-            resource = getattr(req, "resource", None)
-            if resource is None:
-                continue
-            users = getattr(resource, "users", None)
-            if users is not None and req not in users:
-                if not getattr(req, "triggered", False):
+        try:
+            held_iris: set[str] = set()
+            for req in self.operation.locks:
+                resource = getattr(req, "resource", None)
+                if resource is None:
                     continue
-            elif users is None and not getattr(req, "triggered", False):
-                continue
-            try:
-                obj = get_object_for_resource(resource)
-            except Exception:
-                continue
-            if obj is not None:
-                held_iris.add(identifier_from_iri(obj.identifier))
+                users = getattr(resource, "users", None)
+                if users is not None:
+                    if req not in users:
+                        continue
+                elif not getattr(req, "triggered", False):
+                    continue
+                try:
+                    obj = get_object_for_resource(resource)
+                except Exception:
+                    continue
+                if obj is not None:
+                    held_iris.add(identifier_from_iri(obj.identifier))
 
-        edits = []
-        if held_iris:
-            reason_txt = f"{self.operation.identifier}:{reason}"
-            # record interrupt on participants (only if literal IRIs)
-            for participant_name in self.operation.model_fields:
-                if not participant_name.startswith("participant_"):
-                    continue
-                iri = getattr(self.operation, participant_name)
-                if not isinstance(iri, str):
-                    continue
-                if identifier_from_iri(iri) not in held_iris:
-                    continue
-                edits.append(
-                    AddDataProperty(
-                        instance_1_iri=iri,
-                        property_iri=Has_interrupt_events.predicate_iri,
-                        data_value=reason_txt,
+            edits = []
+            if held_iris:
+                reason_txt = f"{self.operation.identifier}:{reason}"
+                # record interrupt on participants (only if literal IRIs)
+                for participant_name in self.operation.model_fields:
+                    if not participant_name.startswith("participant_"):
+                        continue
+                    iri = getattr(self.operation, participant_name)
+                    if not isinstance(iri, str):
+                        continue
+                    if identifier_from_iri(iri) not in held_iris:
+                        continue
+                    edits.append(
+                        AddDataProperty(
+                            instance_1_iri=iri,
+                            property_iri=Has_interrupt_events.predicate_iri,
+                            data_value=reason_txt,
+                        )
                     )
-                )
-        if edits and held_iris:
-            # Interrupt bookkeeping should never crash the simulation.
-            # If a policy marks interrupt events as forbidden (aborted),
-            # swallow the resulting ContractViolationError so locks are
-            # still released and the op can terminate cleanly.
-            try:
+            if edits and held_iris:
+                # Interrupt bookkeeping should never crash the simulation.
+                # If a policy marks interrupt events as forbidden (aborted),
+                # swallow the resulting ContractViolationError so locks are
+                # still released and the op can terminate cleanly.
                 self.effect_engine.apply(
                     edits,
                     self.env,
                     operation_id=self.operation.identifier,
                     locked_iris=sorted(held_iris),
                 )
-            except Exception as err:
-                try:
-                    logger.warning(f"Interrupt bookkeeping failed: {err}")
-                except Exception:
-                    pass
+        except Exception as err:
+            try:
+                logger.warning(f"Interrupt bookkeeping failed: {err}")
+            except Exception:
+                pass
         # Always release locks / finish the op cleanly.
         self._safe_cleanup()
 
