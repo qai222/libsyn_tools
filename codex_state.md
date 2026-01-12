@@ -26,8 +26,8 @@ Fix goal:
 - if none held, skip KG bookkeeping; event log remains authoritative
 
 ## Task checklist
-- [ ] Task 1 — Fix LiteralSelector out-of-sync hang (with tests)
-- [ ] Task 2 — Fix interrupt bookkeeping to use held locks only (with tests)
+- [x] Task 1 — Fix LiteralSelector out-of-sync hang (with tests)
+- [x] Task 2 — Fix interrupt bookkeeping to use held locks only (with tests)
 
 ## Log
 (append entries)
@@ -40,3 +40,21 @@ Fix goal:
 - Files changed:
 - Tests added/updated:
 - Notes:
+
+### Log entry
+- Date: 2025-09-27
+- Task: Task 1 — Fix LiteralSelector out-of-sync hang (with tests)
+- Status: DONE
+- Summary: Updated LiteralSelector pool handling to bypass filter store only when present/unlocked and to match by identifier, with immediate get handling to preserve ordering; added regression tests for store desync and presence waiting.
+- Files changed: libsyn_tools/sim/operation/selector.py; tests_sim/unit/test_selector.py
+- Tests added/updated: tests_sim/unit/test_selector.py (new LiteralSelector regression tests)
+- Notes: Verified selector ordering by avoiding yield on already-triggered store.get events.
+
+### Log entry
+- Date: 2025-09-27
+- Task: Task 2 — Fix interrupt bookkeeping to use held locks only (with tests)
+- Status: DONE
+- Summary: Avoided interrupt cleanup before interrupt bookkeeping, and limited bookkeeping edits to objects whose locks are still held.
+- Files changed: libsyn_tools/sim/simulation.py; tests_sim/sim/test_interrupt_bookkeeping.py
+- Tests added/updated: tests_sim/sim/test_interrupt_bookkeeping.py (new interrupt bookkeeping regression tests)
+- Notes: Interrupt bookkeeping now uses held locks derived from operation requests and skips apply when none are held.

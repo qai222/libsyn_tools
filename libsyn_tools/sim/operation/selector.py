@@ -213,14 +213,14 @@ class LiteralSelector(Selector):
             obj = KnowledgeGraph.get_object_from_lookup(iri=identifier_from_iri(self._iri))
         if obj is None:
             raise ValueError(f"LiteralSelector could not resolve IRI {self._iri!r}")
-        if getattr(obj, "is_present", {False}) != {True}:
-            raise ValueError(f"LiteralSelector cannot select non-present IRI {self._iri!r}")
         obj: LabObject
 
         store: simpy.FilterStore | None = None
         get_ev: simpy.events.Event | None = None
         removed_from_store = False
         req: simpy.events.Event | None = None
+        store_obj: LabObject | None = None
+        rs = None
 
         try:
             pool_type = None
@@ -228,15 +228,65 @@ class LiteralSelector(Selector):
                 pool_type = require_singleton_or_error(
                     obj.has_pool_type, "has_pool_type", obj.identifier, context="literal selector"
                 )
-            if pool_type is not None and obj.is_present == {True}:
-                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+            if pool_type is None:
+                if getattr(obj, "is_present", {False}) != {True}:
+                    raise ValueError(f"LiteralSelector cannot select non-present IRI {self._iri!r}")
+                obj_for_lock = obj
+            else:
                 store = FilterStoreRegistry.get_filter_store(pool_type, env)
-                get_ev = store.get(filter=lambda candidate: candidate is obj)
-                yield get_ev
-                get_ev = None
-                removed_from_store = True
+                identifier = obj.identifier
+                in_store = any(
+                    getattr(candidate, "identifier", None) == identifier
+                    for candidate in store.items
+                )
+                if in_store:
+                    get_ev = store.get(
+                        filter=lambda candidate: getattr(candidate, "identifier", None) == identifier
+                    )
+                    if getattr(get_ev, "triggered", False):
+                        store_obj = get_ev.value
+                    else:
+                        store_obj = yield get_ev
+                    get_ev = None
+                    removed_from_store = True
+                    obj_for_lock = store_obj
+                else:
+                    if obj.is_present == {True}:
+                        rs = get_runtime_state(obj, env)
+                        lock_busy = rs.lock.count > 0 or bool(rs.lock.queue)
+                        if not lock_busy:
+                            obj_for_lock = obj
+                            if store.items:
+                                store.items[:] = [
+                                    item
+                                    for item in store.items
+                                    if getattr(item, "identifier", None) != identifier
+                                ]
+                        else:
+                            get_ev = store.get(
+                                filter=lambda candidate: getattr(candidate, "identifier", None) == identifier
+                            )
+                            if getattr(get_ev, "triggered", False):
+                                store_obj = get_ev.value
+                            else:
+                                store_obj = yield get_ev
+                            get_ev = None
+                            removed_from_store = True
+                            obj_for_lock = store_obj
+                    else:
+                        get_ev = store.get(
+                            filter=lambda candidate: getattr(candidate, "identifier", None) == identifier
+                        )
+                        if getattr(get_ev, "triggered", False):
+                            store_obj = get_ev.value
+                        else:
+                            store_obj = yield get_ev
+                        get_ev = None
+                        removed_from_store = True
+                        obj_for_lock = store_obj
 
-            rs = get_runtime_state(obj, env)
+            if rs is None:
+                rs = get_runtime_state(obj_for_lock, env)
             req = rs.lock.request()
             yield req
             return obj.identifier, req
@@ -267,7 +317,7 @@ class LiteralSelector(Selector):
                             pass
 
             if removed_from_store:
-                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+                FilterStoreRegistry.put_obj_into_filter_store(store_obj or obj, env)
             return
         except Exception:
             try:
@@ -290,7 +340,7 @@ class LiteralSelector(Selector):
                         except ValueError:
                             pass
             if removed_from_store:
-                FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+                FilterStoreRegistry.put_obj_into_filter_store(store_obj or obj, env)
             raise
 
     def __str__(self) -> str:

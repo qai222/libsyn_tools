@@ -226,6 +226,63 @@ def test_literal_selector_heals_missing_store_entry(env: simpy.Environment) -> N
     assert obj in store.items
 
 
+def test_literal_selector_no_hang_when_present_but_missing_from_store(env: simpy.Environment) -> None:
+    pool = "POOL_LITERAL_MISSING_STORE"
+    obj = _make_pool_obj(pool)
+    KnowledgeGraph.get_object_from_lookup(obj.identifier)
+    Create(instance_1_iri=obj.identifier).apply()
+    eng = EffectEngine()
+    eng._register_if_new(obj, env)
+
+    store = FilterStoreRegistry.get_filter_store(pool, env)
+    store.items.remove(obj)
+    ghost = LabObject(identifier=obj.identifier)
+    ghost.has_pool_type.add(pool)
+    ghost.is_present = {True}
+    store.items.append(ghost)
+
+    sel = LiteralSelector(obj.identifier)
+    proc = env.process(sel.resolve(env))
+    env.run(until=0.5)
+
+    assert proc.triggered
+    iri, req = proc.value
+    assert iri == obj.identifier
+    rs = get_runtime_state(obj, env)
+    rs.lock.release(req)
+    FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+    assert any(item.identifier == obj.identifier for item in store.items)
+
+
+def test_literal_selector_waits_until_object_becomes_present_then_succeeds(env: simpy.Environment) -> None:
+    pool = "POOL_LITERAL_WAIT_PRESENT"
+    obj = _make_pool_obj(pool)
+    KnowledgeGraph.get_object_from_lookup(obj.identifier)
+    Create(instance_1_iri=obj.identifier).apply()
+    obj.is_present = {False}
+    eng = EffectEngine()
+    eng._register_if_new(obj, env)
+
+    def _make_present() -> Generator[simpy.events.Event, None, None]:
+        yield env.timeout(0.2)
+        obj.is_present = {True}
+        FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+
+    sel = LiteralSelector(obj.identifier)
+    proc = env.process(sel.resolve(env))
+    env.process(_make_present())
+    env.run(until=1)
+
+    assert proc.triggered
+    iri, req = proc.value
+    assert iri == obj.identifier
+    rs = get_runtime_state(obj, env)
+    rs.lock.release(req)
+    FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+    store = FilterStoreRegistry.get_filter_store(pool, env)
+    assert any(item.identifier == obj.identifier for item in store.items)
+
+
 def test_history_selector_accepts_env_predicate(env: simpy.Environment) -> None:
     pool = "POOL_HISTORY_ENV"
     obj = _make_pool_obj(pool)
