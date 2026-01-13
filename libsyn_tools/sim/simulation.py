@@ -546,6 +546,33 @@ class Simulation:
                             "Simulation.run(until=None) requires an explicit until when a periodic spawner is attached"
                         )
             self.env.run(until=until)
+
+            # If `until` is not specified, callers generally expect the simulation
+            # to run until all operations have terminated. SimPy will happily
+            # return when the event queue becomes empty even if there are still
+            # processes blocked on resource events (e.g., deadlocks or waiting on
+            # never-produced pool items). Treat that as an error to avoid silent
+            # partial runs.
+            if until is None:
+                unfinished: list[str] = [
+                    op_id
+                    for op_id, proc in self.operation_registry.items()
+                    if not proc.done_event.triggered
+                ]
+                if unfinished:
+                    details: list[str] = []
+                    for op_id in unfinished:
+                        proc = self.operation_registry[op_id]
+                        op = proc.operation
+                        details.append(
+                            f"{op_id}(state={op.sim_state.value}, locks={len(getattr(op, 'locks', []))})"
+                        )
+                    raise RuntimeError(
+                        "Simulation ended with unfinished operations (possible deadlock / no scheduled events). "
+                        "If you intended a partial run, pass until=... . "
+                        f"Unfinished: {', '.join(details)}"
+                    )
+
             logger.info(f"Simulation end @ t = {self.env.now}")
         finally:
             if _bar_on_end in self.callbacks.on_operation_end:

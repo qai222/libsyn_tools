@@ -212,7 +212,15 @@ class Selector(ABC):
                                 pass
             finally:
                 if obj is not None:
-                    FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+                    # Reinsertion must never raise here — this selector process
+                    # can become orphaned if its parent pre_act() is interrupted.
+                    # Any exception would surface as an unhandled event failure
+                    # and crash the SimPy environment.
+                    FilterStoreRegistry.safe_put_obj_into_filter_store(
+                        obj,
+                        env,
+                        context=f"selector.cleanup:{self.__class__.__name__}",
+                    )
 
         try:
             while True:
@@ -237,7 +245,11 @@ class Selector(ABC):
                     if not predicate_ok:
                         rs.lock.release(req)
                         req = None
-                        FilterStoreRegistry.put_obj_into_filter_store(obj, env)
+                        FilterStoreRegistry.safe_put_obj_into_filter_store(
+                            obj,
+                            env,
+                            context=f"selector.retry:{self.__class__.__name__}",
+                        )
                         obj = None
 
                 if predicate_ok:
@@ -368,7 +380,11 @@ class LiteralSelector(Selector):
                             pass
 
             if removed_from_store:
-                FilterStoreRegistry.put_obj_into_filter_store(store_obj or obj, env)
+                FilterStoreRegistry.safe_put_obj_into_filter_store(
+                    store_obj or obj,
+                    env,
+                    context="literal_selector.interrupt_cleanup",
+                )
             return
         except Exception:
             try:
@@ -391,7 +407,11 @@ class LiteralSelector(Selector):
                         except ValueError:
                             pass
             if removed_from_store:
-                FilterStoreRegistry.put_obj_into_filter_store(store_obj or obj, env)
+                FilterStoreRegistry.safe_put_obj_into_filter_store(
+                    store_obj or obj,
+                    env,
+                    context="literal_selector.exception_cleanup",
+                )
             raise
 
     def __str__(self) -> str:

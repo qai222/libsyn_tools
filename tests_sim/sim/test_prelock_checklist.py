@@ -25,6 +25,23 @@ class _SelectorRaisesOp(Operation):
         return []
 
 
+def test_run_without_until_raises_on_unfinished_operations() -> None:
+    """Pre-lock invariant: Simulation.run(until=None) must not silently return
+    while operations are still blocked (e.g., waiting on an empty pool store).
+
+    SimPy will stop when the event queue is empty even if processes are waiting
+    on resource events. The simulator should treat this as an error (likely
+    deadlock or missing inputs) rather than a successful completion.
+    """
+
+    selector = AttributeSelector(pool_type="POOL_NEVER_PRODUCED", predicate=lambda _o: True)
+    op = _SelectorRaisesOp(identifier="BLOCKS", participant_target=selector, temporal_cost=0.0)
+    sim = Simulation([op])
+
+    with pytest.raises(RuntimeError, match="unfinished operations"):
+        sim.run()
+
+
 def test_periodic_spawner_requires_until() -> None:
     sim = Simulation([])
 
