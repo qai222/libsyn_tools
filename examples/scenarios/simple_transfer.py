@@ -1,13 +1,19 @@
-import os
+from pathlib import Path
 
 from twa.data_model.base_ontology import KnowledgeGraph
 
-from libsyn_tools.sim import LabObject, Chemical, PortionOfMaterial, logger, Create, Simulation, MaterialContainer
+from libsyn_tools.sim import (
+    Chemical,
+    Create,
+    LabObject,
+    MaterialContainer,
+    PortionOfMaterial,
+    Simulation,
+    logger,
+)
 from libsyn_tools.sim.operation_preset import TransferMaterialByPortionSize
 
-"""
-a simple transfer action between two containers
-"""
+HERE = Path(__file__).resolve().parent
 
 
 def init_world():
@@ -30,7 +36,7 @@ def init_world():
     return beaker_1, beaker_2, pipette_1
 
 
-if __name__ == '__main__':
+def run(out_dir: str | Path | None = None) -> Simulation:
     beaker_1, beaker_2, pipette_1 = init_world()
     transfer = TransferMaterialByPortionSize(
         participant_source=beaker_1.instance_iri,
@@ -40,6 +46,12 @@ if __name__ == '__main__':
     )
     sim = Simulation(operations=[transfer])
     sim.run()
-    sim.export_instance_history(f"{os.path.basename(__file__)[:-3]}_instance_history.csv")
-    g = KnowledgeGraph.graph()
-    g.serialize(destination=f"{os.path.basename(__file__)[:-3]}.ttl", format="turtle")
+    output_dir = Path(out_dir) if out_dir else HERE / "_generated" / "simple_transfer"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    sim.export_instance_history(output_dir / "instance_history.csv")
+    KnowledgeGraph.graph().serialize(destination=output_dir / "state.ttl", format="turtle")
+    return sim
+
+
+if __name__ == "__main__":
+    run()

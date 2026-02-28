@@ -96,6 +96,33 @@ def _require_finite_non_negative(value: float, *, label: str, op_id: str) -> flo
     return value
 
 
+def _require_consistent_schedule_keys(schedule: SchedulerOutput) -> None:
+    keysets = {
+        "start_times": set(schedule.start_times.keys()),
+        "end_times": set(schedule.end_times.keys()),
+        "assignments": set(schedule.assignments.keys()),
+    }
+    all_ids = set().union(*keysets.values())
+    common_ids = set(all_ids)
+    for ids in keysets.values():
+        common_ids &= ids
+
+    inconsistencies: list[str] = []
+    for name, ids in keysets.items():
+        missing = sorted(all_ids - ids)
+        extra = sorted(ids - common_ids)
+        if missing or extra:
+            inconsistencies.append(
+                f"{name} missing={missing or []}, extra={extra or []}"
+            )
+
+    if inconsistencies:
+        raise ValueError(
+            "Schedule maps must reference identical operation IDs. "
+            + "; ".join(inconsistencies)
+        )
+
+
 def compile_schedule_to_simulation(
     planned_ops: list[PlannedOperation] | OperationNetwork,
     schedule: SchedulerOutput,
@@ -109,6 +136,7 @@ def compile_schedule_to_simulation(
 ) -> Simulation:
     planned_list = _iter_planned_operations(planned_ops)
     planned_lookup = {op.identifier: op for op in planned_list}
+    _require_consistent_schedule_keys(schedule)
 
     module_ids = {_normalize_module_id(module_id) for module_id in schedule.assignments.values()}
     if functional_modules is not None:

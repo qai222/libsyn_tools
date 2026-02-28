@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from loguru import logger
@@ -13,8 +12,7 @@ from libsyn_tools.sim import (
     KnowledgeGraph
 )
 from libsyn_tools.sim.operation_preset.transfer import TransferMaterialByPortionSize
-from libsyn_tools.sim.overlay import CurrentVolumeOverlayProvider, SPPTOverlayProvider
-HERE = Path(__file__).parent
+HERE = Path(__file__).resolve().parent
 
 
 def init_world():
@@ -45,7 +43,7 @@ def init_world():
     return v1, v2, pipette_1, reservoir
 
 
-def main():
+def run(out_dir: str | Path | None = None) -> Simulation:
     v1, v2, pipette_1, reservoir = init_world()
     op1 = TransferMaterialByPortionSize(
         identifier="op1",
@@ -71,22 +69,18 @@ def main():
         simulation_speed_factor=1.0,
         shacl_shapes=HERE / "constraints.ttl",
     )
-    sppt = SPPTOverlayProvider(sim.callbacks)  # optional for processes/intervals
-    sim.effect_engine.register_overlay_provider(sppt.snapshot)
-
-    cv = CurrentVolumeOverlayProvider()  # REQUIRED for lib:currentVolume
-    sim.effect_engine.register_overlay_provider(cv.snapshot)
-
     sim.run()
 
-    overlay = sim.effect_engine._build_overlay_graph()  # noqa: SLF001
-    outfile = HERE / "overlay.ttl"
-    overlay.serialize(outfile, format="turtle")
-    logger.info(f"Overlay graph exported → {outfile}")
-    sim.effect_engine.write_shacl_csv("shacl_violation.csv")
-    g = KnowledgeGraph.graph()
-    g.serialize(destination=f"{os.path.basename(__file__)[:-3]}.ttl", format="turtle")
+    output_dir = Path(out_dir) if out_dir else HERE / "_generated" / "simple_shacl"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    overlay = sim.effect_engine.build_query_graph()
+    overlay_path = output_dir / "overlay.ttl"
+    overlay.serialize(overlay_path, format="turtle")
+    logger.info(f"Overlay graph exported -> {overlay_path}")
+    sim.effect_engine.write_shacl_csv(output_dir / "shacl_violation.csv")
+    KnowledgeGraph.graph().serialize(destination=output_dir / "state.ttl", format="turtle")
+    return sim
 
 
 if __name__ == "__main__":
-    main()
+    run()

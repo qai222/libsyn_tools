@@ -116,26 +116,57 @@ class UnitaryEdit(BaseModel):
         super().__init_subclass__(**kwargs)
 
 
+def _require_object(iri: str, *, role: str, edit: UnitaryEdit) -> Any:
+    obj = KnowledgeGraph.get_object_from_lookup(iri)
+    if obj is None:
+        raise RuntimeError(
+            f"{edit.type.value}: unknown {role} object {iri!r}"
+        )
+    return obj
+
+
+def _require_data_property(edit: UnitaryEdit) -> Any:
+    if not edit.property_iri:
+        raise RuntimeError(f"{edit.type.value}: property_iri is required")
+    prop = SimOntology.data_property_lookup.get(edit.property_iri)
+    if prop is None:
+        raise RuntimeError(
+            f"{edit.type.value}: unknown data property {edit.property_iri!r}"
+        )
+    return prop
+
+
+def _require_object_property(edit: UnitaryEdit) -> Any:
+    if not edit.property_iri:
+        raise RuntimeError(f"{edit.type.value}: property_iri is required")
+    prop = SimOntology.object_property_lookup.get(edit.property_iri)
+    if prop is None:
+        raise RuntimeError(
+            f"{edit.type.value}: unknown object property {edit.property_iri!r}"
+        )
+    return prop
+
+
 class Create(UnitaryEdit):
     type: Literal[UnitaryEditType.CREATE] = UnitaryEditType.CREATE
 
     def apply(self):
-        KnowledgeGraph.get_object_from_lookup(self.instance_1_iri).is_present = {True}
+        _require_object(self.instance_1_iri, role="subject", edit=self).is_present = {True}
 
 
 class Annihilate(UnitaryEdit):
     type: Literal[UnitaryEditType.ANNIHILATE] = UnitaryEditType.ANNIHILATE
 
     def apply(self):
-        KnowledgeGraph.get_object_from_lookup(self.instance_1_iri).is_present = {False}
+        _require_object(self.instance_1_iri, role="subject", edit=self).is_present = {False}
 
 
 class AddDataProperty(UnitaryEdit):
     type: Literal[UnitaryEditType.ADD_DATA_PROPERTY] = UnitaryEditType.ADD_DATA_PROPERTY
 
     def apply(self):
-        subj = KnowledgeGraph.get_object_from_lookup(self.instance_1_iri)
-        data_prop = SimOntology.data_property_lookup[self.property_iri]
+        subj = _require_object(self.instance_1_iri, role="subject", edit=self)
+        data_prop = _require_data_property(self)
         field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
         existing_values = getattr(subj, field_name)
         existing_values.add(self.data_value)
@@ -145,8 +176,8 @@ class RemoveDataProperty(UnitaryEdit):
     type: Literal[UnitaryEditType.REMOVE_DATA_PROPERTY] = UnitaryEditType.REMOVE_DATA_PROPERTY
 
     def apply(self):
-        subj = KnowledgeGraph.get_object_from_lookup(self.instance_1_iri)
-        data_prop = SimOntology.data_property_lookup[self.property_iri]
+        subj = _require_object(self.instance_1_iri, role="subject", edit=self)
+        data_prop = _require_data_property(self)
         field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
         existing_values = getattr(subj, field_name)
         if self.data_value in existing_values:
@@ -157,8 +188,8 @@ class ChangeDataProperty(UnitaryEdit):
     type: Literal[UnitaryEditType.CHANGE_DATA_PROPERTY] = UnitaryEditType.CHANGE_DATA_PROPERTY
 
     def apply(self):
-        subj = KnowledgeGraph.get_object_from_lookup(self.instance_1_iri)
-        data_prop = SimOntology.data_property_lookup[self.property_iri]
+        subj = _require_object(self.instance_1_iri, role="subject", edit=self)
+        data_prop = _require_data_property(self)
         field_name = data_prop.__name__[0].lower() + data_prop.__name__[1:]
         setattr(subj, field_name, {self.data_value})
 
@@ -169,9 +200,11 @@ class AddObjectProperty(UnitaryEdit):
     )
 
     def apply(self):
-        subj = KnowledgeGraph.get_object_from_lookup(self.instance_1_iri)
-        obj = KnowledgeGraph.get_object_from_lookup(self.instance_2_iri)
-        obj_prop = SimOntology.object_property_lookup[self.property_iri]
+        if not self.instance_2_iri:
+            raise RuntimeError(f"{self.type.value}: instance_2_iri is required")
+        subj = _require_object(self.instance_1_iri, role="subject", edit=self)
+        obj = _require_object(self.instance_2_iri, role="object", edit=self)
+        obj_prop = _require_object_property(self)
         field_name = obj_prop.__name__[0].lower() + obj_prop.__name__[1:]
         getattr(subj, field_name).add(obj)
 
@@ -182,9 +215,11 @@ class RemoveObjectProperty(UnitaryEdit):
     )
 
     def apply(self):
-        subj = KnowledgeGraph.get_object_from_lookup(self.instance_1_iri)
-        obj = KnowledgeGraph.get_object_from_lookup(self.instance_2_iri)
-        obj_prop = SimOntology.object_property_lookup[self.property_iri]
+        if not self.instance_2_iri:
+            raise RuntimeError(f"{self.type.value}: instance_2_iri is required")
+        subj = _require_object(self.instance_1_iri, role="subject", edit=self)
+        obj = _require_object(self.instance_2_iri, role="object", edit=self)
+        obj_prop = _require_object_property(self)
         field_name = obj_prop.__name__[0].lower() + obj_prop.__name__[1:]
         existing_values = getattr(subj, field_name)
         if obj in existing_values:

@@ -6,7 +6,7 @@ import math
 from typing import Any, Optional, Union
 
 import simpy
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from simpy.resources.resource import Request
 
 from libsyn_tools.sim.operation.runtime import get_object_for_resource
@@ -460,10 +460,11 @@ class Operation(ABC, BaseModel):
             raise ValueError("scheduled_start_time must be finite and >= 0")
         return value
 
-    class Config:
-        arbitrary_types_allowed = True
-        validate_assignment = False
-        extra = "forbid"
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        validate_assignment=False,
+        extra="forbid",
+    )
 
 
 Operation.model_rebuild()

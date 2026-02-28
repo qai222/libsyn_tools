@@ -186,6 +186,30 @@ def test_schedule_bridge_normalizes_module_ids_for_ops():
     assert sim.operations[0].participant_module == module.identifier
 
 
+def test_schedule_bridge_rejects_extra_end_time_keys() -> None:
+    planned = Operation(identifier="op_only_start", type=OperationType.TransferLiquid)
+    schedule = SchedulerOutput(
+        start_times={"op_only_start": 0.0},
+        end_times={"op_only_start": 1.0, "op_extra": 1.0},
+        assignments={"op_only_start": "module_start", "op_extra": "module_extra"},
+    )
+
+    with pytest.raises(ValueError, match="identical operation IDs"):
+        compile_schedule_to_simulation([planned], schedule)
+
+
+def test_schedule_bridge_rejects_extra_start_time_keys() -> None:
+    planned = Operation(identifier="op_only", type=OperationType.TransferLiquid)
+    schedule = SchedulerOutput(
+        start_times={"op_only": 0.0, "op_extra_start": 0.0},
+        end_times={"op_only": 1.0},
+        assignments={"op_only": "module_only"},
+    )
+
+    with pytest.raises(ValueError, match="identical operation IDs"):
+        compile_schedule_to_simulation([planned], schedule)
+
+
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf"), -1.0])
 def test_schedule_bridge_rejects_invalid_start_time(value: float) -> None:
     planned = Operation(identifier="op_bad_start", type=OperationType.TransferLiquid)

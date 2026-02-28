@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List
 
 from loguru import logger
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim import MaterialContainer
@@ -139,8 +139,7 @@ class TransferMaterialByPortionSize(Operation):
         )
 
     # just to make IDE happy
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class TransferMaterialByVolume(Operation):
@@ -192,5 +191,4 @@ class TransferMaterialByVolume(Operation):
             self.participant_source, self.participant_destination, self.participant_device, portion_size
         )
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)

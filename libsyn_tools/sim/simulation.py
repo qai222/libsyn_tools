@@ -30,7 +30,7 @@ from .knowledge_graph import (
 )
 from .lifecycle import LifecycleCallbacks
 from .operation.operation import Operation, _OpState
-from .operation.selector import SelectorCancelled
+from .operation.selector import KgQuerySelector, SelectorCancelled
 from .operation.runtime import (
     _needs_runtime_tracking,
     get_object_for_resource,
@@ -384,6 +384,7 @@ class Simulation:
         self.operation_registry: Dict[str, OperationProcess] = {}
         self.dependents: Dict[str, List[str]] = defaultdict(list)
         self._spawners: list[object] = []
+        self._run_until_none_active: bool = False
 
         self._validate_precedents(self.operations)
         self._build_dependency_map()
@@ -519,6 +520,100 @@ class Simulation:
                 attached.append(spawner)
         return attached
 
+    @staticmethod
+    def _iter_operation_selectors(op: Operation):
+        for field_name in op.model_fields:
+            if not field_name.startswith("participant_"):
+                continue
+            selector_or_iri = getattr(op, field_name, None)
+            if selector_or_iri is None:
+                continue
+            role = field_name[len("participant_") :]
+            yield role, selector_or_iri
+
+    def _assert_no_unbounded_wait_selectors(
+            self,
+            operations: list[Operation],
+            *,
+            context: str,
+    ) -> None:
+        offenders: list[str] = []
+        for op in operations:
+            for role, selector_or_iri in self._iter_operation_selectors(op):
+                if isinstance(selector_or_iri, KgQuerySelector) and selector_or_iri.empty_result_policy == "wait":
+                    offenders.append(f"{op.identifier}.{role}")
+        if offenders:
+            raise ValueError(
+                "Simulation.run(until=None) does not allow KgQuerySelector(empty_result_policy='wait') "
+                f"because it can wait indefinitely ({context}). "
+                "Use until=..., switch to empty_result_policy='fail_fast', or bound waiting externally. "
+                f"Offenders: {', '.join(sorted(offenders))}"
+            )
+
+    def _precedents_for_graph_node(
+            self,
+            node_id: str,
+            *,
+            pending_op: Operation | None = None,
+    ) -> list[str]:
+        if pending_op is not None and node_id == pending_op.identifier:
+            return self._normalize_precedent_ids(list(pending_op.required_precedents))
+        proc = self.operation_registry.get(node_id)
+        if proc is None:
+            return []
+        return self._normalize_precedent_ids(list(proc.operation.required_precedents))
+
+    def _find_precedent_path(
+            self,
+            start_id: str,
+            target_id: str,
+            *,
+            pending_op: Operation | None = None,
+    ) -> list[str] | None:
+        if start_id == target_id:
+            return [target_id]
+        stack: list[str] = [start_id]
+        parent: dict[str, str | None] = {start_id: None}
+        while stack:
+            current = stack.pop()
+            for neighbor in self._precedents_for_graph_node(current, pending_op=pending_op):
+                if neighbor in parent:
+                    continue
+                if neighbor not in self.operation_registry and not (
+                        pending_op is not None and neighbor == pending_op.identifier
+                ):
+                    continue
+                parent[neighbor] = current
+                if neighbor == target_id:
+                    path: list[str] = []
+                    cursor: str | None = target_id
+                    while cursor is not None:
+                        path.append(cursor)
+                        cursor = parent[cursor]
+                    path.reverse()
+                    return path
+                stack.append(neighbor)
+        return None
+
+    def _validate_spawn_precedents_incremental(self, op: Operation) -> None:
+        available_ids = set(self.operation_registry.keys()) | {op.identifier}
+        for pred in op.required_precedents:
+            if pred == op.identifier:
+                raise ValueError(
+                    f"Precedent cycle detected: {op.identifier} -> {op.identifier}"
+                )
+            if pred not in available_ids:
+                raise ValueError(
+                    f"Operation {op.identifier!r} requires precedent {pred!r} "
+                    "which is not registered."
+                )
+        for pred in op.required_precedents:
+            path = self._find_precedent_path(pred, op.identifier, pending_op=op)
+            if path is None:
+                continue
+            cycle = [op.identifier, *path]
+            raise ValueError(f"Precedent cycle detected: {' -> '.join(cycle)}")
+
     def run(self, until: float | None = None) -> None:
         """Start all processes and block until done or until time limit."""
         for proc in self.operation_registry.values():
@@ -545,6 +640,15 @@ class Simulation:
                         raise ValueError(
                             "Simulation.run(until=None) requires an explicit until when a periodic spawner is attached"
                         )
+                pending_ops = [
+                    proc.operation for proc in self.operation_registry.values()
+                    if not proc.done_event.triggered
+                ]
+                self._assert_no_unbounded_wait_selectors(
+                    pending_ops,
+                    context="pre-run check",
+                )
+                self._run_until_none_active = True
             self.env.run(until=until)
 
             # If `until` is not specified, callers generally expect the simulation
@@ -575,6 +679,7 @@ class Simulation:
 
             logger.info(f"Simulation end @ t = {self.env.now}")
         finally:
+            self._run_until_none_active = False
             if _bar_on_end in self.callbacks.on_operation_end:
                 self.callbacks.on_operation_end.remove(_bar_on_end)
             if bar is not None:
@@ -659,9 +764,12 @@ class Simulation:
         if precedents:
             merged_precedents.extend(precedents)
         op.required_precedents = self._normalize_precedent_ids(merged_precedents)
-
-        existing_ops = [proc.operation for proc in self.operation_registry.values()]
-        self._validate_precedents(existing_ops + [op])
+        self._validate_spawn_precedents_incremental(op)
+        if self._run_until_none_active:
+            self._assert_no_unbounded_wait_selectors(
+                [op],
+                context="spawn during run(until=None)",
+            )
         for pred in op.required_precedents:
             proc = self.operation_registry.get(pred)
             if proc is None:

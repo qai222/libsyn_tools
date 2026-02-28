@@ -1,4 +1,4 @@
-import random
+from pathlib import Path
 
 from loguru import logger
 
@@ -15,6 +15,7 @@ transfer_1 -- transfer_2 -- transfer 3
 transfer_4 -- transfer_5 -- transfer 6
 transfer_7 -- |
 """
+HERE = Path(__file__).resolve().parent
 
 
 def init_world():
@@ -58,37 +59,38 @@ def get_transfer(index, precedents, source, target, pipette, portion_size, time_
     )
 
 
-def example_simulation():
+def build_transfers(beaker_1, beaker_2, beaker_3, beaker_4, pipette_1, pipette_2):
+    transfers = {
+        1: get_transfer(1, [], beaker_1, beaker_2, pipette_1, 0.35, 3.0),
+        2: get_transfer(2, ["transfer_1"], beaker_2, beaker_3, pipette_1, 0.30, 4.0),
+        3: get_transfer(3, ["transfer_2"], beaker_3, beaker_4, pipette_1, 0.25, 2.0),
+        4: get_transfer(4, ["transfer_1"], beaker_1, beaker_3, pipette_2, 0.20, 5.0),
+        7: get_transfer(7, ["transfer_1"], beaker_2, beaker_4, pipette_2, 0.15, 4.0),
+        5: get_transfer(5, ["transfer_4", "transfer_7"], beaker_3, beaker_4, pipette_2, 0.10, 3.0),
+        6: get_transfer(6, ["transfer_5"], beaker_4, beaker_1, pipette_1, 0.10, 2.0),
+    }
+    return [transfers[i] for i in [1, 2, 3, 4, 7, 5, 6]]
+
+
+def run(out_dir: str | Path | None = None) -> Simulation:
     # 1) Initialize the KnowledgeGraph world
     beaker_1, beaker_2, beaker_3, beaker_4, pipette_1, pipette_2 = init_world()
-    beakers = [beaker_1, beaker_2, beaker_3, beaker_4]
-    pipettes = [pipette_1, pipette_2]
-    random.seed(42)
-    transfers = dict()
-    for i in range(1, 8):
-        source, target = random.sample(beakers, 2)
-        portion_size = random.random()
-        time_cost = random.uniform(1, 15)
-        t = get_transfer(
-            i, [],
-            source, target,
-            random.choice(pipettes), portion_size, time_cost)
-        transfers[i] = t
-
-    transfers[2].required_precedents = [transfers[1].identifier]
-    transfers[3].required_precedents = [transfers[2].identifier]
-    transfers[5].required_precedents = [transfers[4].identifier, transfers[7].identifier]
-    transfers[6].required_precedents = [transfers[5].identifier]
-
-    sim = Simulation(operations=list(transfers.values()))
+    sim = Simulation(
+        operations=build_transfers(
+            beaker_1, beaker_2, beaker_3, beaker_4, pipette_1, pipette_2
+        )
+    )
 
     sim.run()
 
-    out_file = __file__.replace(".py", ".ttl")
-    KnowledgeGraph.graph().serialize(destination=out_file, format="turtle")
-    logger.info(f"Exported updated knowledge graph to {out_file}")
-    sim.export_event_log(__file__.replace(".py", ".csv"))
+    output_dir = Path(out_dir) if out_dir else HERE / "_generated" / "dag_transfer"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    state_file = output_dir / "state.ttl"
+    KnowledgeGraph.graph().serialize(destination=state_file, format="turtle")
+    logger.info(f"Exported updated knowledge graph to {state_file}")
+    sim.export_event_log(output_dir / "event_log.csv")
+    return sim
 
 
 if __name__ == "__main__":
-    example_simulation()
+    run()

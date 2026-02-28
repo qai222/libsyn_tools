@@ -169,7 +169,7 @@ def test_policy_enforcer_throttle_limits_repeats():
     spawner = PolicyEnforcerSpawner(
         shape_dispatch={shape_iri: _factory},
         dedupe=False,
-        max_remediations_per_focus=2,
+        max_spawned_remediations_per_focus=2,
     )
     spawner.attach(sim)
 
@@ -234,7 +234,7 @@ def test_policy_enforcer_factory_exception_is_capped():
     spawner = PolicyEnforcerSpawner(
         shape_dispatch={shape_iri: _factory},
         dedupe=False,
-        max_remediations_per_focus=2,
+        max_failed_remediations_per_focus=2,
     )
     spawner.attach(sim)
 

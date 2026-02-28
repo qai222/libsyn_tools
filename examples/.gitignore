@@ -1,0 +1,14 @@
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# Generated outputs from maintained examples
+**/_generated/
+
+# Historical output dumps
+sim/_out_*/
+
+# Legacy experiment outputs
+sim/flavor_blends/throughput_estimate.csv
+sim/flavor_blends/throughput_estimate.png
+sim/flavor_blends/sim_outputs/

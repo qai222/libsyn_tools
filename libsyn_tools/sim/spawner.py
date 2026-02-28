@@ -341,12 +341,13 @@ class PolicyEnforcerSpawner(Spawner):
     origins: Tuple[str, ...] = ("SHACL",)
     dispositions: Tuple[str, ...] = ("committed", "aborted")
     dedupe: bool = True
-    max_remediations_per_focus: int = 1
+    max_spawned_remediations_per_focus: int = 1
+    max_failed_remediations_per_focus: int = 1
     warn_on_unknown_shape: bool = True
     error_on_unknown_shape: bool = False
     _seen_violation_ids: Set[str] = PrivateAttr(default_factory=set)
     _seen_op_shapes: Set[Tuple[str, Optional[str]]] = PrivateAttr(default_factory=set)
-    _remediation_counts: Dict[Tuple[str, Optional[str]], int] = PrivateAttr(default_factory=dict)
+    _spawned_counts: Dict[Tuple[str, Optional[str]], int] = PrivateAttr(default_factory=dict)
     _failure_counts: Dict[Tuple[str, Optional[str]], int] = PrivateAttr(default_factory=dict)
     _warned_unknown_shapes: Set[str] = PrivateAttr(default_factory=set)
 
@@ -360,9 +361,13 @@ class PolicyEnforcerSpawner(Spawner):
         if record.focus_iri is None:
             return True
         op_shape = (record.shape_iri, record.focus_iri)
-        if self.max_remediations_per_focus >= 0:
-            count = self._remediation_counts.get(op_shape, 0)
-            if count >= self.max_remediations_per_focus:
+        if self.max_spawned_remediations_per_focus >= 0:
+            count = self._spawned_counts.get(op_shape, 0)
+            if count >= self.max_spawned_remediations_per_focus:
+                return True
+        if self.max_failed_remediations_per_focus >= 0:
+            count = self._failure_counts.get(op_shape, 0)
+            if count >= self.max_failed_remediations_per_focus:
                 return True
         if not self.dedupe:
             return False
@@ -372,25 +377,22 @@ class PolicyEnforcerSpawner(Spawner):
             return True
         return False
 
-    def _record_attempt(self, record: SHACLViolationRecord, *, mark_seen: bool) -> None:
+    def _mark_spawned(self, record: SHACLViolationRecord) -> None:
         if record.shape_iri is None:
             return
         op_shape = (record.shape_iri, record.focus_iri)
-        self._remediation_counts[op_shape] = self._remediation_counts.get(op_shape, 0) + 1
+        self._spawned_counts[op_shape] = self._spawned_counts.get(op_shape, 0) + 1
         if self.dedupe:
             self._seen_violation_ids.add(record.violation_id)
-            if mark_seen:
-                self._seen_op_shapes.add(op_shape)
-
-    def _mark_seen(self, record: SHACLViolationRecord) -> None:
-        self._record_attempt(record, mark_seen=True)
+            self._seen_op_shapes.add(op_shape)
 
     def _mark_failed(self, record: SHACLViolationRecord) -> None:
         if record.shape_iri is None:
             return
         op_shape = (record.shape_iri, record.focus_iri)
         self._failure_counts[op_shape] = self._failure_counts.get(op_shape, 0) + 1
-        self._record_attempt(record, mark_seen=False)
+        if self.dedupe:
+            self._seen_violation_ids.add(record.violation_id)
 
     @staticmethod
     def _is_blank_node_iri(iri: str) -> bool:
@@ -441,11 +443,11 @@ class PolicyEnforcerSpawner(Spawner):
                 if op is None:
                     return
                 op.remediation = True
-                self._mark_seen(record)
                 precedents = None
                 if record.operation_id in sim.operation_registry:
                     precedents = [record.operation_id]
                 sim.spawn_operation(op, precedents=precedents)
+                self._mark_spawned(record)
             except Exception as err:
                 self._mark_failed(record)
                 logger.warning(f"PolicyEnforcerSpawner factory/spawn failed: {err}")

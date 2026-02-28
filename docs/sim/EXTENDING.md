@@ -44,7 +44,7 @@ class TagInterruptEvent(Operation):
   Note: periodic spawners require calling `sim.run(until=...)`.
 
 ### Run a minimal simulation
-See `examples/sim_minimal.py` for a small runnable script using presets and direct `UnitaryEdit` primitives.
+See `examples/quickstart/sim_minimal.py` for a small runnable script using presets and direct `UnitaryEdit` primitives.
 
 ### Tests
 Run the simulator tests with:

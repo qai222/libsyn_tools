@@ -230,6 +230,10 @@ dmypy.json
 # pytype static type analyzer
 .pytype/
 
+# Local example artifacts
+simple_transfer.ttl
+simple_transfer_instance_history.csv
+
 # Cython debug symbols
 cython_debug/
 

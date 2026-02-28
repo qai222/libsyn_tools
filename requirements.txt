@@ -17,8 +17,9 @@ gurobipy==11.0.2
 # sim
 pandas==2.2.3
 simpy==4.1.1
-twa==0.0.9
+twa==0.0.10
 pyshacl
+pyparsing==3.0.9
 # test
 seaborn
 matplotlib

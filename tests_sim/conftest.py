@@ -14,6 +14,7 @@ import pytest
 import simpy
 from loguru import logger
 from rdflib import Graph
+from rdflib.namespace import XSD
 from twa.data_model.base_ontology import KnowledgeGraph
 
 from libsyn_tools.sim import OperationProcess as _OP
@@ -26,6 +27,10 @@ from libsyn_tools.sim.operation.runtime import _RESOURCE_MAP, _RUNTIME_CACHE
 
 # Capture the original add_event_log once (before any spawner patches)
 _ORIG_ADD_EVENT_LOG = _OP.add_event_log
+
+# Avoid pytest fixture-introspection probing (`_pytestfixturefunction`) from
+# triggering rdflib DefinedNamespace unknown-term warnings on XSD.
+XSD._warn = False
 
 
 @pytest.fixture(autouse=True)
